@@ -81,7 +81,7 @@ Do not add wrappers only for comments
 - Use TanStack Query for API
 - Use Mantine for base UI components, forms, layout, and feedback states
 - No business logic
-- Use Mantine v8
+- Use Mantine v9
 - When implementing or reviewing Mantine UI, check:
   https://mantine.dev/llms.txt
 
