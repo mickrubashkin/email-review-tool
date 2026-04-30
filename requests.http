@@ -1,7 +1,11 @@
 @baseUrl = http://localhost:8080
+@emailId = 9a9a6719-189c-4b27-a68b-8fe4ec510238
 
 ### Health
 GET {{baseUrl}}/health
 
 ### List emails
 GET {{baseUrl}}/api/emails
+
+### Get email
+GET {{baseUrl}}/api/emails/{{emailId}}

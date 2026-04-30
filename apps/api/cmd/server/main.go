@@ -13,14 +13,27 @@ import (
 )
 
 type EmailListItem struct {
-	ID        string `json:"id"`
-	Sequence  string `json:"sequence"`
-	Title     string `json:"title"`
-	Subject   string `json:"subject"`
-	Preheader string `json:"preheader"`
-	Stage     string `json:"stage"`
-	SortOrder int    `json:"sort_order"`
-	Language  string `json:"language"`
+	ID        string  `json:"id"`
+	Sequence  string  `json:"sequence"`
+	Title     string  `json:"title"`
+	Subject   *string `json:"subject"`
+	Preheader *string `json:"preheader"`
+	Stage     string  `json:"stage"`
+	SortOrder int     `json:"sort_order"`
+	Language  string  `json:"language"`
+}
+
+type EmailDetail struct {
+	ID           string  `json:"id"`
+	Slug         string  `json:"slug"`
+	Sequence     string  `json:"sequence"`
+	Title        string  `json:"title"`
+	Subject      *string `json:"subject"`
+	Preheader    *string `json:"preheader"`
+	Stage        string  `json:"stage"`
+	SortOrder    int     `json:"sort_order"`
+	Language     string  `json:"language"`
+	OriginalHTML string  `json:"original_html"`
 }
 
 func main() {
@@ -66,7 +79,15 @@ func main() {
 
 	r.Get("/api/emails", func(w http.ResponseWriter, r *http.Request) {
 		rows, err := dbpool.Query(r.Context(), `
-			SELECT id, sequence, title, subject, preheader, stage, sort_order, language
+			SELECT
+				id,
+				sequence,
+				title,
+				subject,
+				preheader,
+				stage,
+				sort_order,
+				language
 			FROM emails
 			ORDER BY sort_order, created_at;
 		`)
@@ -92,6 +113,7 @@ func main() {
 				&email.Language,
 			)
 			if err != nil {
+				fmt.Fprintf(os.Stderr, "failed to scan email row: %v\n", err)
 				http.Error(w, "failed to read emails", http.StatusInternalServerError)
 				return
 			}
@@ -105,6 +127,47 @@ func main() {
 		}
 
 		_ = json.NewEncoder(w).Encode(emails)
+	})
+
+	r.Get("/api/emails/{id}", func(w http.ResponseWriter, r *http.Request) {
+		id := chi.URLParam(r, "id")
+
+		var email EmailDetail
+
+		err := dbpool.QueryRow(r.Context(), `
+			SELECT
+				id,
+				slug,
+				sequence,
+				title,
+				subject,
+				preheader,
+				stage,
+				sort_order,
+				language,
+				original_html
+			FROM emails
+			WHERE id = $1;
+		`, id).Scan(
+			&email.ID,
+			&email.Slug,
+			&email.Sequence,
+			&email.Title,
+			&email.Subject,
+			&email.Preheader,
+			&email.Stage,
+			&email.SortOrder,
+			&email.Language,
+			&email.OriginalHTML,
+		)
+
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "failed to get email %s: %v\n", id, err)
+			http.Error(w, "email not found", http.StatusNotFound)
+			return
+		}
+
+		_ = json.NewEncoder(w).Encode(email)
 	})
 
 	http.ListenAndServe(":8080", r)
