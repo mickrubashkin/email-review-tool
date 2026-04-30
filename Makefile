@@ -1,4 +1,4 @@
-.PHONY: db-up db-down db-logs db-migrate db-migrate-status db-migrate-down api-dev web-dev dev
+.PHONY: db-up db-down db-logs db-migrate db-migrate-status db-migrate-down db-seed api-dev web-dev dev
 
 db-up:
 	docker compose up -d db
@@ -17,6 +17,9 @@ db-migrate-status:
 
 db-migrate-down:
 	set -a; . ./.env; set +a; goose -dir db/migrations postgres "$$DATABASE_URL" down
+
+db-seed:
+	cd apps/api && go run ./cmd/seed
 
 api-dev:
 	cd apps/api && go run ./cmd/server

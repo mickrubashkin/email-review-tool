@@ -1,0 +1,7 @@
+@baseUrl = http://localhost:8080
+
+### Health
+GET {{baseUrl}}/health
+
+### List emails
+GET {{baseUrl}}/api/emails
