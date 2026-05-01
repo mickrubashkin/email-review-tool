@@ -13,14 +13,15 @@ import (
 )
 
 type EmailListItem struct {
-	ID        string  `json:"id"`
-	Sequence  string  `json:"sequence"`
-	Title     string  `json:"title"`
-	Subject   *string `json:"subject"`
-	Preheader *string `json:"preheader"`
-	Stage     string  `json:"stage"`
-	SortOrder int     `json:"sort_order"`
-	Language  string  `json:"language"`
+	ID         string  `json:"id"`
+	Sequence   string  `json:"sequence"`
+	Title      string  `json:"title"`
+	Subject    *string `json:"subject"`
+	Preheader  *string `json:"preheader"`
+	SendTiming *string `json:"send_timing"`
+	Stage      string  `json:"stage"`
+	SortOrder  int     `json:"sort_order"`
+	Language   string  `json:"language"`
 }
 
 type EmailDetail struct {
@@ -30,6 +31,7 @@ type EmailDetail struct {
 	Title        string  `json:"title"`
 	Subject      *string `json:"subject"`
 	Preheader    *string `json:"preheader"`
+	SendTiming   *string `json:"send_timing"`
 	Stage        string  `json:"stage"`
 	SortOrder    int     `json:"sort_order"`
 	Language     string  `json:"language"`
@@ -85,6 +87,7 @@ func main() {
 				title,
 				subject,
 				preheader,
+				send_timing,
 				stage,
 				sort_order,
 				language
@@ -108,6 +111,7 @@ func main() {
 				&email.Title,
 				&email.Subject,
 				&email.Preheader,
+				&email.SendTiming,
 				&email.Stage,
 				&email.SortOrder,
 				&email.Language,
@@ -142,6 +146,7 @@ func main() {
 				title,
 				subject,
 				preheader,
+				send_timing,
 				stage,
 				sort_order,
 				language,
@@ -155,6 +160,7 @@ func main() {
 			&email.Title,
 			&email.Subject,
 			&email.Preheader,
+			&email.SendTiming,
 			&email.Stage,
 			&email.SortOrder,
 			&email.Language,

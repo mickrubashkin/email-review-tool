@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"os"
@@ -23,10 +24,20 @@ type seedEmail struct {
 	Slug         string
 	Sequence     string
 	Title        string
+	Subject      *string
+	Preheader    *string
+	SendTiming   *string
 	Stage        string
 	SortOrder    int
 	Language     string
 	OriginalHTML string
+}
+
+type seedEmailMeta struct {
+	Title      *string `json:"title"`
+	Subject    *string `json:"subject"`
+	Preheader  *string `json:"preheader"`
+	SendTiming *string `json:"send_timing"`
 }
 
 func main() {
@@ -70,7 +81,12 @@ func main() {
 func loadSeedEmails(root string) ([]seedEmail, error) {
 	emails := []seedEmail{}
 
-	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+	metaByKey, err := loadSeedEmailMeta(root)
+	if err != nil {
+		return nil, err
+	}
+
+	err = filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -79,7 +95,7 @@ func loadSeedEmails(root string) ([]seedEmail, error) {
 			return nil
 		}
 
-		email, err := parseSeedEmail(root, path)
+		email, err := parseSeedEmail(root, path, metaByKey)
 		if err != nil {
 			return err
 		}
@@ -94,7 +110,26 @@ func loadSeedEmails(root string) ([]seedEmail, error) {
 	return emails, nil
 }
 
-func parseSeedEmail(root string, path string) (seedEmail, error) {
+func loadSeedEmailMeta(root string) (map[string]seedEmailMeta, error) {
+	metaPath := filepath.Join(root, "meta.json")
+	metaBytes, err := os.ReadFile(metaPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return map[string]seedEmailMeta{}, nil
+		}
+
+		return nil, err
+	}
+
+	metaByKey := map[string]seedEmailMeta{}
+	if err := json.Unmarshal(metaBytes, &metaByKey); err != nil {
+		return nil, err
+	}
+
+	return metaByKey, nil
+}
+
+func parseSeedEmail(root string, path string, metaByKey map[string]seedEmailMeta) (seedEmail, error) {
 	relativePath, err := filepath.Rel(root, path)
 	if err != nil {
 		return seedEmail{}, err
@@ -108,6 +143,12 @@ func parseSeedEmail(root string, path string) (seedEmail, error) {
 	stageOrder, stage := parseOrderedName(parts[0])
 	emailOrder, emailName := parseOrderedName(parts[1])
 	language := strings.TrimSuffix(parts[2], filepath.Ext(parts[2]))
+	metaKey := strings.Join([]string{sequence, stage, emailName, language}, "/")
+	emailMeta := metaByKey[metaKey]
+	title := titleFromName(emailName)
+	if emailMeta.Title != nil {
+		title = *emailMeta.Title
+	}
 
 	htmlBytes, err := os.ReadFile(path)
 	if err != nil {
@@ -117,7 +158,10 @@ func parseSeedEmail(root string, path string) (seedEmail, error) {
 	return seedEmail{
 		Slug:         strings.Join([]string{sequence, stage, emailName, language}, "-"),
 		Sequence:     sequence,
-		Title:        titleFromName(emailName),
+		Title:        title,
+		Subject:      emailMeta.Subject,
+		Preheader:    emailMeta.Preheader,
+		SendTiming:   emailMeta.SendTiming,
 		Stage:        stage,
 		SortOrder:    stageOrder*100 + emailOrder,
 		Language:     language,
@@ -170,21 +214,27 @@ func upsertEmail(ctx context.Context, dbpool *pgxpool.Pool, email seedEmail) err
 			slug,
 			sequence,
 			title,
+			subject,
+			preheader,
+			send_timing,
 			stage,
 			sort_order,
 			language,
 			original_html
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 		ON CONFLICT (slug) DO UPDATE SET
 			sequence = EXCLUDED.sequence,
 			title = EXCLUDED.title,
+			subject = EXCLUDED.subject,
+			preheader = EXCLUDED.preheader,
+			send_timing = EXCLUDED.send_timing,
 			stage = EXCLUDED.stage,
 			sort_order = EXCLUDED.sort_order,
 			language = EXCLUDED.language,
 			original_html = EXCLUDED.original_html,
 			updated_at = now();
-	`, email.Slug, email.Sequence, email.Title, email.Stage, email.SortOrder, email.Language, email.OriginalHTML)
+	`, email.Slug, email.Sequence, email.Title, email.Subject, email.Preheader, email.SendTiming, email.Stage, email.SortOrder, email.Language, email.OriginalHTML)
 
 	return err
 }

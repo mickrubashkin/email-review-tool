@@ -1,0 +1,188 @@
+{
+  "onboarding/registered/application-received/en": {
+    "title": "Application Received",
+    "subject": "Bitrix24: Your partner application received",
+    "preheader": "Access your account using the login details below.",
+    "send_timing": "immediately"
+  },
+  "onboarding/qualified/next-step/en": {
+    "title": "Next Step",
+    "subject": "Bitrix24: Your partner registration is pre-approved",
+    "preheader": "Next steps: schedule a call and complete your partner setup.",
+    "send_timing": "immediately"
+  },
+  "onboarding/qualified/follow-up-1/en": {
+    "title": "First Follow-up",
+    "subject": "Bitrix24: Your partner registration is pre-approved",
+    "preheader": "Next steps: schedule a call and complete your partner setup.",
+    "send_timing": "2 days after previous email"
+  },
+  "onboarding/qualified/follow-up-2/en": {
+    "title": "Follow Up 2",
+    "subject": "This is an email subject line",
+    "preheader": "This is a hidden preheader",
+    "send_timing": "5 days after previous email"
+  },
+  "onboarding/qualified/last-call/en": {
+    "title": "Last Call",
+    "subject": "This is an email subject line",
+    "preheader": "This is a hidden preheader",
+    "send_timing": "14 days after previous email"
+  },
+  "onboarding/approved/next-step/en": {
+    "title": "Next Step",
+    "subject": "Bitrix24: Set up your NFR to get started",
+    "preheader": "You’re one step away from working with Bitrix24",
+    "send_timing": "immediately"
+  },
+  "onboarding/approved/follow-up-1/en": {
+    "title": "Follow Up 1",
+    "subject": "Bitrix24: What’s blocking your next step?",
+    "preheader": "Let’s fix it together in a quick call",
+    "send_timing": "2 days after previous email"
+  },
+  "onboarding/approved/follow-up-2/en": {
+    "title": "Follow Up 2",
+    "subject": "This is an email subject line",
+    "preheader": "This is a hidden preheader",
+    "send_timing": "5 days after previous email"
+  },
+  "onboarding/approved/last-call/en": {
+    "title": "Last Call",
+    "subject": "This is an email subject line",
+    "preheader": "This is a hidden preheader",
+    "send_timing": "14 days after previous email"
+  },
+  "onboarding/nfr-installed/next-step/en": {
+    "title": "Next Step",
+    "subject": "Bitrix24: Your next step - complete partner training",
+    "preheader": "Unlock leads, commission, and your Kickstart bonus.",
+    "send_timing": "immediately"
+  },
+  "onboarding/nfr-installed/follow-up-1/en": {
+    "title": "Follow Up 1",
+    "subject": "Bitrix24: You’re one step away from earning as a partner",
+    "preheader": "Complete your training to unlock leads and commission.",
+    "send_timing": "2 days after previous email"
+  },
+  "onboarding/nfr-installed/follow-up-2/en": {
+    "title": "Follow Up 2",
+    "subject": "Bitrix24: Don’t lose access to leads and commission",
+    "preheader": "Finish your training within 90 days to keep your benefits active",
+    "send_timing": "5 days after previous email"
+  },
+  "onboarding/nfr-installed/last-call/en": {
+    "title": "Last Call",
+    "subject": "Bitrix24: Last reminder - complete your training",
+    "preheader": "Complete your training to keep your partner status and benefits active.",
+    "send_timing": "14 days after previous email"
+  },
+  "onboarding/training-completed/next-step/en": {
+    "title": "Next Step",
+    "subject": "Bitrix24: Start receiving client leads",
+    "preheader": "Install the Partner App and get your first request.",
+    "send_timing": "immediately"
+  },
+  "onboarding/training-completed/follow-up-1/en": {
+    "title": "Follow Up 1",
+    "subject": "Bitrix24: Start working with your first client",
+    "preheader": "You’re one step away from receiving leads",
+    "send_timing": "2 days after previous email"
+  },
+  "onboarding/training-completed/follow-up-2/en": {
+    "title": "Follow Up 2",
+    "subject": "Bitrix24: Take your first client — here’s how",
+    "preheader": "Use these tools to start working with leads today",
+    "send_timing": "5 days after previous email"
+  },
+  "onboarding/training-completed/last-call/en": {
+    "title": "Last Call",
+    "subject": "Bitrix24: Don’t miss your first client",
+    "preheader": "Start receiving verified client requests - don’t delay",
+    "send_timing": "14 days after previous email"
+  },
+  "onboarding/partner-app-installed/next-step/en": {
+    "title": "Next Step",
+    "subject": "This is an email subject line",
+    "preheader": "This is a hidden preheader",
+    "send_timing": "immediately"
+  },
+  "onboarding/partner-app-installed/follow-up-1/en": {
+    "title": "Follow Up 1",
+    "subject": "This is an email subject line",
+    "preheader": "This is a hidden preheader",
+    "send_timing": "2 days after previous email"
+  },
+  "onboarding/partner-app-installed/follow-up-2/en": {
+    "title": "Follow Up 2",
+    "subject": "This is an email subject line",
+    "preheader": "This is a hidden preheader",
+    "send_timing": "5 days after previous email"
+  },
+  "onboarding/partner-app-installed/last-call/en": {
+    "title": "Last Call",
+    "subject": "This is an email subject line",
+    "preheader": "This is a hidden preheader",
+    "send_timing": "14 days after previous email"
+  },
+  "onboarding/first-sale/next-step/en": {
+    "title": "Next Step",
+    "subject": "This is an email subject line",
+    "preheader": "This is a hidden preheader",
+    "send_timing": "immediately"
+  },
+  "onboarding/first-sale/follow-up-1/en": {
+    "title": "Follow Up 1",
+    "subject": "This is an email subject line",
+    "preheader": "This is a hidden preheader",
+    "send_timing": "2 days after previous email"
+  },
+  "onboarding/first-sale/follow-up-2/en": {
+    "title": "Follow Up 2",
+    "subject": "This is an email subject line",
+    "preheader": "This is a hidden preheader",
+    "send_timing": "5 days after previous email"
+  },
+  "onboarding/first-sale/last-call/en": {
+    "title": "Last Call",
+    "subject": "This is an email subject line",
+    "preheader": "This is a hidden preheader",
+    "send_timing": "14 days after previous email"
+  },
+  "onboarding/second-sale/next-step/en": {
+    "title": "Next Step",
+    "subject": "This is an email subject line",
+    "preheader": "This is a hidden preheader",
+    "send_timing": "immediately"
+  },
+  "onboarding/second-sale/follow-up-1/en": {
+    "title": "Follow Up 1",
+    "subject": "This is an email subject line",
+    "preheader": "This is a hidden preheader",
+    "send_timing": "2 days after previous email"
+  },
+  "onboarding/second-sale/follow-up-2/en": {
+    "title": "Follow Up 2",
+    "subject": "This is an email subject line",
+    "preheader": "This is a hidden preheader",
+    "send_timing": "5 days after previous email"
+  },
+  "onboarding/second-sale/last-call/en": {
+    "title": "Last Call",
+    "subject": "This is an email subject line",
+    "preheader": "This is a hidden preheader",
+    "send_timing": "14 days after previous email"
+  },
+  "onboarding/silver-prequalified/next-step/en": {
+    "title": "Next Step",
+    "subject": "This is an email subject line",
+    "preheader": "This is a hidden preheader",
+    "send_timing": "immediately"
+  },
+  "onboarding/rejected/application-rejected/en": {
+    "title": "Application Rejected",
+    "subject": "Bitrix24 Partner Program | Application Rejected",
+    "preheader": "",
+    "send_timing": "immediately"
+  }
+}

@@ -4,6 +4,7 @@ export type EmailListItem = {
   title: string;
   subject: string | null;
   preheader: string | null;
+  send_timing: string | null;
   stage: string | null;
   sort_order: number;
   language: string;
