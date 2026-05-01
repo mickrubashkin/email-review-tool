@@ -73,6 +73,17 @@ function OverflowTooltipText({
   );
 }
 
+function formatEmailTitle(title: string) {
+  switch (title) {
+    case "Follow Up 1":
+      return "First Follow-up";
+    case "Follow Up 2":
+      return "Second Follow-up";
+    default:
+      return title;
+  }
+}
+
 export function EmailCard({
   emailGroup,
   selectedEmailId,
@@ -106,7 +117,7 @@ export function EmailCard({
                 size="sm"
                 lineClamp={2}
               >
-                {selectedEmail.title}
+                {formatEmailTitle(selectedEmail.title)}
               </Text>
               <Badge size="xs" variant="light" radius="sm">
                 {selectedEmail.language}

@@ -1,14 +1,19 @@
+import { useEffect } from "react";
 import {
   Alert,
   Badge,
   Button,
+  Card,
   Drawer,
   Group,
+  List,
   Loader,
   Stack,
   Text,
 } from "@mantine/core";
+import { useMutation } from "@tanstack/react-query";
 
+import { analyzeEmail } from "./api";
 import { formatStageName } from "./stages";
 import type { EmailDetail } from "./types";
 import styles from "./EmailPreviewDrawer.module.css";
@@ -30,6 +35,23 @@ export function EmailPreviewDrawer({
   onClose,
   opened,
 }: EmailPreviewDrawerProps) {
+  const analysisMutation = useMutation({
+    mutationFn: analyzeEmail,
+  });
+  const resetAnalysis = analysisMutation.reset;
+
+  useEffect(() => {
+    resetAnalysis();
+  }, [email?.id, opened, resetAnalysis]);
+
+  const handleAnalyze = () => {
+    if (!email) {
+      return;
+    }
+
+    analysisMutation.mutate(email.id);
+  };
+
   return (
     <Drawer
       opened={opened}
@@ -65,12 +87,53 @@ export function EmailPreviewDrawer({
             </Group>
 
             <Group gap="xs">
-              <Badge variant="default" radius="sm">
-                Soon
-              </Badge>
-              <Button disabled>Open review</Button>
+              <Button
+                loading={analysisMutation.isPending}
+                onClick={handleAnalyze}
+              >
+                Analyze
+              </Button>
             </Group>
           </Group>
+
+          {analysisMutation.isError ? (
+            <Alert color="red" title="Failed to analyze email">
+              Check that the API has OpenAI configured and try again.
+            </Alert>
+          ) : null}
+
+          {analysisMutation.data ? (
+            <Card className={styles.analysisCard} withBorder padding="md">
+              <Stack gap="sm">
+                <Group justify="space-between" align="flex-start">
+                  <Stack gap={2}>
+                    <Text fw={600}>AI analysis</Text>
+                    <Text size="sm" c="dimmed">
+                      {analysisMutation.data.summary}
+                    </Text>
+                  </Stack>
+                  <Badge size="lg" radius="sm" variant="light">
+                    {analysisMutation.data.score}/10
+                  </Badge>
+                </Group>
+
+                <List spacing="xs" size="sm">
+                  {analysisMutation.data.recommendations.map(
+                    (recommendation, index) => (
+                      <List.Item key={`${recommendation.title}-${index}`}>
+                        <Text span fw={600}>
+                          {recommendation.title}
+                        </Text>{" "}
+                        <Text span c="dimmed">
+                          {recommendation.details}
+                        </Text>
+                      </List.Item>
+                    )
+                  )}
+                </List>
+              </Stack>
+            </Card>
+          ) : null}
 
           <iframe
             className={styles.emailPreviewFrame}

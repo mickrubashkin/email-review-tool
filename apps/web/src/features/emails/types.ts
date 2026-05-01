@@ -15,6 +15,17 @@ export type EmailDetail = EmailListItem & {
   original_html: string;
 };
 
+export type EmailAnalysis = {
+  summary: string;
+  score: number;
+  recommendations: EmailRecommendation[];
+};
+
+export type EmailRecommendation = {
+  title: string;
+  details: string;
+};
+
 export type EmailVersionGroup = {
   key: string;
   stage: string;
