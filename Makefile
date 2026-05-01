@@ -1,4 +1,4 @@
-.PHONY: db-up db-down db-logs db-migrate db-migrate-status db-migrate-down db-seed api-dev web-dev dev setup-dev
+.PHONY: db-up db-down db-logs db-migrate db-migrate-status db-migrate-down db-seed db-sync-meta api-dev web-dev dev setup-dev
 
 db-up:
 	docker compose up -d db
@@ -21,6 +21,9 @@ db-migrate-down:
 db-seed:
 	cd apps/api && go run ./cmd/seed
 
+db-sync-meta:
+	cd apps/api && go run ./cmd/syncmeta
+
 api-dev:
 	cd apps/api && go run ./cmd/server
 
@@ -35,4 +38,3 @@ dev: db-up
 	(cd apps/api && go run ./cmd/server) & api_pid=$$!; \
 	(cd apps/web && npm run dev) & web_pid=$$!; \
 	wait
-

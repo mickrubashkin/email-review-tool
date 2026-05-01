@@ -15,9 +15,16 @@ export type EmailDetail = EmailListItem & {
   original_html: string;
 };
 
+export type EmailVersionGroup = {
+  key: string;
+  stage: string;
+  sortOrder: number;
+  versions: EmailListItem[];
+};
+
 export type StageColumn = {
   stage: string;
   title: string;
   sortOrder: number;
-  emails: EmailListItem[];
+  emailGroups: EmailVersionGroup[];
 };

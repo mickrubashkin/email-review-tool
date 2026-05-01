@@ -1,0 +1,76 @@
+.emailCardButton {
+  display: block;
+  width: 100%;
+  text-align: left;
+}
+
+.emailCard {
+  height: 174px;
+  padding: 10px 10px 0 !important;
+  overflow: hidden;
+  border-color: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 2px 6px rgba(0, 18, 72, 0.14);
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease,
+    transform 120ms ease;
+}
+
+.emailCardButton:hover .emailCard {
+  border-color: rgba(82, 199, 255, 0.9);
+  box-shadow: 0 8px 20px rgba(0, 18, 72, 0.24);
+  transform: translateY(-1px);
+}
+
+.emailCardButton:focus-visible {
+  outline: 2px solid var(--mantine-primary-color-filled);
+  outline-offset: 2px;
+  border-radius: var(--mantine-radius-md);
+}
+
+.emailCardTitle {
+  flex: 1;
+  color: var(--mantine-color-gray-9);
+}
+
+.versionButton {
+  min-width: 24px;
+  height: 18px;
+  padding: 0 5px;
+  border: 1px solid var(--mantine-color-gray-3);
+  border-radius: 4px;
+  color: var(--mantine-color-gray-6);
+  background: var(--mantine-color-white);
+  font-size: 10px;
+  line-height: 16px;
+  cursor: pointer;
+}
+
+.versionButton:hover {
+  border-color: var(--mantine-color-blue-4);
+  color: var(--mantine-color-blue-7);
+}
+
+.versionButton[data-active] {
+  border-color: var(--mantine-color-blue-6);
+  color: var(--mantine-color-white);
+  background: var(--mantine-color-blue-6);
+}
+
+.emailCardContent {
+  height: 100%;
+}
+
+.emailCardBody {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.emailCardFooter {
+  margin: 8px -10px 0;
+  padding: 8px 10px;
+  background: rgba(222, 248, 255, 0.82);
+  color: var(--mantine-color-gray-5);
+}

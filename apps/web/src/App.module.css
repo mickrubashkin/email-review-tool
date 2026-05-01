@@ -1,0 +1,56 @@
+.appHeader {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(39, 47, 151, 0.86);
+  backdrop-filter: blur(8px);
+  color: var(--mantine-color-white);
+}
+
+.headerCount {
+  color: rgba(255, 255, 255, 0.72) !important;
+  white-space: nowrap;
+}
+
+.boardPage {
+  height: calc(100dvh - var(--app-shell-header-height));
+  background:
+    linear-gradient(135deg, rgba(7, 21, 106, 0.34), rgba(2, 65, 108, 0.18)),
+    url("https://global.bitrix24.com/bitrix/templates/bitrix24/themes/light/space/space.jpg"),
+    radial-gradient(circle at 86% 6%, rgba(32, 217, 255, 0.58), transparent 26%),
+    radial-gradient(circle at 18% 22%, rgba(70, 92, 255, 0.44), transparent 24%),
+    radial-gradient(circle at 74% 82%, rgba(0, 174, 209, 0.34), transparent 26%),
+    linear-gradient(135deg, #07156a 0%, #112a95 42%, #02416c 100%);
+  background-position:
+    center,
+    center,
+    center,
+    center,
+    center,
+    center;
+  background-size:
+    cover,
+    cover,
+    auto,
+    auto,
+    auto,
+    auto;
+  color: var(--mantine-color-white);
+  position: relative;
+  overflow: hidden;
+}
+
+.boardPage::before {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  content: "";
+  background-image:
+    radial-gradient(circle, rgba(255, 255, 255, 0.55) 0 1px, transparent 1.5px),
+    linear-gradient(120deg, transparent 0 42%, rgba(0, 255, 255, 0.16) 43%, transparent 46%);
+  background-position:
+    0 0,
+    0 0;
+  background-size:
+    86px 86px,
+    100% 100%;
+  opacity: 0.4;
+}

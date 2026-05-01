@@ -11,6 +11,7 @@ import {
 
 import { formatStageName } from "./stages";
 import type { EmailDetail } from "./types";
+import styles from "./EmailPreviewDrawer.module.css";
 
 type EmailPreviewDrawerProps = {
   email: EmailDetail | undefined;
@@ -53,7 +54,7 @@ export function EmailPreviewDrawer({
 
       {email ? (
         <Stack gap="md">
-          <Group className="previewToolbar" justify="space-between">
+          <Group className={styles.previewToolbar} justify="space-between">
             <Group gap="xs">
               <Badge variant="light" radius="sm">
                 {email.language}
@@ -72,7 +73,7 @@ export function EmailPreviewDrawer({
           </Group>
 
           <iframe
-            className="emailPreviewFrame"
+            className={styles.emailPreviewFrame}
             title={email.title}
             sandbox=""
             srcDoc={email.original_html}

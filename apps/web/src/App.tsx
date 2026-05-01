@@ -16,11 +16,17 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchEmailDetail, fetchEmails } from "./features/emails/api";
 import { EmailBoard } from "./features/emails/EmailBoard";
 import { EmailPreviewDrawer } from "./features/emails/EmailPreviewDrawer";
-import { buildStageColumns } from "./features/emails/stages";
-import "./App.css";
+import {
+  buildStageColumns,
+  getDefaultVersion,
+} from "./features/emails/stages";
+import styles from "./App.module.css";
 
 export default function App() {
   const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
+  const [selectedVersionByGroup, setSelectedVersionByGroup] = useState<
+    Record<string, string>
+  >({});
   const isMobile = useMediaQuery("(max-width: 48em)");
 
   const emailsQuery = useQuery({
@@ -40,10 +46,29 @@ export default function App() {
   );
 
   const selectedEmail = emailDetailQuery.data;
+  const handleSelectVersion = (groupKey: string, emailId: string) => {
+    setSelectedVersionByGroup((current) => ({
+      ...current,
+      [groupKey]: emailId,
+    }));
+  };
+
+  const handleOpenVersionGroup = (groupKey: string) => {
+    const emailGroup = columns
+      .flatMap((column) => column.emailGroups)
+      .find((group) => group.key === groupKey);
+    if (!emailGroup) {
+      return;
+    }
+
+    setSelectedEmailId(
+      selectedVersionByGroup[groupKey] ?? getDefaultVersion(emailGroup.versions).id
+    );
+  };
 
   return (
     <AppShell header={{ height: 56 }} padding={0}>
-      <AppShell.Header className="appHeader">
+      <AppShell.Header className={styles.appHeader}>
         <Group h="100%" px="md" justify="space-between">
           <Stack gap={0}>
             <Group gap="xs">
@@ -55,14 +80,14 @@ export default function App() {
             </Text>
           </Stack>
 
-          <Text className="headerCount" size="sm" c="dimmed">
+          <Text className={styles.headerCount} size="sm" c="dimmed">
             {emailsQuery.data?.length ?? 0} emails
           </Text>
         </Group>
       </AppShell.Header>
 
       <AppShell.Main>
-        <Box className="boardPage">
+        <Box className={styles.boardPage}>
           {emailsQuery.isLoading ? (
             <Stack align="center" justify="center" h="100%">
               <Loader />
@@ -77,7 +102,12 @@ export default function App() {
           ) : null}
 
           {emailsQuery.isSuccess ? (
-            <EmailBoard columns={columns} onOpenEmail={setSelectedEmailId} />
+            <EmailBoard
+              columns={columns}
+              selectedVersionByGroup={selectedVersionByGroup}
+              onOpenVersionGroup={handleOpenVersionGroup}
+              onSelectVersion={handleSelectVersion}
+            />
           ) : null}
         </Box>
       </AppShell.Main>

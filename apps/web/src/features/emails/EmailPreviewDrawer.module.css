@@ -1,0 +1,25 @@
+.previewToolbar {
+  padding: var(--mantine-spacing-xs);
+  border: 1px solid var(--mantine-color-gray-2);
+  border-radius: var(--mantine-radius-sm);
+  background: var(--mantine-color-gray-0);
+}
+
+.emailPreviewFrame {
+  display: block;
+  width: 100%;
+  height: calc(100dvh - 148px);
+  border: 1px solid var(--mantine-color-gray-3);
+  border-radius: var(--mantine-radius-sm);
+  background: var(--mantine-color-white);
+}
+
+@media (max-width: 48em) {
+  .previewToolbar {
+    align-items: flex-start;
+  }
+
+  .emailPreviewFrame {
+    height: calc(100dvh - 172px);
+  }
+}

@@ -1,5 +1,5 @@
 @baseUrl = http://localhost:8080
-@emailId = 9a9a6719-189c-4b27-a68b-8fe4ec510238
+@emailId = 4b94413a-52a5-4dcf-b89b-a71078225531
 
 ### Health
 GET {{baseUrl}}/health
