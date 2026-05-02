@@ -64,57 +64,135 @@ func newAIAnalysisService() (AIAnalysisService, error) {
 	}, nil
 }
 
-func (service AIAnalysisService) AnalyzeEmail(ctx context.Context, email EmailDetail) (EmailAnalysis, error) {
+func (service AIAnalysisService) AnalyzeEmail(ctx context.Context, email EmailDetail) (AIAnalysisResult, error) {
+	startedAt := time.Now()
+	metrics := AIAnalysisMetrics{
+		Model:  service.Model,
+		Status: "error",
+	}
+
 	requestBody := map[string]any{
 		"model": service.Model,
 		"instructions": strings.TrimSpace(`
 Review partner onboarding email text only. Ignore HTML/CSS/layout/rendering.
 Use rules and sequence context to check stage, CTA, timing, urgency, and message alignment.
 Return only JSON: summary, score, recommendations[{title,details}].
+No markdown, no prose, no code fences.
 Limits: summary <= 1 short sentence; score 1-10; max 2 recommendations; details <= 140 chars.
 `),
 		"input":             buildEmailAnalysisInput(service.ReviewRules, service.SequenceContext, email),
 		"max_output_tokens": 300,
+		"text": map[string]any{
+			"format": map[string]any{
+				"type":        "json_schema",
+				"name":        "email_analysis",
+				"description": "Email text review result",
+				"strict":      true,
+				"schema": map[string]any{
+					"type":                 "object",
+					"additionalProperties": false,
+					"required":             []string{"summary", "score", "recommendations"},
+					"properties": map[string]any{
+						"summary": map[string]any{
+							"type": "string",
+						},
+						"score": map[string]any{
+							"type": "integer",
+						},
+						"recommendations": map[string]any{
+							"type": "array",
+							"items": map[string]any{
+								"type":                 "object",
+								"additionalProperties": false,
+								"required":             []string{"title", "details"},
+								"properties": map[string]any{
+									"title": map[string]any{
+										"type": "string",
+									},
+									"details": map[string]any{
+										"type": "string",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	bodyBytes, err := json.Marshal(requestBody)
 	if err != nil {
-		return EmailAnalysis{}, err
+		return AIAnalysisResult{Metrics: finishAIAnalysisMetrics(metrics, startedAt, err)}, err
 	}
 
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.openai.com/v1/responses", bytes.NewReader(bodyBytes))
 	if err != nil {
-		return EmailAnalysis{}, err
+		return AIAnalysisResult{Metrics: finishAIAnalysisMetrics(metrics, startedAt, err)}, err
 	}
 	request.Header.Set("Authorization", "Bearer "+service.APIKey)
 	request.Header.Set("Content-Type", "application/json")
 
 	response, err := service.Client.Do(request)
 	if err != nil {
-		return EmailAnalysis{}, err
+		return AIAnalysisResult{Metrics: finishAIAnalysisMetrics(metrics, startedAt, err)}, err
 	}
 	defer response.Body.Close()
 
 	responseBytes, err := io.ReadAll(response.Body)
 	if err != nil {
-		return EmailAnalysis{}, err
+		return AIAnalysisResult{Metrics: finishAIAnalysisMetrics(metrics, startedAt, err)}, err
 	}
+	applyOpenAIUsage(&metrics, responseBytes)
 
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return EmailAnalysis{}, fmt.Errorf("openai returned %d: %s", response.StatusCode, string(responseBytes))
+		err := fmt.Errorf("openai returned %d: %s", response.StatusCode, string(responseBytes))
+		return AIAnalysisResult{Metrics: finishAIAnalysisMetrics(metrics, startedAt, err)}, err
 	}
 
 	outputText, err := extractOpenAIOutputText(responseBytes)
 	if err != nil {
-		return EmailAnalysis{}, err
+		return AIAnalysisResult{Metrics: finishAIAnalysisMetrics(metrics, startedAt, err)}, err
 	}
 
 	var analysis EmailAnalysis
-	if err := json.Unmarshal([]byte(outputText), &analysis); err != nil {
-		return EmailAnalysis{}, fmt.Errorf("failed to parse analysis json: %w", err)
+	if err := json.Unmarshal([]byte(extractJSONObject(outputText)), &analysis); err != nil {
+		err := fmt.Errorf("failed to parse analysis json: %w", err)
+		return AIAnalysisResult{Metrics: finishAIAnalysisMetrics(metrics, startedAt, err)}, err
 	}
 
-	return analysis, nil
+	metrics.Status = "success"
+	return AIAnalysisResult{
+		Analysis: analysis,
+		Metrics:  finishAIAnalysisMetrics(metrics, startedAt, nil),
+	}, nil
+}
+
+func finishAIAnalysisMetrics(metrics AIAnalysisMetrics, startedAt time.Time, err error) AIAnalysisMetrics {
+	metrics.LatencyMS = int(time.Since(startedAt).Milliseconds())
+	if err != nil {
+		message := err.Error()
+		metrics.ErrorMessage = &message
+	}
+
+	return metrics
+}
+
+func applyOpenAIUsage(metrics *AIAnalysisMetrics, responseBytes []byte) {
+	var response struct {
+		Usage struct {
+			InputTokens  *int `json:"input_tokens"`
+			OutputTokens *int `json:"output_tokens"`
+			TotalTokens  *int `json:"total_tokens"`
+		} `json:"usage"`
+	}
+	if err := json.Unmarshal(responseBytes, &response); err != nil {
+		return
+	}
+
+	metrics.InputTokens = response.Usage.InputTokens
+	metrics.OutputTokens = response.Usage.OutputTokens
+	metrics.TotalTokens = response.Usage.TotalTokens
 }
 
 func buildEmailAnalysisInput(reviewRules string, sequenceContext string, email EmailDetail) string {
@@ -206,6 +284,17 @@ func stripMarkdownCodeFence(text string) string {
 	text = strings.TrimSuffix(text, "```")
 
 	return strings.TrimSpace(text)
+}
+
+func extractJSONObject(text string) string {
+	text = strings.TrimSpace(text)
+	start := strings.Index(text, "{")
+	end := strings.LastIndex(text, "}")
+	if start == -1 || end == -1 || end < start {
+		return text
+	}
+
+	return text[start : end+1]
 }
 
 func loadAIContextFile(fileName string) (string, error) {

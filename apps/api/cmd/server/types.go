@@ -37,3 +37,18 @@ type EmailRecommendation struct {
 	Title   string `json:"title"`
 	Details string `json:"details"`
 }
+
+type AIAnalysisResult struct {
+	Analysis EmailAnalysis
+	Metrics  AIAnalysisMetrics
+}
+
+type AIAnalysisMetrics struct {
+	Model        string
+	Status       string
+	LatencyMS    int
+	InputTokens  *int
+	OutputTokens *int
+	TotalTokens  *int
+	ErrorMessage *string
+}

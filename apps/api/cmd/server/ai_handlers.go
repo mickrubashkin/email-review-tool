@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -60,14 +61,48 @@ func analyzeEmailHandler(dbpool *pgxpool.Pool, aiService AIAnalysisService) http
 			return
 		}
 
-		analysis, err := aiService.AnalyzeEmail(r.Context(), email)
+		result, err := aiService.AnalyzeEmail(r.Context(), email)
 		if err != nil {
+			if logErr := insertAIAnalysisLog(r.Context(), dbpool, email.ID, result.Metrics); logErr != nil {
+				fmt.Fprintf(os.Stderr, "failed to log ai analysis error for email %s: %v\n", id, logErr)
+			}
 			fmt.Fprintf(os.Stderr, "failed to analyze email %s: %v\n", id, err)
 			http.Error(w, "failed to analyze email", http.StatusBadGateway)
 			return
 		}
 
+		if logErr := insertAIAnalysisLog(r.Context(), dbpool, email.ID, result.Metrics); logErr != nil {
+			fmt.Fprintf(os.Stderr, "failed to log ai analysis success for email %s: %v\n", id, logErr)
+		}
+
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(analysis)
+		_ = json.NewEncoder(w).Encode(result.Analysis)
 	}
+}
+
+func insertAIAnalysisLog(ctx context.Context, dbpool *pgxpool.Pool, emailID string, metrics AIAnalysisMetrics) error {
+	_, err := dbpool.Exec(ctx, `
+		INSERT INTO ai_analysis_logs (
+			email_id,
+			model,
+			status,
+			latency_ms,
+			input_tokens,
+			output_tokens,
+			total_tokens,
+			error_message
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8);
+	`,
+		emailID,
+		metrics.Model,
+		metrics.Status,
+		metrics.LatencyMS,
+		metrics.InputTokens,
+		metrics.OutputTokens,
+		metrics.TotalTokens,
+		metrics.ErrorMessage,
+	)
+
+	return err
 }
