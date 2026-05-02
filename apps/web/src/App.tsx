@@ -46,6 +46,15 @@ export default function App() {
   );
 
   const selectedEmail = emailDetailQuery.data;
+  const selectedEmailGroup =
+    selectedEmailId === null
+      ? undefined
+      : columns
+          .flatMap((column) => column.emailGroups)
+          .find((group) =>
+            group.versions.some((version) => version.id === selectedEmailId)
+          );
+
   const handleSelectVersion = (groupKey: string, emailId: string) => {
     setSelectedVersionByGroup((current) => ({
       ...current,
@@ -114,11 +123,17 @@ export default function App() {
 
       <EmailPreviewDrawer
         email={selectedEmail}
+        emailGroup={selectedEmailGroup}
         isError={emailDetailQuery.isError}
         isLoading={emailDetailQuery.isLoading}
         isMobile={isMobile}
         opened={selectedEmailId !== null}
         onClose={() => setSelectedEmailId(null)}
+        onSelectVersion={(groupKey, emailId) => {
+          handleSelectVersion(groupKey, emailId);
+          setSelectedEmailId(emailId);
+        }}
+        selectedEmailId={selectedEmailId}
       />
     </AppShell>
   );

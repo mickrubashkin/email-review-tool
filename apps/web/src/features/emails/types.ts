@@ -36,6 +36,25 @@ export type EmailAnalysisChecks = {
   readability: EmailAnalysisCheckStatus;
 };
 
+export type EmailAnalysisStreamEvent =
+  | {
+    type: "delta";
+    text: string;
+  }
+  | {
+    type: "done";
+  }
+  | {
+    type: "error";
+    message: string;
+  };
+
+export type EmailAnalysisStreamState = {
+  status: "idle" | "streaming" | "done" | "error";
+  text: string;
+  error: string | null;
+};
+
 export type EmailRecommendation = {
   priority: "high" | "medium" | "low";
   title: string;

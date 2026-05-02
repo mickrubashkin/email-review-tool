@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -83,7 +84,8 @@ func (service AIAnalysisService) AnalyzeEmail(ctx context.Context, email EmailDe
 	}
 
 	requestBody := map[string]any{
-		"model": service.Model,
+		"model":  service.Model,
+		"stream": true,
 		"instructions": fmt.Sprintf(strings.TrimSpace(`
 You are an email copy reviewer for partner onboarding sequences.
 Use the provided review rules and onboarding sequence context.
@@ -192,18 +194,17 @@ Limits:
 	}
 	defer response.Body.Close()
 
-	responseBytes, err := io.ReadAll(response.Body)
-	if err != nil {
-		return AIAnalysisResult{Metrics: finishAIAnalysisMetrics(metrics, startedAt, err)}, err
-	}
-	applyOpenAIUsage(&metrics, responseBytes)
-
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		responseBytes, readErr := readOpenAIStreamBody(response.Body)
+		if readErr != nil {
+			return AIAnalysisResult{Metrics: finishAIAnalysisMetrics(metrics, startedAt, readErr)}, readErr
+		}
+
 		err := fmt.Errorf("openai returned %d: %s", response.StatusCode, string(responseBytes))
 		return AIAnalysisResult{Metrics: finishAIAnalysisMetrics(metrics, startedAt, err)}, err
 	}
 
-	outputText, err := extractOpenAIOutputText(responseBytes)
+	outputText, err := readOpenAIStreamOutputText(response.Body, &metrics, nil)
 	if err != nil {
 		return AIAnalysisResult{Metrics: finishAIAnalysisMetrics(metrics, startedAt, err)}, err
 	}
@@ -253,6 +254,79 @@ func applyOpenAIUsage(metrics *AIAnalysisMetrics, responseBytes []byte) {
 	metrics.InputTokens = response.Usage.InputTokens
 	metrics.OutputTokens = response.Usage.OutputTokens
 	metrics.TotalTokens = response.Usage.TotalTokens
+}
+
+func readOpenAIStreamBody(body io.Reader) ([]byte, error) {
+	return io.ReadAll(body)
+}
+
+func readOpenAIStreamOutputText(body io.Reader, metrics *AIAnalysisMetrics, onDelta func(string) error) (string, error) {
+	scanner := bufio.NewScanner(body)
+	scanner.Buffer(make([]byte, 1024), 1024*1024)
+
+	var output strings.Builder
+	var finalResponseBytes []byte
+
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || !strings.HasPrefix(line, "data:") {
+			continue
+		}
+
+		data := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
+		if data == "[DONE]" {
+			break
+		}
+
+		var event struct {
+			Type     string          `json:"type"`
+			Delta    string          `json:"delta"`
+			Response json.RawMessage `json:"response"`
+			Error    *struct {
+				Message string `json:"message"`
+			} `json:"error"`
+		}
+		if err := json.Unmarshal([]byte(data), &event); err != nil {
+			continue
+		}
+
+		switch event.Type {
+		case "response.output_text.delta":
+			output.WriteString(event.Delta)
+			if onDelta != nil && event.Delta != "" {
+				if err := onDelta(event.Delta); err != nil {
+					return "", err
+				}
+			}
+		case "response.completed":
+			if len(event.Response) > 0 {
+				finalResponseBytes = event.Response
+			}
+		case "error":
+			if event.Error != nil && strings.TrimSpace(event.Error.Message) != "" {
+				return "", fmt.Errorf("openai stream error: %s", event.Error.Message)
+			}
+			return "", fmt.Errorf("openai stream error")
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return "", err
+	}
+
+	if len(finalResponseBytes) > 0 {
+		applyOpenAIUsage(metrics, finalResponseBytes)
+	}
+
+	text := strings.TrimSpace(output.String())
+	if text == "" && len(finalResponseBytes) > 0 {
+		return extractOpenAIOutputText(finalResponseBytes)
+	}
+	if text == "" {
+		return "", fmt.Errorf("openai stream did not include output text")
+	}
+
+	return stripMarkdownCodeFence(text), nil
 }
 
 func buildEmailAnalysisInput(reviewRules string, sequenceContext string, email EmailDetail) string {
@@ -410,12 +484,10 @@ func loadAIContextFile(fileName string) (string, error) {
 		}
 		for _, candidate := range candidates {
 			rulesBytes, err := os.ReadFile(candidate)
-			if err == nil {
-				return string(rulesBytes), nil
-			}
 			if err != nil && !os.IsNotExist(err) {
 				return "", err
 			}
+			return string(rulesBytes), nil
 		}
 
 		parent := filepath.Dir(dir)
@@ -447,4 +519,150 @@ func stringValue(value *string) string {
 	}
 
 	return *value
+}
+
+func (service AIAnalysisService) AnalyzeEmailStream(ctx context.Context, email EmailDetail, onDelta func(string) error) (AIAnalysisResult, error) {
+	startedAt := time.Now()
+	metrics := AIAnalysisMetrics{
+		Model:  service.Model,
+		Status: "error",
+	}
+
+	requestBody := map[string]any{
+		"model":  service.Model,
+		"stream": true,
+		"instructions": fmt.Sprintf(strings.TrimSpace(`
+You are an email copy reviewer for partner onboarding sequences.
+Use the provided review rules and onboarding sequence context.
+Review only email text and metadata.
+primary_cta is the actual button CTA.
+If primary_cta is present, do not infer the main CTA from links or repeated body text.
+Use links only as supporting context.
+Return only JSON matching the schema.
+Write summary, recommendation titles, and details in %s.
+Limits:
+- summary: 1 short sentence
+- score: integer from 1 to 10
+- recommendations: max 3
+- recommendation details: max 220 characters
+`), service.ResponseLanguage),
+		"input":             buildEmailAnalysisInput(service.ReviewRules, service.SequenceContext, email),
+		"max_output_tokens": 550,
+		"text": map[string]any{
+			"format": map[string]any{
+				"type":        "json_schema",
+				"name":        "email_analysis",
+				"description": "Email text review result",
+				"strict":      true,
+				"schema": map[string]any{
+					"type":                 "object",
+					"additionalProperties": false,
+					"required":             []string{"summary", "score", "verdict", "checks", "recommendations"},
+					"properties": map[string]any{
+						"summary": map[string]any{
+							"type":      "string",
+							"maxLength": 160,
+						},
+						"score": map[string]any{
+							"type":    "integer",
+							"minimum": 1,
+							"maximum": 10,
+						},
+						"verdict": map[string]any{
+							"type": "string",
+							"enum": []string{"ready", "minor_fixes", "needs_work"},
+						},
+						"checks": map[string]any{
+							"type":                 "object",
+							"additionalProperties": false,
+							"required": []string{
+								"subject",
+								"preheader",
+								"focus",
+								"cta",
+								"stage_alignment",
+								"readability",
+							},
+							"properties": map[string]any{
+								"subject":         analysisStatusSchema(),
+								"preheader":       analysisStatusSchema(),
+								"focus":           analysisStatusSchema(),
+								"cta":             analysisStatusSchema(),
+								"stage_alignment": analysisStatusSchema(),
+								"readability":     analysisStatusSchema(),
+							},
+						},
+						"recommendations": map[string]any{
+							"type":     "array",
+							"maxItems": 3,
+							"items": map[string]any{
+								"type":                 "object",
+								"additionalProperties": false,
+								"required":             []string{"priority", "title", "details"},
+								"properties": map[string]any{
+									"priority": map[string]any{
+										"type": "string",
+										"enum": []string{"high", "medium", "low"},
+									},
+									"title": map[string]any{
+										"type":      "string",
+										"maxLength": 80,
+									},
+									"details": map[string]any{
+										"type":      "string",
+										"maxLength": 220,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	bodyBytes, err := json.Marshal(requestBody)
+	if err != nil {
+		return AIAnalysisResult{Metrics: finishAIAnalysisMetrics(metrics, startedAt, err)}, err
+	}
+
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.openai.com/v1/responses", bytes.NewReader(bodyBytes))
+	if err != nil {
+		return AIAnalysisResult{Metrics: finishAIAnalysisMetrics(metrics, startedAt, err)}, err
+	}
+	request.Header.Set("Authorization", "Bearer "+service.APIKey)
+	request.Header.Set("Content-Type", "application/json")
+
+	response, err := service.Client.Do(request)
+	if err != nil {
+		return AIAnalysisResult{Metrics: finishAIAnalysisMetrics(metrics, startedAt, err)}, err
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		responseBytes, readErr := readOpenAIStreamBody(response.Body)
+		if readErr != nil {
+			return AIAnalysisResult{Metrics: finishAIAnalysisMetrics(metrics, startedAt, readErr)}, readErr
+		}
+
+		err := fmt.Errorf("openai returned %d: %s", response.StatusCode, string(responseBytes))
+		return AIAnalysisResult{Metrics: finishAIAnalysisMetrics(metrics, startedAt, err)}, err
+	}
+
+	outputText, err := readOpenAIStreamOutputText(response.Body, &metrics, onDelta)
+	if err != nil {
+		return AIAnalysisResult{Metrics: finishAIAnalysisMetrics(metrics, startedAt, err)}, err
+	}
+
+	var analysis EmailAnalysis
+	if err := json.Unmarshal([]byte(extractJSONObject(outputText)), &analysis); err != nil {
+		err := fmt.Errorf("failed to parse AI stream response JSON: %w", err)
+		return AIAnalysisResult{Metrics: finishAIAnalysisMetrics(metrics, startedAt, err)}, err
+	}
+
+	metrics.Status = "success"
+	return AIAnalysisResult{
+		Analysis: analysis,
+		Metrics:  finishAIAnalysisMetrics(metrics, startedAt, nil),
+	}, nil
 }

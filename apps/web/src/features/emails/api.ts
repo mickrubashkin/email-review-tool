@@ -23,3 +23,50 @@ export function analyzeEmail(emailId: string): Promise<EmailAnalysis> {
     method: "POST",
   });
 }
+
+export function analyzeEmailStream(
+  emailId: string,
+  handlers: {
+    onDelta: (text: string) => void;
+    onResult?: (analysis: EmailAnalysis) => void;
+    onDone?: () => void;
+    onError?: (error: string) => void;
+  }
+) {
+  const url = `/api/emails/${emailId}/ai-analysis-stream`;
+
+  const source = new EventSource(url);
+
+  source.addEventListener("delta", (event) => {
+    try {
+      const text = JSON.parse((event as MessageEvent).data);
+      handlers.onDelta(text);
+    } catch {
+      handlers.onDelta((event as MessageEvent).data);
+    }
+  });
+
+  source.addEventListener("result", (event) => {
+    try {
+      const analysis = JSON.parse((event as MessageEvent).data) as EmailAnalysis;
+      handlers.onResult?.(analysis);
+    } catch {
+      handlers.onError?.("failed to parse stream result");
+      source.close();
+    }
+  });
+
+  source.addEventListener("done", () => {
+    handlers.onDone?.();
+    source.close();
+  });
+
+  source.addEventListener("error", () => {
+    handlers.onError?.("stream error");
+    source.close();
+  });
+
+  return () => {
+    source.close();
+  };
+}
