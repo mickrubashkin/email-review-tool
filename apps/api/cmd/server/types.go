@@ -1,6 +1,10 @@
 package main
 
-import "time"
+import (
+	"time"
+
+	"github.com/mickrubashkin/email-review-tool/apps/api/internal/emailtext"
+)
 
 type EmailListItem struct {
 	ID         string  `json:"id"`
@@ -31,14 +35,7 @@ type EmailDetail struct {
 	OriginalHTML string    `json:"original_html"`
 }
 
-type EmailContentParts struct {
-	Subject    string   `json:"subject"`
-	Preheader  string   `json:"preheader"`
-	BannerText string   `json:"banner_text"`
-	BodyText   string   `json:"body_text"`
-	PrimaryCTA string   `json:"primary_cta"`
-	Links      []string `json:"links"`
-}
+type EmailContentParts = emailtext.ContentParts
 
 type EmailAnalysis struct {
 	Summary         string                `json:"summary"`
