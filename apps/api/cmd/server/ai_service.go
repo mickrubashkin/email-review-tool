@@ -31,25 +31,50 @@ var (
 	)
 )
 
-func analyzeEmailWithOpenAI(ctx context.Context, apiKey string, model string, reviewRules string, sequenceContext string, email EmailDetail) (EmailAnalysis, error) {
-	requestBody := map[string]any{
-		"model": model,
-		"instructions": strings.TrimSpace(`
-You are an email review assistant for a partner onboarding workflow.
-Analyze only the email text and metadata. Do not review HTML, CSS, layout, rendering, accessibility, or template implementation.
-Use the review rules, onboarding sequence context, and common email marketing best practices.
-Use the onboarding sequence context only to check stage goal, expected CTA, timing, urgency, and message alignment. Do not summarize the sequence.
-Return only valid JSON with this exact shape:
-{
-  "summary": "one sentence overall assessment",
-  "score": 7,
-  "recommendations": [
-    { "title": "Improve CTA clarity", "details": "specific recommendation under 180 characters" }
-  ]
+type AIAnalysisService struct {
+	APIKey          string
+	Model           string
+	ReviewRules     string
+	SequenceContext string
+	Client          *http.Client
 }
-Use a score from 1 to 10. Return at most 3 recommendations. Keep every recommendation practical, text-focused, and specific.
+
+func newAIAnalysisService() (AIAnalysisService, error) {
+	reviewRules, err := loadAIContextFile("email_review_rules.md")
+	if err != nil {
+		return AIAnalysisService{}, err
+	}
+
+	sequenceContext, err := loadAIContextFile("onboarding-sequence.md")
+	if err != nil {
+		return AIAnalysisService{}, err
+	}
+
+	model := os.Getenv("OPENAI_MODEL")
+	if model == "" {
+		model = "gpt-5-nano"
+	}
+
+	return AIAnalysisService{
+		APIKey:          os.Getenv("OPENAI_API_KEY"),
+		Model:           model,
+		ReviewRules:     reviewRules,
+		SequenceContext: sequenceContext,
+		Client:          &http.Client{Timeout: 45 * time.Second},
+	}, nil
+}
+
+func (service AIAnalysisService) AnalyzeEmail(ctx context.Context, email EmailDetail) (EmailAnalysis, error) {
+	requestBody := map[string]any{
+		"model": service.Model,
+		"instructions": strings.TrimSpace(`
+Review partner onboarding email text only. Ignore HTML/CSS/layout/rendering.
+Use rules and sequence context to check stage, CTA, timing, urgency, and message alignment.
+Return only JSON: summary, score, recommendations[{title,details}].
+Limits: summary <= 1 short sentence; score 1-10; max 2 recommendations; details <= 140 chars.
 `),
-		"input": buildEmailAnalysisInput(reviewRules, sequenceContext, email),
+		"input":             buildEmailAnalysisInput(service.ReviewRules, service.SequenceContext, email),
+		"max_output_tokens": 300,
 	}
 
 	bodyBytes, err := json.Marshal(requestBody)
@@ -61,11 +86,10 @@ Use a score from 1 to 10. Return at most 3 recommendations. Keep every recommend
 	if err != nil {
 		return EmailAnalysis{}, err
 	}
-	request.Header.Set("Authorization", "Bearer "+apiKey)
+	request.Header.Set("Authorization", "Bearer "+service.APIKey)
 	request.Header.Set("Content-Type", "application/json")
 
-	client := http.Client{Timeout: 45 * time.Second}
-	response, err := client.Do(request)
+	response, err := service.Client.Do(request)
 	if err != nil {
 		return EmailAnalysis{}, err
 	}
@@ -94,21 +118,19 @@ Use a score from 1 to 10. Return at most 3 recommendations. Keep every recommend
 }
 
 func buildEmailAnalysisInput(reviewRules string, sequenceContext string, email EmailDetail) string {
-	return fmt.Sprintf(`Review rules:
+	return fmt.Sprintf(`rules:
 %s
 
-Onboarding sequence context:
+sequence:
 %s
 
-Email metadata:
-- Title: %s
-- Subject: %s
-- Preheader: %s
-- Send timing: %s
-- Stage: %s
-- Language: %s
-
-Email body text:
+title: %s
+subject: %s
+preheader: %s
+timing: %s
+stage: %s
+language: %s
+body:
 %s`,
 		reviewRules,
 		sequenceContext,
@@ -118,8 +140,16 @@ Email body text:
 		stringValue(email.SendTiming),
 		email.Stage,
 		email.Language,
-		limitText(htmlToText(email.OriginalHTML), 6000),
+		limitText(emailBodyText(email), 3000),
 	)
+}
+
+func emailBodyText(email EmailDetail) string {
+	if email.BodyText != nil && strings.TrimSpace(*email.BodyText) != "" {
+		return *email.BodyText
+	}
+
+	return htmlToText(email.OriginalHTML)
 }
 
 func limitText(value string, maxLength int) string {

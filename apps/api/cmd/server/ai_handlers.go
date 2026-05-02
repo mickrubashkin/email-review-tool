@@ -10,14 +10,13 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func registerAIRoutes(r chi.Router, dbpool *pgxpool.Pool) {
-	r.Post("/api/emails/{id}/ai-analysis", analyzeEmailHandler(dbpool))
+func registerAIRoutes(r chi.Router, dbpool *pgxpool.Pool, aiService AIAnalysisService) {
+	r.Post("/api/emails/{id}/ai-analysis", analyzeEmailHandler(dbpool, aiService))
 }
 
-func analyzeEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
+func analyzeEmailHandler(dbpool *pgxpool.Pool, aiService AIAnalysisService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		openAIAPIKey := os.Getenv("OPENAI_API_KEY")
-		if openAIAPIKey == "" {
+		if aiService.APIKey == "" {
 			http.Error(w, "OPENAI_API_KEY is not configured", http.StatusServiceUnavailable)
 			return
 		}
@@ -37,6 +36,7 @@ func analyzeEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 				stage,
 				sort_order,
 				language,
+				body_text,
 				original_html
 			FROM emails
 			WHERE id = $1;
@@ -51,6 +51,7 @@ func analyzeEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			&email.Stage,
 			&email.SortOrder,
 			&email.Language,
+			&email.BodyText,
 			&email.OriginalHTML,
 		)
 		if err != nil {
@@ -59,26 +60,7 @@ func analyzeEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			return
 		}
 
-		reviewRules, err := loadAIContextFile("email_review_rules.md")
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "failed to load email review rules: %v\n", err)
-			http.Error(w, "failed to load review rules", http.StatusInternalServerError)
-			return
-		}
-
-		sequenceContext, err := loadAIContextFile("onboarding-sequence.md")
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "failed to load onboarding sequence context: %v\n", err)
-			http.Error(w, "failed to load sequence context", http.StatusInternalServerError)
-			return
-		}
-
-		model := os.Getenv("OPENAI_MODEL")
-		if model == "" {
-			model = "gpt-5-nano"
-		}
-
-		analysis, err := analyzeEmailWithOpenAI(r.Context(), openAIAPIKey, model, reviewRules, sequenceContext, email)
+		analysis, err := aiService.AnalyzeEmail(r.Context(), email)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "failed to analyze email %s: %v\n", id, err)
 			http.Error(w, "failed to analyze email", http.StatusBadGateway)

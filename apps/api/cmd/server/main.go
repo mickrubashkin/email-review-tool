@@ -35,10 +35,15 @@ func main() {
 	}
 
 	r := chi.NewRouter()
+	aiService, err := newAIAnalysisService()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to create AI analysis service: %v\n", err)
+		os.Exit(1)
+	}
 
 	registerHealthRoute(r, dbpool)
 	registerEmailRoutes(r, dbpool)
-	registerAIRoutes(r, dbpool)
+	registerAIRoutes(r, dbpool, aiService)
 
 	port := os.Getenv("API_PORT")
 	if port == "" {

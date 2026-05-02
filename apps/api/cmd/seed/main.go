@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"unicode"
@@ -30,6 +31,7 @@ type seedEmail struct {
 	Stage        string
 	SortOrder    int
 	Language     string
+	BodyText     string
 	OriginalHTML string
 }
 
@@ -39,6 +41,23 @@ type seedEmailMeta struct {
 	Preheader  *string `json:"preheader"`
 	SendTiming *string `json:"send_timing"`
 }
+
+var (
+	htmlTagPattern    = regexp.MustCompile(`(?is)<[^>]*>`)
+	whitespacePattern = regexp.MustCompile(`\s+`)
+	namedEntities     = strings.NewReplacer(
+		"&amp;", "&",
+		"&lt;", "<",
+		"&gt;", ">",
+		"&quot;", `"`,
+		"&#39;", "'",
+		"&apos;", "'",
+		"&nbsp;", " ",
+		"&zwnj;", " ",
+		"&ndash;", "-",
+		"&mdash;", "-",
+	)
+)
 
 func main() {
 	_ = godotenv.Load("../../.env")
@@ -154,6 +173,7 @@ func parseSeedEmail(root string, path string, metaByKey map[string]seedEmailMeta
 	if err != nil {
 		return seedEmail{}, err
 	}
+	originalHTML := string(htmlBytes)
 
 	return seedEmail{
 		Slug:         strings.Join([]string{sequence, stage, emailName, language}, "-"),
@@ -165,7 +185,8 @@ func parseSeedEmail(root string, path string, metaByKey map[string]seedEmailMeta
 		Stage:        stage,
 		SortOrder:    stageOrder*100 + emailOrder,
 		Language:     language,
-		OriginalHTML: string(htmlBytes),
+		BodyText:     htmlToText(originalHTML),
+		OriginalHTML: originalHTML,
 	}, nil
 }
 
@@ -220,9 +241,10 @@ func upsertEmail(ctx context.Context, dbpool *pgxpool.Pool, email seedEmail) err
 			stage,
 			sort_order,
 			language,
+			body_text,
 			original_html
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 		ON CONFLICT (slug) DO UPDATE SET
 			sequence = EXCLUDED.sequence,
 			title = EXCLUDED.title,
@@ -232,9 +254,19 @@ func upsertEmail(ctx context.Context, dbpool *pgxpool.Pool, email seedEmail) err
 			stage = EXCLUDED.stage,
 			sort_order = EXCLUDED.sort_order,
 			language = EXCLUDED.language,
+			body_text = EXCLUDED.body_text,
 			original_html = EXCLUDED.original_html,
 			updated_at = now();
-	`, email.Slug, email.Sequence, email.Title, email.Subject, email.Preheader, email.SendTiming, email.Stage, email.SortOrder, email.Language, email.OriginalHTML)
+	`, email.Slug, email.Sequence, email.Title, email.Subject, email.Preheader, email.SendTiming, email.Stage, email.SortOrder, email.Language, email.BodyText, email.OriginalHTML)
 
 	return err
+}
+
+func htmlToText(value string) string {
+	value = htmlTagPattern.ReplaceAllString(value, " ")
+	value = namedEntities.Replace(value)
+	value = strings.ReplaceAll(value, "\u200c", " ")
+	value = whitespacePattern.ReplaceAllString(value, " ")
+
+	return strings.TrimSpace(value)
 }

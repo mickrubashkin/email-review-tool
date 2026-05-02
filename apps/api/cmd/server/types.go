@@ -23,6 +23,7 @@ type EmailDetail struct {
 	Stage        string  `json:"stage"`
 	SortOrder    int     `json:"sort_order"`
 	Language     string  `json:"language"`
+	BodyText     *string `json:"-"`
 	OriginalHTML string  `json:"original_html"`
 }
 
