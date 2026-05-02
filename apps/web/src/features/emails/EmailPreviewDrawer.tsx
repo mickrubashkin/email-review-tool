@@ -13,10 +13,9 @@ import {
   Text,
   Tooltip,
 } from "@mantine/core";
-import { Monitor, Smartphone } from "lucide-react";
+import { ChevronDown, Columns2, Monitor, Smartphone } from "lucide-react";
 
 import { analyzeEmailStream } from "./api";
-import { formatStageName } from "./stages";
 import type {
   EmailAnalysis,
   EmailAnalysisCheckStatus,
@@ -71,6 +70,7 @@ type StreamPreview = {
   recommendations: Partial<EmailRecommendation>[];
 };
 
+type PreviewMode = "desktop" | "mobile" | "both";
 type PreviewViewport = "desktop" | "mobile";
 
 type EmailPreviewDrawerProps = {
@@ -101,8 +101,7 @@ export function EmailPreviewDrawer({
   const [streamStatus, setStreamStatus] = useState<
     "idle" | "streaming" | "done" | "error"
   >("idle");
-  const [previewViewport, setPreviewViewport] =
-    useState<PreviewViewport>("desktop");
+  const [previewMode, setPreviewMode] = useState<PreviewMode>("desktop");
   const [streamText, setStreamText] = useState("");
   const [streamError, setStreamError] = useState<string | null>(null);
   const [streamAnalysis, setStreamAnalysis] = useState<EmailAnalysis | null>(null);
@@ -154,14 +153,120 @@ export function EmailPreviewDrawer({
   const streamPreview = buildStreamPreview(streamText);
   const shouldShowAnalysisPanel =
     isCurrentStream && (streamStatus !== "idle" || Boolean(displayedAnalysis));
+  const activePreviewMode = isMobile
+    ? "mobile"
+    : shouldShowAnalysisPanel && previewMode === "both"
+      ? "desktop"
+      : previewMode;
+  const selectedVersion = emailGroup?.versions.find(
+    (version) => version.id === selectedEmailId
+  );
+  const headerTitle = email
+    ? `${email.title}${email.send_timing ? ` (${formatTimingLabel(email.send_timing)})` : ""}`
+    : "";
 
   return (
     <Drawer
       opened={opened}
       onClose={onClose}
       position="right"
-      size={isMobile ? "100%" : "min(1180px, 96vw)"}
-      title={email?.title ?? "Email preview"}
+      size={
+        isMobile
+          ? "100%"
+          : activePreviewMode === "both"
+            ? "min(1680px, 98vw)"
+            : "min(1180px, 96vw)"
+      }
+      title={
+        <div className={styles.drawerTitleBar}>
+          <Text className={styles.drawerTitleText}>
+            {headerTitle || "Email preview"}
+          </Text>
+
+          {email ? (
+            <Group className={styles.drawerHeaderControls} gap="xs">
+              {emailGroup && emailGroup.versions.length > 1 ? (
+                <label className={styles.versionSelectWrap}>
+                  <select
+                    aria-label="Email version"
+                    className={styles.versionSelect}
+                    value={selectedEmailId ?? selectedVersion?.id ?? ""}
+                    onChange={(event) =>
+                      onSelectVersion(emailGroup.key, event.currentTarget.value)
+                    }
+                  >
+                    {emailGroup.versions.map((version) => (
+                      <option key={version.id} value={version.id}>
+                        {version.language.toUpperCase()}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown
+                    aria-hidden="true"
+                    className={styles.versionSelectIcon}
+                    size={14}
+                    strokeWidth={2.2}
+                  />
+                </label>
+              ) : null}
+
+              {!isMobile ? (
+                <Group className={styles.viewportSwitch} gap={0}>
+                  <Tooltip label="Desktop preview">
+                    <button
+                      aria-label="Desktop preview"
+                      className={styles.viewportButton}
+                      data-active={activePreviewMode === "desktop" || undefined}
+                      type="button"
+                      onClick={() => setPreviewMode("desktop")}
+                    >
+                      <Monitor aria-hidden="true" size={16} strokeWidth={2.2} />
+                    </button>
+                  </Tooltip>
+                  <Tooltip label="Mobile preview">
+                    <button
+                      aria-label="Mobile preview"
+                      className={styles.viewportButton}
+                      data-active={activePreviewMode === "mobile" || undefined}
+                      type="button"
+                      onClick={() => setPreviewMode("mobile")}
+                    >
+                      <Smartphone aria-hidden="true" size={16} strokeWidth={2.2} />
+                    </button>
+                  </Tooltip>
+                  {!shouldShowAnalysisPanel ? (
+                    <Tooltip label="Compare desktop and mobile">
+                      <button
+                        aria-label="Compare desktop and mobile"
+                        className={styles.viewportButton}
+                        data-active={activePreviewMode === "both" || undefined}
+                        type="button"
+                        onClick={() => setPreviewMode("both")}
+                      >
+                        <Columns2 aria-hidden="true" size={16} strokeWidth={2.2} />
+                      </button>
+                    </Tooltip>
+                  ) : null}
+                </Group>
+              ) : null}
+
+              <Tooltip label="Analyze with AI">
+                <ActionIcon
+                  aria-label="Analyze with AI"
+                  className={styles.aiAction}
+                  loading={streamStatus === "streaming" && isCurrentStream}
+                  onClick={handleAnalyzeStream}
+                  radius="md"
+                  size="lg"
+                  variant="light"
+                >
+                  <AISparkleIcon />
+                </ActionIcon>
+              </Tooltip>
+            </Group>
+          ) : null}
+        </div>
+      }
       padding="md"
     >
       {isLoading ? (
@@ -179,112 +284,34 @@ export function EmailPreviewDrawer({
 
       {email ? (
         <Stack gap="md">
-          <Group className={styles.previewToolbar} justify="space-between">
-            <Stack className={styles.drawerMeta} gap={6}>
-              <Group gap="xs">
-                <Badge variant="light" radius="sm">
-                  {email.language}
-                </Badge>
-                <Badge variant="outline" radius="sm">
-                  {formatStageName(email.stage || "uncategorized")}
-                </Badge>
-                <Badge variant="light" radius="sm" color="gray">
-                  {email.send_timing ?? "No timing"}
-                </Badge>
-              </Group>
-
-              {email.subject ? (
-                <Text className={styles.drawerSubject} size="sm" fw={600}>
-                  {email.subject}
-                </Text>
-              ) : null}
-
-              {email.preheader ? (
-                <Text className={styles.drawerPreheader} size="xs" c="dimmed">
-                  {email.preheader}
-                </Text>
-              ) : null}
-
-              {emailGroup && emailGroup.versions.length > 1 ? (
-                <Group gap={4}>
-                  {emailGroup.versions.map((version) => (
-                    <button
-                      className={styles.drawerVersionButton}
-                      data-active={version.id === selectedEmailId || undefined}
-                      key={version.id}
-                      type="button"
-                      onClick={() => onSelectVersion(emailGroup.key, version.id)}
-                    >
-                      {version.language}
-                    </button>
-                  ))}
-                </Group>
-              ) : null}
-            </Stack>
-
-            <Group gap="xs">
-              <Group className={styles.viewportSwitch} gap={0}>
-                <Tooltip label="Desktop preview">
-                  <button
-                    aria-label="Desktop preview"
-                    className={styles.viewportButton}
-                    data-active={previewViewport === "desktop" || undefined}
-                    type="button"
-                    onClick={() => setPreviewViewport("desktop")}
-                  >
-                    <Monitor aria-hidden="true" size={16} strokeWidth={2.2} />
-                  </button>
-                </Tooltip>
-                <Tooltip label="Mobile preview">
-                  <button
-                    aria-label="Mobile preview"
-                    className={styles.viewportButton}
-                    data-active={previewViewport === "mobile" || undefined}
-                    type="button"
-                    onClick={() => setPreviewViewport("mobile")}
-                  >
-                    <Smartphone aria-hidden="true" size={16} strokeWidth={2.2} />
-                  </button>
-                </Tooltip>
-              </Group>
-
-              <Tooltip label="Analyze with AI">
-                <ActionIcon
-                  aria-label="Analyze with AI"
-                  className={styles.aiAction}
-                  loading={streamStatus === "streaming" && isCurrentStream}
-                  onClick={handleAnalyzeStream}
-                  radius="md"
-                  size="lg"
-                  variant="light"
-                >
-                  <AISparkleIcon />
-                </ActionIcon>
-              </Tooltip>
-            </Group>
-          </Group>
-
           <div
             className={
               shouldShowAnalysisPanel
                 ? styles.previewWithAnalysis
                 : styles.previewOnly
             }
+            data-preview-mode={activePreviewMode}
           >
-            <div
-              className={styles.emailPreviewWrap}
-              data-viewport={previewViewport}
-            >
-              <iframe
-                className={styles.emailPreviewFrame}
-                title={email.title}
-                sandbox=""
-                srcDoc={email.original_html}
+            {activePreviewMode === "both" ? (
+              <div className={styles.previewCompareGrid}>
+                <MailPreview
+                  email={email}
+                  isScanning={streamStatus === "streaming" && isCurrentStream}
+                  viewport="desktop"
+                />
+                <MailPreview
+                  email={email}
+                  isScanning={streamStatus === "streaming" && isCurrentStream}
+                  viewport="mobile"
+                />
+              </div>
+            ) : (
+              <MailPreview
+                email={email}
+                isScanning={streamStatus === "streaming" && isCurrentStream}
+                viewport={activePreviewMode}
               />
-              {streamStatus === "streaming" && isCurrentStream ? (
-                <div className={styles.emailScanOverlay} aria-hidden="true" />
-              ) : null}
-            </div>
+            )}
 
             {shouldShowAnalysisPanel ? (
               <aside className={styles.analysisPanel}>
@@ -301,6 +328,61 @@ export function EmailPreviewDrawer({
         </Stack>
       ) : null}
     </Drawer>
+  );
+}
+
+function MailPreview({
+  email,
+  isScanning,
+  viewport,
+}: {
+  email: EmailDetail;
+  isScanning: boolean;
+  viewport: PreviewViewport;
+}) {
+  return (
+    <div className={styles.emailPreviewWrap} data-viewport={viewport}>
+      <div className={styles.mailClient}>
+        <article className={styles.mailReadPane}>
+          <header className={styles.mailHeader}>
+            <Group className={styles.mailMetaRow} justify="space-between" gap="sm">
+              <Group gap="sm" wrap="nowrap">
+                <div className={styles.mailAvatar}>B</div>
+                <Stack gap={0}>
+                  <Text size="sm" fw={600}>
+                    Bitrix24 Partners
+                  </Text>
+                  <Text size="sm">{email.subject ?? email.title}</Text>
+                  {email.subject ? (
+                    <Text size="xs" c="dimmed">
+                      {email.subject}
+                    </Text>
+                  ) : null}
+                  {email.preheader ? (
+                    <Text size="xs" c="dimmed">
+                      {email.preheader}
+                    </Text>
+                  ) : null}
+                  <Text size="xs" c="dimmed">
+                    Reply-To: partners@bitrix24.com
+                  </Text>
+                </Stack>
+              </Group>
+            </Group>
+          </header>
+
+          <iframe
+            className={styles.emailPreviewFrame}
+            title={email.title}
+            sandbox=""
+            srcDoc={email.original_html}
+          />
+        </article>
+      </div>
+      {isScanning ? (
+        <div className={styles.emailScanOverlay} aria-hidden="true" />
+      ) : null}
+    </div>
   );
 }
 
@@ -333,6 +415,14 @@ function AISparkleIcon() {
       />
     </svg>
   );
+}
+
+function formatTimingLabel(value: string) {
+  return value
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => `${word.charAt(0).toUpperCase()}${word.slice(1)}`)
+    .join(" ");
 }
 
 function AnalysisPanel({

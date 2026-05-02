@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -44,6 +46,18 @@ type AIAnalysisService struct {
 	ReviewRules      string
 	SequenceContext  string
 	Client           *http.Client
+}
+
+func (service AIAnalysisService) PromptHash() string {
+	hash := sha256.Sum256([]byte(strings.Join([]string{
+		service.Model,
+		service.ResponseLanguage,
+		service.ReviewRules,
+		service.SequenceContext,
+		"email-analysis-schema-v2",
+	}, "\x00")))
+
+	return hex.EncodeToString(hash[:])
 }
 
 func newAIAnalysisService() (AIAnalysisService, error) {
@@ -331,21 +345,41 @@ func readOpenAIStreamOutputText(body io.Reader, metrics *AIAnalysisMetrics, onDe
 
 func buildEmailAnalysisInput(reviewRules string, sequenceContext string, email EmailDetail) string {
 	parts := emailContentParts(email)
-	input := map[string]any{
-		"stage":             email.Stage,
-		"timing":            stringValue(email.SendTiming),
-		"timing_intent":     inferTimingIntent(email.Title, email.SendTiming),
-		"declared_language": email.Language,
-		"email": map[string]any{
-			"subject":     firstNonEmpty(parts.Subject, stringValue(email.Subject)),
-			"preheader":   firstNonEmpty(parts.Preheader, stringValue(email.Preheader)),
-			"banner_text": parts.BannerText,
-			"primary_cta": parts.PrimaryCTA,
-			"body_text":   limitText(firstNonEmpty(parts.BodyText, emailBodyText(email)), 3000),
-			"links":       parts.Links,
+
+	type emailInput struct {
+		Subject    string   `json:"subject"`
+		Preheader  string   `json:"preheader"`
+		BannerText string   `json:"banner_text"`
+		PrimaryCTA string   `json:"primary_cta"`
+		BodyText   string   `json:"body_text"`
+		Links      []string `json:"links"`
+	}
+
+	type analysisInput struct {
+		Rules            string     `json:"rules"`
+		SequenceContext  string     `json:"sequence_context"`
+		Stage            string     `json:"stage"`
+		Timing           string     `json:"timing"`
+		TimingIntent     string     `json:"timing_intent"`
+		DeclaredLanguage string     `json:"declared_language"`
+		Email            emailInput `json:"email"`
+	}
+
+	input := analysisInput{
+		Rules:            reviewRules,
+		SequenceContext:  sequenceContext,
+		Stage:            email.Stage,
+		Timing:           stringValue(email.SendTiming),
+		TimingIntent:     inferTimingIntent(email.Title, email.SendTiming),
+		DeclaredLanguage: email.Language,
+		Email: emailInput{
+			Subject:    firstNonEmpty(parts.Subject, stringValue(email.Subject)),
+			Preheader:  firstNonEmpty(parts.Preheader, stringValue(email.Preheader)),
+			BannerText: parts.BannerText,
+			PrimaryCTA: parts.PrimaryCTA,
+			BodyText:   limitText(firstNonEmpty(parts.BodyText, emailBodyText(email)), 3000),
+			Links:      parts.Links,
 		},
-		"rules":            reviewRules,
-		"sequence_context": sequenceContext,
 	}
 
 	inputBytes, err := json.Marshal(input)

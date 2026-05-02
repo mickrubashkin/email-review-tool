@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -46,6 +47,7 @@ func analyzeEmailStreamHandler(dbpool *pgxpool.Pool, aiService AIAnalysisService
 				language,
 				body_text,
 				content_parts::text,
+				updated_at,
 				original_html
 			FROM emails
 			WHERE id = $1;
@@ -62,6 +64,7 @@ func analyzeEmailStreamHandler(dbpool *pgxpool.Pool, aiService AIAnalysisService
 			&email.Language,
 			&email.BodyText,
 			&email.ContentParts,
+			&email.UpdatedAt,
 			&email.OriginalHTML,
 		)
 		if err != nil {
@@ -74,6 +77,24 @@ func analyzeEmailStreamHandler(dbpool *pgxpool.Pool, aiService AIAnalysisService
 		w.Header().Set("Cache-Control", "no-cache")
 		w.Header().Set("Connection", "keep-alive")
 		w.Header().Set("X-Accel-Buffering", "no")
+
+		if cachedAnalysis, ok, cacheErr := getCachedAIAnalysis(r.Context(), dbpool, email, aiService); cacheErr != nil {
+			fmt.Fprintf(os.Stderr, "failed to read ai analysis cache for email %s: %v\n", id, cacheErr)
+		} else if ok {
+			resultPayload, marshalErr := json.Marshal(cachedAnalysis)
+			if marshalErr != nil {
+				fmt.Fprintf(os.Stderr, "failed to marshal cached ai analysis for email %s: %v\n", id, marshalErr)
+				payload, _ := json.Marshal("failed to encode cached ai analysis result")
+				fmt.Fprintf(w, "event: error\ndata: %s\n\n", payload)
+				flusher.Flush()
+				return
+			}
+
+			fmt.Fprintf(w, "event: result\ndata: %s\n\n", resultPayload)
+			fmt.Fprint(w, "event: done\ndata: {}\n\n")
+			flusher.Flush()
+			return
+		}
 
 		result, err := aiService.AnalyzeEmailStream(r.Context(), email, func(delta string) error {
 			payload, marshalErr := json.Marshal(delta)
@@ -100,6 +121,10 @@ func analyzeEmailStreamHandler(dbpool *pgxpool.Pool, aiService AIAnalysisService
 			fmt.Fprintf(w, "event: error\ndata: %s\n\n", payload)
 			flusher.Flush()
 			return
+		}
+
+		if cacheErr := upsertAIAnalysisCache(r.Context(), dbpool, email.ID, aiService, result.Analysis); cacheErr != nil {
+			fmt.Fprintf(os.Stderr, "failed to cache ai stream result for email %s: %v\n", id, cacheErr)
 		}
 
 		resultPayload, marshalErr := json.Marshal(result.Analysis)
@@ -141,6 +166,7 @@ func analyzeEmailHandler(dbpool *pgxpool.Pool, aiService AIAnalysisService) http
 				language,
 				body_text,
 				content_parts::text,
+				updated_at,
 				original_html
 			FROM emails
 			WHERE id = $1;
@@ -157,11 +183,20 @@ func analyzeEmailHandler(dbpool *pgxpool.Pool, aiService AIAnalysisService) http
 			&email.Language,
 			&email.BodyText,
 			&email.ContentParts,
+			&email.UpdatedAt,
 			&email.OriginalHTML,
 		)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "failed to get email %s for ai analysis: %v\n", id, err)
 			http.Error(w, "email not found", http.StatusNotFound)
+			return
+		}
+
+		if cachedAnalysis, ok, cacheErr := getCachedAIAnalysis(r.Context(), dbpool, email, aiService); cacheErr != nil {
+			fmt.Fprintf(os.Stderr, "failed to read ai analysis cache for email %s: %v\n", id, cacheErr)
+		} else if ok {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(cachedAnalysis)
 			return
 		}
 
@@ -177,6 +212,10 @@ func analyzeEmailHandler(dbpool *pgxpool.Pool, aiService AIAnalysisService) http
 
 		if logErr := insertAIAnalysisLog(r.Context(), dbpool, email.ID, result.Metrics); logErr != nil {
 			fmt.Fprintf(os.Stderr, "failed to log ai analysis success for email %s: %v\n", id, logErr)
+		}
+
+		if cacheErr := upsertAIAnalysisCache(r.Context(), dbpool, email.ID, aiService, result.Analysis); cacheErr != nil {
+			fmt.Fprintf(os.Stderr, "failed to cache ai analysis result for email %s: %v\n", id, cacheErr)
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -206,6 +245,69 @@ func insertAIAnalysisLog(ctx context.Context, dbpool *pgxpool.Pool, emailID stri
 		metrics.OutputTokens,
 		metrics.TotalTokens,
 		metrics.ErrorMessage,
+	)
+
+	return err
+}
+
+func getCachedAIAnalysis(ctx context.Context, dbpool *pgxpool.Pool, email EmailDetail, aiService AIAnalysisService) (EmailAnalysis, bool, error) {
+	var analysisText string
+
+	err := dbpool.QueryRow(ctx, `
+		SELECT analysis::text
+		FROM ai_analysis_cache
+		WHERE email_id = $1
+			AND model = $2
+			AND response_language = $3
+			AND prompt_hash = $4
+			AND updated_at > $5
+		LIMIT 1;
+	`,
+		email.ID,
+		aiService.Model,
+		aiService.ResponseLanguage,
+		aiService.PromptHash(),
+		email.UpdatedAt,
+	).Scan(&analysisText)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return EmailAnalysis{}, false, nil
+		}
+		return EmailAnalysis{}, false, err
+	}
+
+	var analysis EmailAnalysis
+	if err := json.Unmarshal([]byte(analysisText), &analysis); err != nil {
+		return EmailAnalysis{}, false, err
+	}
+
+	return analysis, true, nil
+}
+
+func upsertAIAnalysisCache(ctx context.Context, dbpool *pgxpool.Pool, emailID string, aiService AIAnalysisService, analysis EmailAnalysis) error {
+	analysisBytes, err := json.Marshal(analysis)
+	if err != nil {
+		return err
+	}
+
+	_, err = dbpool.Exec(ctx, `
+		INSERT INTO ai_analysis_cache (
+			email_id,
+			model,
+			response_language,
+			prompt_hash,
+			analysis
+		)
+		VALUES ($1, $2, $3, $4, $5::jsonb)
+		ON CONFLICT (email_id, model, response_language, prompt_hash) DO UPDATE SET
+			analysis = EXCLUDED.analysis,
+			updated_at = now();
+	`,
+		emailID,
+		aiService.Model,
+		aiService.ResponseLanguage,
+		aiService.PromptHash(),
+		string(analysisBytes),
 	)
 
 	return err
