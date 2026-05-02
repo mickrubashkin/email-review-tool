@@ -18,7 +18,7 @@ Stage guide:
 | qualified | Complete verification and intro call | Book a call / continue verification | Push missing verification steps |
 | approved | Start product usage | Set up NFR | Explain why setup enables client work |
 | nfr-installed | Complete training | Start/complete training | Link training to leads, commission, Kickstart |
-| training-completed | Install Partner App | Install Partner App | Make activation step clear |
+| training-completed | Install Partner App | Install Partner App / Get leads via Partner App | Make app install the clear activation step |
 | partner-app-installed | Convert activation into first revenue | Start receiving leads / close first deal | Move from setup to action with leads |
 | first-sale | Build consistency | Get more leads / close next deal | Reinforce momentum after first win |
 | second-sale | Reach Silver target | Work with leads / close next deal | Push toward deal count and revenue target |

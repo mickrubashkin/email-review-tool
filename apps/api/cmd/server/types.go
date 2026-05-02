@@ -24,18 +24,40 @@ type EmailDetail struct {
 	SortOrder    int     `json:"sort_order"`
 	Language     string  `json:"language"`
 	BodyText     *string `json:"-"`
+	ContentParts *string `json:"-"`
 	OriginalHTML string  `json:"original_html"`
+}
+
+type EmailContentParts struct {
+	Subject    string   `json:"subject"`
+	Preheader  string   `json:"preheader"`
+	BannerText string   `json:"banner_text"`
+	BodyText   string   `json:"body_text"`
+	PrimaryCTA string   `json:"primary_cta"`
+	Links      []string `json:"links"`
 }
 
 type EmailAnalysis struct {
 	Summary         string                `json:"summary"`
 	Score           int                   `json:"score"`
+	Verdict         string                `json:"verdict"`
+	Checks          EmailAnalysisChecks   `json:"checks"`
 	Recommendations []EmailRecommendation `json:"recommendations"`
 }
 
+type EmailAnalysisChecks struct {
+	Subject        string `json:"subject"`
+	Preheader      string `json:"preheader"`
+	Focus          string `json:"focus"`
+	CTA            string `json:"cta"`
+	StageAlignment string `json:"stage_alignment"`
+	Readability    string `json:"readability"`
+}
+
 type EmailRecommendation struct {
-	Title   string `json:"title"`
-	Details string `json:"details"`
+	Priority string `json:"priority"`
+	Title    string `json:"title"`
+	Details  string `json:"details"`
 }
 
 type AIAnalysisResult struct {

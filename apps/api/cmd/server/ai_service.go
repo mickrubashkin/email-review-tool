@@ -15,9 +15,14 @@ import (
 )
 
 var (
-	htmlTagPattern    = regexp.MustCompile(`(?is)<[^>]*>`)
-	whitespacePattern = regexp.MustCompile(`\s+`)
-	namedEntities     = strings.NewReplacer(
+	htmlCommentPattern = regexp.MustCompile(`(?is)<!--.*?-->`)
+	headPattern        = regexp.MustCompile(`(?is)<head\b[^>]*>.*?</head>`)
+	stylePattern       = regexp.MustCompile(`(?is)<style\b[^>]*>.*?</style>`)
+	scriptPattern      = regexp.MustCompile(`(?is)<script\b[^>]*>.*?</script>`)
+	xmlPattern         = regexp.MustCompile(`(?is)<xml\b[^>]*>.*?</xml>`)
+	htmlTagPattern     = regexp.MustCompile(`(?is)<[^>]*>`)
+	whitespacePattern  = regexp.MustCompile(`\s+`)
+	namedEntities      = strings.NewReplacer(
 		"&amp;", "&",
 		"&lt;", "<",
 		"&gt;", ">",
@@ -32,11 +37,12 @@ var (
 )
 
 type AIAnalysisService struct {
-	APIKey          string
-	Model           string
-	ReviewRules     string
-	SequenceContext string
-	Client          *http.Client
+	APIKey           string
+	Model            string
+	ResponseLanguage string
+	ReviewRules      string
+	SequenceContext  string
+	Client           *http.Client
 }
 
 func newAIAnalysisService() (AIAnalysisService, error) {
@@ -54,13 +60,18 @@ func newAIAnalysisService() (AIAnalysisService, error) {
 	if model == "" {
 		model = "gpt-5-nano"
 	}
+	responseLanguage := os.Getenv("AI_RESPONSE_LANGUAGE")
+	if responseLanguage == "" {
+		responseLanguage = "Russian"
+	}
 
 	return AIAnalysisService{
-		APIKey:          os.Getenv("OPENAI_API_KEY"),
-		Model:           model,
-		ReviewRules:     reviewRules,
-		SequenceContext: sequenceContext,
-		Client:          &http.Client{Timeout: 45 * time.Second},
+		APIKey:           os.Getenv("OPENAI_API_KEY"),
+		Model:            model,
+		ResponseLanguage: responseLanguage,
+		ReviewRules:      reviewRules,
+		SequenceContext:  sequenceContext,
+		Client:           &http.Client{Timeout: 45 * time.Second},
 	}, nil
 }
 
@@ -73,15 +84,23 @@ func (service AIAnalysisService) AnalyzeEmail(ctx context.Context, email EmailDe
 
 	requestBody := map[string]any{
 		"model": service.Model,
-		"instructions": strings.TrimSpace(`
-Review partner onboarding email text only. Ignore HTML/CSS/layout/rendering.
-Use rules and sequence context to check stage, CTA, timing, urgency, and message alignment.
-Return only JSON: summary, score, recommendations[{title,details}].
-No markdown, no prose, no code fences.
-Limits: summary <= 1 short sentence; score 1-10; max 2 recommendations; details <= 140 chars.
-`),
+		"instructions": fmt.Sprintf(strings.TrimSpace(`
+You are an email copy reviewer for partner onboarding sequences.
+Use the provided review rules and onboarding sequence context.
+Review only email text and metadata.
+primary_cta is the actual button CTA.
+If primary_cta is present, do not infer the main CTA from links or repeated body text.
+Use links only as supporting context.
+Return only JSON matching the schema.
+Write summary, recommendation titles, and details in %s.
+Limits:
+- summary: 1 short sentence
+- score: integer from 1 to 10
+- recommendations: max 3
+- recommendation details: max 220 characters
+`), service.ResponseLanguage),
 		"input":             buildEmailAnalysisInput(service.ReviewRules, service.SequenceContext, email),
-		"max_output_tokens": 300,
+		"max_output_tokens": 550,
 		"text": map[string]any{
 			"format": map[string]any{
 				"type":        "json_schema",
@@ -91,26 +110,60 @@ Limits: summary <= 1 short sentence; score 1-10; max 2 recommendations; details 
 				"schema": map[string]any{
 					"type":                 "object",
 					"additionalProperties": false,
-					"required":             []string{"summary", "score", "recommendations"},
+					"required":             []string{"summary", "score", "verdict", "checks", "recommendations"},
 					"properties": map[string]any{
 						"summary": map[string]any{
-							"type": "string",
+							"type":      "string",
+							"maxLength": 160,
 						},
 						"score": map[string]any{
-							"type": "integer",
+							"type":    "integer",
+							"minimum": 1,
+							"maximum": 10,
+						},
+						"verdict": map[string]any{
+							"type": "string",
+							"enum": []string{"ready", "minor_fixes", "needs_work"},
+						},
+						"checks": map[string]any{
+							"type":                 "object",
+							"additionalProperties": false,
+							"required": []string{
+								"subject",
+								"preheader",
+								"focus",
+								"cta",
+								"stage_alignment",
+								"readability",
+							},
+							"properties": map[string]any{
+								"subject":         analysisStatusSchema(),
+								"preheader":       analysisStatusSchema(),
+								"focus":           analysisStatusSchema(),
+								"cta":             analysisStatusSchema(),
+								"stage_alignment": analysisStatusSchema(),
+								"readability":     analysisStatusSchema(),
+							},
 						},
 						"recommendations": map[string]any{
-							"type": "array",
+							"type":     "array",
+							"maxItems": 3,
 							"items": map[string]any{
 								"type":                 "object",
 								"additionalProperties": false,
-								"required":             []string{"title", "details"},
+								"required":             []string{"priority", "title", "details"},
 								"properties": map[string]any{
-									"title": map[string]any{
+									"priority": map[string]any{
 										"type": "string",
+										"enum": []string{"high", "medium", "low"},
+									},
+									"title": map[string]any{
+										"type":      "string",
+										"maxLength": 80,
 									},
 									"details": map[string]any{
-										"type": "string",
+										"type":      "string",
+										"maxLength": 220,
 									},
 								},
 							},
@@ -168,6 +221,13 @@ Limits: summary <= 1 short sentence; score 1-10; max 2 recommendations; details 
 	}, nil
 }
 
+func analysisStatusSchema() map[string]any {
+	return map[string]any{
+		"type": "string",
+		"enum": []string{"good", "weak", "bad"},
+	}
+}
+
 func finishAIAnalysisMetrics(metrics AIAnalysisMetrics, startedAt time.Time, err error) AIAnalysisMetrics {
 	metrics.LatencyMS = int(time.Since(startedAt).Milliseconds())
 	if err != nil {
@@ -196,30 +256,43 @@ func applyOpenAIUsage(metrics *AIAnalysisMetrics, responseBytes []byte) {
 }
 
 func buildEmailAnalysisInput(reviewRules string, sequenceContext string, email EmailDetail) string {
-	return fmt.Sprintf(`rules:
-%s
+	parts := emailContentParts(email)
+	input := map[string]any{
+		"stage":             email.Stage,
+		"timing":            stringValue(email.SendTiming),
+		"timing_intent":     inferTimingIntent(email.Title, email.SendTiming),
+		"declared_language": email.Language,
+		"email": map[string]any{
+			"subject":     firstNonEmpty(parts.Subject, stringValue(email.Subject)),
+			"preheader":   firstNonEmpty(parts.Preheader, stringValue(email.Preheader)),
+			"banner_text": parts.BannerText,
+			"primary_cta": parts.PrimaryCTA,
+			"body_text":   limitText(firstNonEmpty(parts.BodyText, emailBodyText(email)), 3000),
+			"links":       parts.Links,
+		},
+		"rules":            reviewRules,
+		"sequence_context": sequenceContext,
+	}
 
-sequence:
-%s
+	inputBytes, err := json.Marshal(input)
+	if err != nil {
+		return "{}"
+	}
 
-title: %s
-subject: %s
-preheader: %s
-timing: %s
-stage: %s
-language: %s
-body:
-%s`,
-		reviewRules,
-		sequenceContext,
-		email.Title,
-		stringValue(email.Subject),
-		stringValue(email.Preheader),
-		stringValue(email.SendTiming),
-		email.Stage,
-		email.Language,
-		limitText(emailBodyText(email), 3000),
-	)
+	return string(inputBytes)
+}
+
+func emailContentParts(email EmailDetail) EmailContentParts {
+	if email.ContentParts == nil || strings.TrimSpace(*email.ContentParts) == "" {
+		return EmailContentParts{}
+	}
+
+	var parts EmailContentParts
+	if err := json.Unmarshal([]byte(*email.ContentParts), &parts); err != nil {
+		return EmailContentParts{}
+	}
+
+	return parts
 }
 
 func emailBodyText(email EmailDetail) string {
@@ -228,6 +301,33 @@ func emailBodyText(email EmailDetail) string {
 	}
 
 	return htmlToText(email.OriginalHTML)
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+
+	return ""
+}
+
+func inferTimingIntent(title string, sendTiming *string) string {
+	value := strings.ToLower(title + " " + stringValue(sendTiming))
+
+	switch {
+	case strings.Contains(value, "last call") || strings.Contains(value, "last-call") || strings.Contains(value, "14 days"):
+		return "last-call"
+	case strings.Contains(value, "follow up 2") || strings.Contains(value, "follow-up 2") || strings.Contains(value, "follow-up-2") || strings.Contains(value, "5 days"):
+		return "follow-up-2"
+	case strings.Contains(value, "follow up 1") || strings.Contains(value, "follow-up 1") || strings.Contains(value, "follow-up-1") || strings.Contains(value, "2 days"):
+		return "follow-up-1"
+	case strings.Contains(value, "next step") || strings.Contains(value, "next-step") || strings.Contains(value, "immediately"):
+		return "next-step"
+	default:
+		return ""
+	}
 }
 
 func limitText(value string, maxLength int) string {
@@ -328,6 +428,11 @@ func loadAIContextFile(fileName string) (string, error) {
 }
 
 func htmlToText(value string) string {
+	value = htmlCommentPattern.ReplaceAllString(value, " ")
+	value = headPattern.ReplaceAllString(value, " ")
+	value = stylePattern.ReplaceAllString(value, " ")
+	value = scriptPattern.ReplaceAllString(value, " ")
+	value = xmlPattern.ReplaceAllString(value, " ")
 	value = htmlTagPattern.ReplaceAllString(value, " ")
 	value = namedEntities.Replace(value)
 	value = strings.ReplaceAll(value, "\u200c", " ")

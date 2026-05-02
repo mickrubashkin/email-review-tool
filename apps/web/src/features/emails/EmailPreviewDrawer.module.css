@@ -9,6 +9,19 @@
   background: var(--mantine-color-white);
 }
 
+.analysisCheck {
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--mantine-color-gray-2);
+  border-radius: var(--mantine-radius-sm);
+  background: var(--mantine-color-gray-0);
+}
+
+.recommendationItem {
+  padding-top: var(--mantine-spacing-xs);
+  border-top: 1px solid var(--mantine-color-gray-2);
+}
+
 .emailPreviewFrame {
   display: block;
   width: 100%;

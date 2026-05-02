@@ -38,6 +38,7 @@ func analyzeEmailHandler(dbpool *pgxpool.Pool, aiService AIAnalysisService) http
 				sort_order,
 				language,
 				body_text,
+				content_parts::text,
 				original_html
 			FROM emails
 			WHERE id = $1;
@@ -53,6 +54,7 @@ func analyzeEmailHandler(dbpool *pgxpool.Pool, aiService AIAnalysisService) http
 			&email.SortOrder,
 			&email.Language,
 			&email.BodyText,
+			&email.ContentParts,
 			&email.OriginalHTML,
 		)
 		if err != nil {

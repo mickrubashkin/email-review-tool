@@ -18,10 +18,26 @@ export type EmailDetail = EmailListItem & {
 export type EmailAnalysis = {
   summary: string;
   score: number;
+  verdict: EmailAnalysisVerdict;
+  checks: EmailAnalysisChecks;
   recommendations: EmailRecommendation[];
 };
 
+export type EmailAnalysisVerdict = "ready" | "minor_fixes" | "needs_work";
+
+export type EmailAnalysisCheckStatus = "good" | "weak" | "bad";
+
+export type EmailAnalysisChecks = {
+  subject: EmailAnalysisCheckStatus;
+  preheader: EmailAnalysisCheckStatus;
+  focus: EmailAnalysisCheckStatus;
+  cta: EmailAnalysisCheckStatus;
+  stage_alignment: EmailAnalysisCheckStatus;
+  readability: EmailAnalysisCheckStatus;
+};
+
 export type EmailRecommendation = {
+  priority: "high" | "medium" | "low";
   title: string;
   details: string;
 };

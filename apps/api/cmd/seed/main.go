@@ -32,6 +32,7 @@ type seedEmail struct {
 	SortOrder    int
 	Language     string
 	BodyText     string
+	ContentParts EmailContentParts
 	OriginalHTML string
 }
 
@@ -42,10 +43,27 @@ type seedEmailMeta struct {
 	SendTiming *string `json:"send_timing"`
 }
 
+type EmailContentParts struct {
+	Subject    string   `json:"subject"`
+	Preheader  string   `json:"preheader"`
+	BannerText string   `json:"banner_text"`
+	BodyText   string   `json:"body_text"`
+	PrimaryCTA string   `json:"primary_cta"`
+	Links      []string `json:"links"`
+}
+
 var (
-	htmlTagPattern    = regexp.MustCompile(`(?is)<[^>]*>`)
-	whitespacePattern = regexp.MustCompile(`\s+`)
-	namedEntities     = strings.NewReplacer(
+	htmlCommentPattern = regexp.MustCompile(`(?is)<!--.*?-->`)
+	headPattern        = regexp.MustCompile(`(?is)<head\b[^>]*>.*?</head>`)
+	stylePattern       = regexp.MustCompile(`(?is)<style\b[^>]*>.*?</style>`)
+	scriptPattern      = regexp.MustCompile(`(?is)<script\b[^>]*>.*?</script>`)
+	xmlPattern         = regexp.MustCompile(`(?is)<xml\b[^>]*>.*?</xml>`)
+	imgPattern         = regexp.MustCompile(`(?is)<img\b[^>]*>`)
+	h1Pattern          = regexp.MustCompile(`(?is)<h1\b[^>]*>(.*?)</h1>`)
+	linkPattern        = regexp.MustCompile(`(?is)<a\b[^>]*>(.*?)</a\s*>`)
+	htmlTagPattern     = regexp.MustCompile(`(?is)<[^>]*>`)
+	whitespacePattern  = regexp.MustCompile(`\s+`)
+	namedEntities      = strings.NewReplacer(
 		"&amp;", "&",
 		"&lt;", "<",
 		"&gt;", ">",
@@ -174,6 +192,8 @@ func parseSeedEmail(root string, path string, metaByKey map[string]seedEmailMeta
 		return seedEmail{}, err
 	}
 	originalHTML := string(htmlBytes)
+	bodyText := htmlToText(originalHTML)
+	contentParts := extractEmailContentParts(originalHTML, emailMeta, bodyText)
 
 	return seedEmail{
 		Slug:         strings.Join([]string{sequence, stage, emailName, language}, "-"),
@@ -185,7 +205,8 @@ func parseSeedEmail(root string, path string, metaByKey map[string]seedEmailMeta
 		Stage:        stage,
 		SortOrder:    stageOrder*100 + emailOrder,
 		Language:     language,
-		BodyText:     htmlToText(originalHTML),
+		BodyText:     bodyText,
+		ContentParts: contentParts,
 		OriginalHTML: originalHTML,
 	}, nil
 }
@@ -242,9 +263,10 @@ func upsertEmail(ctx context.Context, dbpool *pgxpool.Pool, email seedEmail) err
 			sort_order,
 			language,
 			body_text,
+			content_parts,
 			original_html
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 		ON CONFLICT (slug) DO UPDATE SET
 			sequence = EXCLUDED.sequence,
 			title = EXCLUDED.title,
@@ -255,14 +277,132 @@ func upsertEmail(ctx context.Context, dbpool *pgxpool.Pool, email seedEmail) err
 			sort_order = EXCLUDED.sort_order,
 			language = EXCLUDED.language,
 			body_text = EXCLUDED.body_text,
+			content_parts = EXCLUDED.content_parts,
 			original_html = EXCLUDED.original_html,
 			updated_at = now();
-	`, email.Slug, email.Sequence, email.Title, email.Subject, email.Preheader, email.SendTiming, email.Stage, email.SortOrder, email.Language, email.BodyText, email.OriginalHTML)
+	`, email.Slug, email.Sequence, email.Title, email.Subject, email.Preheader, email.SendTiming, email.Stage, email.SortOrder, email.Language, email.BodyText, email.ContentParts, email.OriginalHTML)
 
 	return err
 }
 
+func extractEmailContentParts(originalHTML string, emailMeta seedEmailMeta, bodyText string) EmailContentParts {
+	return EmailContentParts{
+		Subject:    stringFromPointer(emailMeta.Subject),
+		Preheader:  stringFromPointer(emailMeta.Preheader),
+		BannerText: extractBannerText(originalHTML),
+		BodyText:   bodyText,
+		PrimaryCTA: extractPrimaryCTA(originalHTML),
+		Links:      extractLinks(originalHTML),
+	}
+}
+
+func extractBannerText(value string) string {
+	for _, image := range imgPattern.FindAllString(value, -1) {
+		alt := extractAttribute(image, "alt")
+		if isMeaningfulImageAlt(alt) {
+			return alt
+		}
+	}
+
+	matches := h1Pattern.FindStringSubmatch(value)
+	if len(matches) >= 2 {
+		return htmlToText(matches[1])
+	}
+
+	return ""
+}
+
+func isMeaningfulImageAlt(value string) bool {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return false
+	}
+
+	lowerValue := strings.ToLower(value)
+	return !strings.Contains(lowerValue, "logo") &&
+		!strings.Contains(lowerValue, "telegram") &&
+		!strings.Contains(lowerValue, "linkedin") &&
+		!strings.Contains(lowerValue, "youtube") &&
+		!strings.Contains(lowerValue, "facebook")
+}
+
+func extractPrimaryCTA(value string) string {
+	for _, link := range linkPattern.FindAllStringSubmatch(value, -1) {
+		if len(link) < 2 {
+			continue
+		}
+
+		attrs := link[0]
+		text := htmlToText(link[1])
+		if text == "" {
+			continue
+		}
+
+		lowerAttrs := strings.ToLower(attrs)
+		if strings.Contains(lowerAttrs, "button") ||
+			strings.Contains(lowerAttrs, "background-color") ||
+			strings.Contains(lowerAttrs, "border-radius") ||
+			strings.Contains(lowerAttrs, "display: inline-block") {
+			return text
+		}
+	}
+
+	links := extractLinks(value)
+	if len(links) > 0 {
+		return links[0]
+	}
+
+	return ""
+}
+
+func extractLinks(value string) []string {
+	seen := map[string]bool{}
+	links := []string{}
+
+	for _, link := range linkPattern.FindAllStringSubmatch(value, -1) {
+		if len(link) < 2 {
+			continue
+		}
+
+		text := htmlToText(link[1])
+		if text == "" || seen[text] {
+			continue
+		}
+
+		seen[text] = true
+		links = append(links, text)
+	}
+
+	return links
+}
+
+func extractAttribute(tag string, attribute string) string {
+	pattern := regexp.MustCompile(`(?is)\b` + regexp.QuoteMeta(attribute) + `\s*=\s*("([^"]*)"|'([^']*)')`)
+	matches := pattern.FindStringSubmatch(tag)
+	if len(matches) >= 3 && matches[2] != "" {
+		return htmlToText(matches[2])
+	}
+	if len(matches) >= 4 {
+		return htmlToText(matches[3])
+	}
+
+	return ""
+}
+
+func stringFromPointer(value *string) string {
+	if value == nil {
+		return ""
+	}
+
+	return *value
+}
+
 func htmlToText(value string) string {
+	value = htmlCommentPattern.ReplaceAllString(value, " ")
+	value = headPattern.ReplaceAllString(value, " ")
+	value = stylePattern.ReplaceAllString(value, " ")
+	value = scriptPattern.ReplaceAllString(value, " ")
+	value = xmlPattern.ReplaceAllString(value, " ")
 	value = htmlTagPattern.ReplaceAllString(value, " ")
 	value = namedEntities.Replace(value)
 	value = strings.ReplaceAll(value, "\u200c", " ")
