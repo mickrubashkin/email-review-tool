@@ -24,6 +24,7 @@ COPY apps/api/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
 ENV PORT=8080
+ENV SEED_EMAILS_DIR=/app/db/seeds/emails
 EXPOSE 8080
 
 CMD ["/app/entrypoint.sh"]

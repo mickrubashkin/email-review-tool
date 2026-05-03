@@ -45,7 +45,10 @@ func main() {
 	registerEmailRoutes(r, dbpool)
 	registerAIRoutes(r, dbpool, aiService)
 
-	port := os.Getenv("API_PORT")
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = os.Getenv("API_PORT")
+	}
 	if port == "" {
 		port = "8080"
 	}

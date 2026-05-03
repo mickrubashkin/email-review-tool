@@ -18,7 +18,6 @@ import (
 
 const (
 	sequence = "onboarding"
-	seedDir  = "../../db/seeds/emails"
 )
 
 type seedEmail struct {
@@ -67,6 +66,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	seedDir, err := findSeedDir()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to find seed emails directory: %v\n", err)
+		os.Exit(1)
+	}
+
 	emails, err := loadSeedEmails(seedDir)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to load seed emails: %v\n", err)
@@ -81,6 +86,35 @@ func main() {
 	}
 
 	fmt.Printf("Seeded %d emails\n", len(emails))
+}
+
+func findSeedDir() (string, error) {
+	if value := os.Getenv("SEED_EMAILS_DIR"); value != "" {
+		return value, nil
+	}
+
+	workingDir, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+
+	for dir := workingDir; ; dir = filepath.Dir(dir) {
+		candidate := filepath.Join(dir, "db", "seeds", "emails")
+		info, err := os.Stat(candidate)
+		if err == nil && info.IsDir() {
+			return candidate, nil
+		}
+		if err != nil && !os.IsNotExist(err) {
+			return "", err
+		}
+
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+	}
+
+	return "", fmt.Errorf("db/seeds/emails was not found from %s or its parents", workingDir)
 }
 
 func loadSeedEmails(root string) ([]seedEmail, error) {
