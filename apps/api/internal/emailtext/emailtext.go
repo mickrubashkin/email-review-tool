@@ -6,12 +6,26 @@ import (
 )
 
 type ContentParts struct {
-	Subject    string   `json:"subject"`
-	Preheader  string   `json:"preheader"`
-	BannerText string   `json:"banner_text"`
-	BodyText   string   `json:"body_text"`
-	PrimaryCTA string   `json:"primary_cta"`
-	Links      []string `json:"links"`
+	Subject    string     `json:"subject"`
+	Preheader  string     `json:"preheader"`
+	BannerText string     `json:"banner_text"`
+	BodyText   string     `json:"body_text"`
+	PrimaryCTA string     `json:"primary_cta"`
+	Links      []string   `json:"links"`
+	LinkGroups LinkGroups `json:"link_groups"`
+}
+
+type LinkGroups struct {
+	Primary []string `json:"primary"`
+	Support []string `json:"support"`
+	Footer  []string `json:"footer"`
+	Other   []string `json:"other"`
+}
+
+type linkInfo struct {
+	Text       string
+	Href       string
+	Attributes string
 }
 
 var (
@@ -54,13 +68,17 @@ func HTMLToText(value string) string {
 }
 
 func ExtractContentParts(originalHTML string, subject string, preheader string, bodyText string) ContentParts {
+	links := extractLinkInfos(originalHTML)
+	primaryCTA := extractPrimaryCTAFromLinks(links)
+
 	return ContentParts{
 		Subject:    subject,
 		Preheader:  preheader,
 		BannerText: extractBannerText(originalHTML),
 		BodyText:   bodyText,
-		PrimaryCTA: extractPrimaryCTA(originalHTML),
-		Links:      extractLinks(originalHTML),
+		PrimaryCTA: primaryCTA,
+		Links:      linkTexts(links),
+		LinkGroups: classifyLinks(links, primaryCTA),
 	}
 }
 
@@ -95,18 +113,17 @@ func isMeaningfulImageAlt(value string) bool {
 }
 
 func extractPrimaryCTA(value string) string {
-	for _, link := range linkPattern.FindAllStringSubmatch(value, -1) {
-		if len(link) < 2 {
-			continue
-		}
+	return extractPrimaryCTAFromLinks(extractLinkInfos(value))
+}
 
-		attrs := link[0]
-		text := HTMLToText(link[1])
+func extractPrimaryCTAFromLinks(links []linkInfo) string {
+	for _, link := range links {
+		text := link.Text
 		if text == "" {
 			continue
 		}
 
-		lowerAttrs := strings.ToLower(attrs)
+		lowerAttrs := strings.ToLower(link.Attributes)
 		if strings.Contains(lowerAttrs, "button") ||
 			strings.Contains(lowerAttrs, "background-color") ||
 			strings.Contains(lowerAttrs, "border-radius") ||
@@ -115,17 +132,20 @@ func extractPrimaryCTA(value string) string {
 		}
 	}
 
-	links := extractLinks(value)
 	if len(links) > 0 {
-		return links[0]
+		return links[0].Text
 	}
 
 	return ""
 }
 
 func extractLinks(value string) []string {
+	return linkTexts(extractLinkInfos(value))
+}
+
+func extractLinkInfos(value string) []linkInfo {
 	seen := map[string]bool{}
-	links := []string{}
+	links := []linkInfo{}
 
 	for _, link := range linkPattern.FindAllStringSubmatch(value, -1) {
 		if len(link) < 2 {
@@ -137,11 +157,83 @@ func extractLinks(value string) []string {
 			continue
 		}
 
+		attrs := link[0]
 		seen[text] = true
-		links = append(links, text)
+		links = append(links, linkInfo{
+			Text:       text,
+			Href:       extractAttribute(attrs, "href"),
+			Attributes: attrs,
+		})
 	}
 
 	return links
+}
+
+func linkTexts(links []linkInfo) []string {
+	texts := make([]string, 0, len(links))
+	for _, link := range links {
+		if link.Text != "" {
+			texts = append(texts, link.Text)
+		}
+	}
+
+	return texts
+}
+
+func classifyLinks(links []linkInfo, primaryCTA string) LinkGroups {
+	groups := LinkGroups{
+		Primary: []string{},
+		Support: []string{},
+		Footer:  []string{},
+		Other:   []string{},
+	}
+
+	for _, link := range links {
+		switch {
+		case primaryCTA != "" && strings.EqualFold(link.Text, primaryCTA):
+			groups.Primary = appendUnique(groups.Primary, link.Text)
+		case isFooterLink(link):
+			groups.Footer = appendUnique(groups.Footer, link.Text)
+		case isSupportLink(link):
+			groups.Support = appendUnique(groups.Support, link.Text)
+		default:
+			groups.Other = appendUnique(groups.Other, link.Text)
+		}
+	}
+
+	return groups
+}
+
+func isSupportLink(link linkInfo) bool {
+	value := strings.ToLower(link.Text + " " + link.Href)
+	return strings.Contains(value, "book a call") ||
+		strings.Contains(value, "book a short call") ||
+		strings.Contains(value, "schedule") ||
+		strings.Contains(value, "calendly") ||
+		strings.Contains(value, "contact") ||
+		strings.Contains(value, "support") ||
+		strings.Contains(value, "help")
+}
+
+func isFooterLink(link linkInfo) bool {
+	value := strings.ToLower(link.Text + " " + link.Href)
+	return strings.Contains(value, "privacy") ||
+		strings.Contains(value, "unsubscribe") ||
+		strings.Contains(value, "terms") ||
+		strings.Contains(value, "telegram") ||
+		strings.Contains(value, "linkedin") ||
+		strings.Contains(value, "youtube") ||
+		strings.Contains(value, "facebook")
+}
+
+func appendUnique(values []string, value string) []string {
+	for _, existing := range values {
+		if existing == value {
+			return values
+		}
+	}
+
+	return append(values, value)
 }
 
 func extractAttribute(tag string, attribute string) string {

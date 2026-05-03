@@ -50,7 +50,8 @@ Use the provided review rules and onboarding sequence context.
 Review only email text and metadata.
 primary_cta is the actual button CTA.
 If primary_cta is present, do not infer the main CTA from links or repeated body text.
-Use links only as supporting context.
+Support links are not competing CTAs when they help complete primary_cta and are phrased as help.
+Use support, footer, and other links only as supporting context.
 Return only JSON matching the schema.
 Write summary, recommendation titles, and details in %s.
 Limits:
@@ -138,12 +139,12 @@ func buildEmailAnalysisInput(reviewRules string, sequenceContext string, email E
 	parts := emailContentParts(email)
 
 	type emailInput struct {
-		Subject    string   `json:"subject"`
-		Preheader  string   `json:"preheader"`
-		BannerText string   `json:"banner_text"`
-		PrimaryCTA string   `json:"primary_cta"`
-		BodyText   string   `json:"body_text"`
-		Links      []string `json:"links"`
+		Subject    string     `json:"subject"`
+		Preheader  string     `json:"preheader"`
+		BannerText string     `json:"banner_text"`
+		PrimaryCTA string     `json:"primary_cta"`
+		BodyText   string     `json:"body_text"`
+		Links      LinkGroups `json:"links"`
 	}
 
 	type analysisInput struct {
@@ -169,7 +170,7 @@ func buildEmailAnalysisInput(reviewRules string, sequenceContext string, email E
 			BannerText: parts.BannerText,
 			PrimaryCTA: parts.PrimaryCTA,
 			BodyText:   limitText(firstNonEmpty(parts.BodyText, emailBodyText(email)), 3000),
-			Links:      parts.Links,
+			Links:      emailLinkGroups(parts),
 		},
 	}
 
@@ -192,6 +193,17 @@ func emailContentParts(email EmailDetail) EmailContentParts {
 	}
 
 	return parts
+}
+
+func emailLinkGroups(parts EmailContentParts) LinkGroups {
+	if len(parts.LinkGroups.Primary) > 0 ||
+		len(parts.LinkGroups.Support) > 0 ||
+		len(parts.LinkGroups.Footer) > 0 ||
+		len(parts.LinkGroups.Other) > 0 {
+		return parts.LinkGroups
+	}
+
+	return LinkGroups{Other: parts.Links}
 }
 
 func emailBodyText(email EmailDetail) string {

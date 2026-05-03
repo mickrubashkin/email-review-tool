@@ -38,6 +38,7 @@ type EmailDetail struct {
 }
 
 type EmailContentParts = emailtext.ContentParts
+type LinkGroups = emailtext.LinkGroups
 
 type EmailAnalysis struct {
 	Summary         string                `json:"summary"`
