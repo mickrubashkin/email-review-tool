@@ -1,9 +1,6 @@
 # TODO
 
 ## Next product backlog
-
-- [ ] Add API endpoint and admin view for AI analysis usage logs
-- [ ] Show AI analysis latency, tokens, model, status, and errors in logs view
 - [ ] Track AI cache hits and misses
 - [ ] Add email-based authorization
 - [ ] Support allowlist by email domain or exact email address
