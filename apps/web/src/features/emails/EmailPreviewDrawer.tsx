@@ -14,8 +14,19 @@ import { useState } from "react";
 import { AISparkleIcon } from "./AISparkleIcon";
 import { AnalysisPanel } from "./AnalysisPanel";
 import { MailPreview } from "./MailPreview";
+import {
+  getAvailableVariants,
+  getSelectedVariant,
+  getVersionForVariant,
+  getVersionsForVariant,
+} from "./stages";
 import { buildStreamPreview } from "./streamPreview";
-import type { EmailDetail, EmailVersionGroup } from "./types";
+import type {
+  EmailDetail,
+  EmailListItem,
+  EmailVariant,
+  EmailVersionGroup,
+} from "./types";
 import { useEmailAnalysisStream } from "./useEmailAnalysisStream";
 import styles from "./EmailPreviewDrawer.module.css";
 
@@ -67,6 +78,15 @@ export function EmailPreviewDrawer({
   const selectedVersion = emailGroup?.versions.find(
     (version) => version.id === selectedEmailId
   );
+  const selectedVariant = emailGroup
+    ? getSelectedVariant(emailGroup.versions, selectedEmailId)
+    : "new";
+  const selectedVariantVersions = emailGroup
+    ? getVersionsForVariant(emailGroup.versions, selectedVariant)
+    : [];
+  const availableVariants = emailGroup
+    ? getAvailableVariants(emailGroup.versions)
+    : [];
   const headerTitle = email
     ? `${email.title}${email.send_timing ? ` (${formatTimingLabel(email.send_timing)})` : ""}`
     : "";
@@ -94,7 +114,18 @@ export function EmailPreviewDrawer({
               {emailGroup && emailGroup.versions.length > 1 ? (
                 <VersionSelect
                   emailGroup={emailGroup}
+                  versions={selectedVariantVersions}
                   selectedEmailId={selectedEmailId ?? selectedVersion?.id ?? ""}
+                  onSelectVersion={onSelectVersion}
+                />
+              ) : null}
+
+              {emailGroup && availableVariants.length > 0 ? (
+                <VariantSwitch
+                  availableVariants={availableVariants}
+                  emailGroup={emailGroup}
+                  selectedEmail={email}
+                  selectedVariant={selectedVariant}
                   onSelectVersion={onSelectVersion}
                 />
               ) : null}
@@ -177,10 +208,12 @@ function VersionSelect({
   emailGroup,
   onSelectVersion,
   selectedEmailId,
+  versions,
 }: {
   emailGroup: EmailVersionGroup;
   onSelectVersion: (groupKey: string, emailId: string) => void;
   selectedEmailId: string;
+  versions: EmailListItem[];
 }) {
   return (
     <label className={styles.versionSelectWrap}>
@@ -192,7 +225,7 @@ function VersionSelect({
           onSelectVersion(emailGroup.key, event.currentTarget.value)
         }
       >
-        {emailGroup.versions.map((version) => (
+        {versions.map((version) => (
           <option key={version.id} value={version.id}>
             {version.language.toUpperCase()}
           </option>
@@ -205,6 +238,49 @@ function VersionSelect({
         strokeWidth={2.2}
       />
     </label>
+  );
+}
+
+function VariantSwitch({
+  availableVariants,
+  emailGroup,
+  onSelectVersion,
+  selectedEmail,
+  selectedVariant,
+}: {
+  availableVariants: EmailVariant[];
+  emailGroup: EmailVersionGroup;
+  onSelectVersion: (groupKey: string, emailId: string) => void;
+  selectedEmail: EmailDetail;
+  selectedVariant: EmailVariant;
+}) {
+  const handleVariantClick = (variant: EmailVariant) => {
+    const nextEmail = getVersionForVariant(
+      emailGroup.versions,
+      variant,
+      selectedEmail.language
+    );
+    if (nextEmail) {
+      onSelectVersion(emailGroup.key, nextEmail.id);
+    }
+  };
+
+  return (
+    <Group className={styles.variantSwitch} gap={0}>
+      {(["new", "old"] as const).map((variant) => (
+        <button
+          aria-label={`${variant} email variant`}
+          className={styles.variantButton}
+          data-active={variant === selectedVariant || undefined}
+          disabled={!availableVariants.includes(variant)}
+          key={variant}
+          type="button"
+          onClick={() => handleVariantClick(variant)}
+        >
+          {variant}
+        </button>
+      ))}
+    </Group>
   );
 }
 

@@ -9,8 +9,14 @@ import {
   UnstyledButton,
 } from "@mantine/core";
 
-import type { EmailVersionGroup } from "./types";
-import { getDefaultVersion } from "./stages";
+import type { EmailVariant, EmailVersionGroup } from "./types";
+import {
+  getAvailableVariants,
+  getDefaultVersion,
+  getSelectedVariant,
+  getVersionForVariant,
+  getVersionsForVariant,
+} from "./stages";
 import styles from "./EmailCard.module.css";
 
 type EmailCardProps = {
@@ -93,6 +99,15 @@ export function EmailCard({
   const selectedEmail =
     emailGroup.versions.find((email) => email.id === selectedEmailId) ??
     getDefaultVersion(emailGroup.versions);
+  const selectedVariant = getSelectedVariant(
+    emailGroup.versions,
+    selectedEmail.id
+  );
+  const variantVersions = getVersionsForVariant(
+    emailGroup.versions,
+    selectedVariant
+  );
+  const availableVariants = getAvailableVariants(emailGroup.versions);
 
   const handleVersionClick = (
     event: MouseEvent<HTMLButtonElement>,
@@ -100,6 +115,21 @@ export function EmailCard({
   ) => {
     event.stopPropagation();
     onSelectVersion(emailGroup.key, emailId);
+  };
+
+  const handleVariantClick = (
+    event: MouseEvent<HTMLButtonElement>,
+    variant: EmailVariant
+  ) => {
+    event.stopPropagation();
+    const nextEmail = getVersionForVariant(
+      emailGroup.versions,
+      variant,
+      selectedEmail.language
+    );
+    if (nextEmail) {
+      onSelectVersion(emailGroup.key, nextEmail.id);
+    }
   };
 
   return (
@@ -125,7 +155,7 @@ export function EmailCard({
             </Group>
 
             <Group gap={4}>
-              {emailGroup.versions.map((email) => (
+              {variantVersions.map((email) => (
                 <button
                   className={styles.versionButton}
                   data-active={email.id === selectedEmail.id || undefined}
@@ -161,7 +191,20 @@ export function EmailCard({
             <Text size="xs" lineClamp={1}>
               {selectedEmail.send_timing ?? "No timing"}
             </Text>
-            {/* <Text size="xs">{emailGroup.versions.length} version(s)</Text> */}
+            <Group className={styles.variantSwitch} gap={2}>
+              {(["new", "old"] as const).map((variant) => (
+                <button
+                  className={styles.variantButton}
+                  data-active={variant === selectedVariant || undefined}
+                  disabled={!availableVariants.includes(variant)}
+                  key={variant}
+                  type="button"
+                  onClick={(event) => handleVariantClick(event, variant)}
+                >
+                  {variant}
+                </button>
+              ))}
+            </Group>
           </Group>
         </Stack>
       </Card>

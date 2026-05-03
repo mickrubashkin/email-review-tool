@@ -1,11 +1,11 @@
 {
-  "onboarding/approved/application-approved/br": {
+  "onboarding/approved/application-approved/br-old": {
     "title": "Application Approved",
     "subject": "Programa de Parcerias Bitrix24 | Inscrição Aprovada",
     "preheader": "Sua inscrição no Programa de Parcerias Bitrix24 foi aprovada. Comece o onboarding agora para desbloquear seu desconto de parceiro de 20%.",
     "send_timing": "immediately"
   },
-  "onboarding/approved/application-approved/de": {
+  "onboarding/approved/application-approved/de-old": {
     "title": "Application Approved",
     "subject": "Bitrix24 Partnerprogramm | Ihre Partneranfrage wurde akzeptiert",
     "preheader": "Ihr Antrag für das Bitrix24 Partnerprogramm wurde genehmigt. Beginnen Sie jetzt mit dem Onboarding, um Ihren 20%-Partnerrabatt freizuschalten.",
@@ -17,31 +17,31 @@
     "preheader": "Access your partner account and get started.",
     "send_timing": "immediately"
   },
-  "onboarding/approved/application-approved/es": {
-    "title": "Application Approved",
-    "subject": "Programa de Partners de Bitrix24 | Solicitud Aprobada",
-    "preheader": "Su solicitud para el Programa de Partners de Bitrix24 ha sido aprobada. Comience ahora el proceso de incorporación para desbloquear su 20% de descuento.",
-    "send_timing": "immediately"
-  },
-  "onboarding/approved/application-approved/old": {
+  "onboarding/approved/application-approved/en-old": {
     "title": "Application Approved",
     "subject": "Bitrix24 Partner Program | Application Approved",
     "preheader": "Your Bitrix24 Partner application has been approved. Start onboarding now to unlock your 20% partner discount.",
     "send_timing": "immediately"
   },
-  "onboarding/approved/application-approved/pl": {
+  "onboarding/approved/application-approved/es-old": {
+    "title": "Application Approved",
+    "subject": "Programa de Partners de Bitrix24 | Solicitud Aprobada",
+    "preheader": "Su solicitud para el Programa de Partners de Bitrix24 ha sido aprobada. Comience ahora el proceso de incorporación para desbloquear su 20% de descuento.",
+    "send_timing": "immediately"
+  },
+  "onboarding/approved/application-approved/pl-old": {
     "title": "Application Approved",
     "subject": "Program Partnerski Bitrix24 | Zgłoszenie Odebrane",
     "preheader": "Twoje zgłoszenie do Programu Partnerskiego Bitrix24 zostało zatwierdzone. Rozpocznij onboarding, aby uzyskać 20% rabatu partnerskiego.",
     "send_timing": "immediately"
   },
-  "onboarding/approved/follow-up-1/br": {
+  "onboarding/approved/follow-up-1/br-old": {
     "title": "Follow Up 1",
     "subject": "Programa de Parceiros Bitrix24 | 🤩 Sua assinatura gratuita Premium Bitrix24",
     "preheader": "Ative sua assinatura gratuita NFR do Bitrix24 em apenas dois passos simples.",
     "send_timing": "2 days after previous email"
   },
-  "onboarding/approved/follow-up-1/de": {
+  "onboarding/approved/follow-up-1/de-old": {
     "title": "Follow Up 1",
     "subject": "Bitrix24 Partnerprogramm | Ihr kostenloses Bitrix24 Premium-Abonnement",
     "preheader": "Aktivieren Sie Ihr kostenloses Bitrix24-NFR-Abonnement in nur zwei einfachen Schritten.",
@@ -53,25 +53,25 @@
     "preheader": "Let’s fix it together in a quick call",
     "send_timing": "2 days after previous email"
   },
-  "onboarding/approved/follow-up-1/es": {
-    "title": "Follow Up 1",
-    "subject": "Programa de Partners de Bitrix24 | Su suscripción gratuita a Bitrix24 Premium",
-    "preheader": "Activa su suscripción gratuita de Bitrix24 NFR en solo dos sencillos pasos.",
-    "send_timing": "2 days after previous email"
-  },
-  "onboarding/approved/follow-up-1/old": {
+  "onboarding/approved/follow-up-1/en-old": {
     "title": "Follow Up 1",
     "subject": "Bitrix24 Partner Program | Free Premium Subscription",
     "preheader": "Activate your free Bitrix24 NFR subscription in just two easy steps.",
     "send_timing": "2 days after previous email"
   },
-  "onboarding/approved/follow-up-1/pl": {
+  "onboarding/approved/follow-up-1/es-old": {
+    "title": "Follow Up 1",
+    "subject": "Programa de Partners de Bitrix24 | Su suscripción gratuita a Bitrix24 Premium",
+    "preheader": "Activa su suscripción gratuita de Bitrix24 NFR en solo dos sencillos pasos.",
+    "send_timing": "2 days after previous email"
+  },
+  "onboarding/approved/follow-up-1/pl-old": {
     "title": "Follow Up 1",
     "subject": "Program Partnerski Bitrix24 | Twoja bezpłatna subskrypcja Bitrix24 Premium",
     "preheader": "Aktywuj swoją bezpłatną subskrypcję Bitrix24 NFR w zaledwie dwóch prostych krokach.",
     "send_timing": "2 days after previous email"
   },
-  "onboarding/approved/follow-up-2/br": {
+  "onboarding/approved/follow-up-2/br-old": {
     "title": "Follow Up 2",
     "subject": "Programa de Parceiros Bitrix24 | Como vão os seus estudos como Parceiro Bitrix24?",
     "preheader": "",
@@ -83,25 +83,25 @@
     "preheader": "This is a hidden preheader",
     "send_timing": "5 days after previous email"
   },
-  "onboarding/approved/follow-up-2/es": {
-    "title": "Follow Up 2",
-    "subject": "Programa de Partners de Bitrix24 | ¿Por qué se detuvo?",
-    "preheader": "Hablemos sobre cómo avanzar y desbloquear sus beneficios como Partner.",
-    "send_timing": "5 days after previous email"
-  },
-  "onboarding/approved/follow-up-2/old": {
+  "onboarding/approved/follow-up-2/en-old": {
     "title": "Follow Up 2",
     "subject": "Bitrix24 Partner Program | Why did you stop?",
     "preheader": "Let's discuss how to move forward and unlock your partner benefits.",
     "send_timing": "5 days after previous email"
   },
-  "onboarding/approved/follow-up-2/pl": {
+  "onboarding/approved/follow-up-2/es-old": {
+    "title": "Follow Up 2",
+    "subject": "Programa de Partners de Bitrix24 | ¿Por qué se detuvo?",
+    "preheader": "Hablemos sobre cómo avanzar y desbloquear sus beneficios como Partner.",
+    "send_timing": "5 days after previous email"
+  },
+  "onboarding/approved/follow-up-2/pl-old": {
     "title": "Follow Up 2",
     "subject": "Program Partnerski Bitrix24 | Czy napotkali Państwo trudności?",
     "preheader": "Porozmawiajmy o dalszych krokach i możliwościach odblokowania korzyści partnerskich.",
     "send_timing": "5 days after previous email"
   },
-  "onboarding/approved/last-call/br": {
+  "onboarding/approved/last-call/br-old": {
     "title": "Last Call",
     "subject": "Programa de Parceiros Bitrix24 | Comunicado intergaláctico a nosso Parceiro Bitrix24! 🧑🏻‍🚀",
     "preheader": "",
@@ -113,7 +113,7 @@
     "preheader": "This is a hidden preheader",
     "send_timing": "14 days after previous email"
   },
-  "onboarding/approved/next-step/br": {
+  "onboarding/approved/next-step/br-old": {
     "title": "Next Step",
     "subject": "Programa de Parceiros Bitrix24 | Bem-vindo a bordo!",
     "preheader": "Bem-vindo ao Programa de Parcerias da Bitrix24. Veja como começar de forma eficiente.",
@@ -125,19 +125,19 @@
     "preheader": "You’re one step away from working with Bitrix24",
     "send_timing": "immediately"
   },
-  "onboarding/approved/next-step/es": {
-    "title": "Next Step",
-    "subject": "Programa de Partners de Bitrix24 | Información Importante",
-    "preheader": "Bienvenido al Programa de Partners de Bitrix24. Aquí tiene cómo empezar de forma eficiente.",
-    "send_timing": "immediately"
-  },
-  "onboarding/approved/next-step/old": {
+  "onboarding/approved/next-step/en-old": {
     "title": "Next Step",
     "subject": "Bitrix24 - First steps guide",
     "preheader": "Welcome to the Bitrix24 Partner Program. Here's how to get started efficiently.",
     "send_timing": "immediately"
   },
-  "onboarding/approved/next-step/pl": {
+  "onboarding/approved/next-step/es-old": {
+    "title": "Next Step",
+    "subject": "Programa de Partners de Bitrix24 | Información Importante",
+    "preheader": "Bienvenido al Programa de Partners de Bitrix24. Aquí tiene cómo empezar de forma eficiente.",
+    "send_timing": "immediately"
+  },
+  "onboarding/approved/next-step/pl-old": {
     "title": "Next Step",
     "subject": "Program Partnerski Bitrix24 | Najważniejsze Informacje",
     "preheader": "Witamy w Programie Partnerskim Bitrix24. Oto, jak sprawnie rozpocząć współpracę.",
@@ -149,7 +149,7 @@
     "preheader": "This is a hidden preheader",
     "send_timing": "2 days after previous email"
   },
-  "onboarding/first-sale/follow-up-1/es": {
+  "onboarding/first-sale/follow-up-1/es-old": {
     "title": "Follow Up 1",
     "subject": "Programa de Partners de Bitrix24 | Feedback de Partner",
     "preheader": "",
@@ -167,13 +167,13 @@
     "preheader": "This is a hidden preheader",
     "send_timing": "14 days after previous email"
   },
-  "onboarding/first-sale/next-step/br": {
+  "onboarding/first-sale/next-step/br-old": {
     "title": "Next Step",
     "subject": "Programa de Parceiros Bitrix24 | Parabéns pela sua primeira venda! 🤩",
     "preheader": "Ótimo começo. Agora dê o próximo passo e desbloqueie os benefícios de Parceiro Silver.",
     "send_timing": "immediately"
   },
-  "onboarding/first-sale/next-step/de": {
+  "onboarding/first-sale/next-step/de-old": {
     "title": "Next Step",
     "subject": "Bitrix24 Partnerprogramm | Gratulation zu Ihrer ersten Bestellung",
     "preheader": "Toller Start. Machen Sie jetzt den nächsten Schritt und schalten Sie die Vorteile des Silver-Partner-Status frei.",
@@ -185,25 +185,25 @@
     "preheader": "This is a hidden preheader",
     "send_timing": "immediately"
   },
-  "onboarding/first-sale/next-step/es": {
-    "title": "Next Step",
-    "subject": "Programa de Partners de Bitrix24 | Felicidades por su primera venta!",
-    "preheader": "Buen comienzo. Ahora dé el siguiente paso y desbloquee los beneficios del Partner Silver.",
-    "send_timing": "immediately"
-  },
-  "onboarding/first-sale/next-step/old": {
+  "onboarding/first-sale/next-step/en-old": {
     "title": "Next Step",
     "subject": "Bitrix24 Partner Program | Congratulations on Your Sale",
     "preheader": "Great start. Now take the next step and unlock Silver Partner benefits.",
     "send_timing": "immediately"
   },
-  "onboarding/first-sale/next-step/pl": {
+  "onboarding/first-sale/next-step/es-old": {
+    "title": "Next Step",
+    "subject": "Programa de Partners de Bitrix24 | Felicidades por su primera venta!",
+    "preheader": "Buen comienzo. Ahora dé el siguiente paso y desbloquee los beneficios del Partner Silver.",
+    "send_timing": "immediately"
+  },
+  "onboarding/first-sale/next-step/pl-old": {
     "title": "Next Step",
     "subject": "Program Partnerski Bitrix24 | Gratulujemy pierwszej sprzedaży",
     "preheader": "Świetny początek. Zrób kolejny krok i odblokuj korzyści Partnera Srebrnego.",
     "send_timing": "immediately"
   },
-  "onboarding/nfr-installed/follow-up-1/br": {
+  "onboarding/nfr-installed/follow-up-1/br-old": {
     "title": "Follow Up 1",
     "subject": "Programa de Parceiros Bitrix24 | 🎁 Bônus Kickstart de $1000 e leads gratuitos qualificados",
     "preheader": "$1.000 e leads qualificados estão esperando. Dê o próximo passo — tudo começa com um curso simples.",
@@ -215,25 +215,25 @@
     "preheader": "Complete your training to unlock leads and commission.",
     "send_timing": "2 days after previous email"
   },
-  "onboarding/nfr-installed/follow-up-1/es": {
-    "title": "Follow Up 1",
-    "subject": "Programa de Partners de Bitrix24 | 🎁 Le preparamos un bono de $1,000 USD y leads calificados sin cargo.",
-    "preheader": "1.000 $ y clientes potenciales lo están esperando. Dé el siguiente paso: todo comienza con un curso sencillo.",
-    "send_timing": "2 days after previous email"
-  },
-  "onboarding/nfr-installed/follow-up-1/old": {
+  "onboarding/nfr-installed/follow-up-1/en-old": {
     "title": "Follow Up 1",
     "subject": "Bitrix24 Partner Program | $1,000 of kickstart bonus awaiting",
     "preheader": "$1,000 and leads are waiting. Take the next step — it starts with a simple course.",
     "send_timing": "2 days after previous email"
   },
-  "onboarding/nfr-installed/follow-up-1/pl": {
+  "onboarding/nfr-installed/follow-up-1/es-old": {
+    "title": "Follow Up 1",
+    "subject": "Programa de Partners de Bitrix24 | 🎁 Le preparamos un bono de $1,000 USD y leads calificados sin cargo.",
+    "preheader": "1.000 $ y clientes potenciales lo están esperando. Dé el siguiente paso: todo comienza con un curso sencillo.",
+    "send_timing": "2 days after previous email"
+  },
+  "onboarding/nfr-installed/follow-up-1/pl-old": {
     "title": "Follow Up 1",
     "subject": "Program Partnerski Bitrix24 | Przygotowaliśmy dla Ciebie 1.000€ i bezpłatne sprawdzone leady",
     "preheader": "1.000 € i sprawdzone leady czekają na Ciebie. Zrób kolejny krok — wszystko zaczyna się od prostego kursu.",
     "send_timing": "2 days after previous email"
   },
-  "onboarding/nfr-installed/follow-up-2/br": {
+  "onboarding/nfr-installed/follow-up-2/br-old": {
     "title": "Follow Up 2",
     "subject": "Programa de Parceiros Bitrix24 | Por que você parou?",
     "preheader": "Vamos conversar sobre como avançar e desbloquear seus benefícios de parceiro.",
@@ -245,19 +245,19 @@
     "preheader": "Finish your training within 90 days to keep your benefits active",
     "send_timing": "5 days after previous email"
   },
-  "onboarding/nfr-installed/follow-up-2/es": {
-    "title": "Follow Up 2",
-    "subject": "Programa de Partners de Bitrix24 | ¿Por qué se detuvo?",
-    "preheader": "Hablemos sobre cómo avanzar y desbloquear sus beneficios como Partner.",
-    "send_timing": "5 days after previous email"
-  },
-  "onboarding/nfr-installed/follow-up-2/old": {
+  "onboarding/nfr-installed/follow-up-2/en-old": {
     "title": "Follow Up 2",
     "subject": "Bitrix24 Partner Program | Why did you stop?",
     "preheader": "Let's discuss how to move forward and unlock your partner benefits.",
     "send_timing": "5 days after previous email"
   },
-  "onboarding/nfr-installed/follow-up-2/pl": {
+  "onboarding/nfr-installed/follow-up-2/es-old": {
+    "title": "Follow Up 2",
+    "subject": "Programa de Partners de Bitrix24 | ¿Por qué se detuvo?",
+    "preheader": "Hablemos sobre cómo avanzar y desbloquear sus beneficios como Partner.",
+    "send_timing": "5 days after previous email"
+  },
+  "onboarding/nfr-installed/follow-up-2/pl-old": {
     "title": "Follow Up 2",
     "subject": "Program Partnerski Bitrix24 | Czy napotkali Państwo trudności?",
     "preheader": "Porozmawiajmy o dalszych krokach i możliwościach odblokowania korzyści partnerskich.",
@@ -269,13 +269,13 @@
     "preheader": "Complete your training to keep your partner status and benefits active.",
     "send_timing": "14 days after previous email"
   },
-  "onboarding/nfr-installed/next-step/br": {
+  "onboarding/nfr-installed/next-step/br-old": {
     "title": "Next Step",
-    "subject": "",
-    "preheader": "",
+    "subject": "Programa de Parceiros Bitrix24 | 🚀 Agora você já tem a sua conta NFR! Quais os próximos passos?",
+    "preheader": "Próximo: faça o curso, ganhe US$1.000 e receba leads reais de clientes.",
     "send_timing": "immediately"
   },
-  "onboarding/nfr-installed/next-step/de": {
+  "onboarding/nfr-installed/next-step/de-old": {
     "title": "Next Step",
     "subject": "Bitrix24 Partnerprogramm | Sie haben Ihr NFR aktiviert, was nun?",
     "preheader": "Als Nächstes: absolvieren Sie den Kurs, erhalten Sie 1.000 $, und bekommen Sie echte Kundenanfragen.",
@@ -287,19 +287,19 @@
     "preheader": "Unlock leads, commission, and your Kickstart bonus.",
     "send_timing": "immediately"
   },
-  "onboarding/nfr-installed/next-step/es": {
-    "title": "Next Step",
-    "subject": "Programa de Partners de Bitrix24 | 🚀Ahora tiene su NFR. ¿Qué sigue?",
-    "preheader": "Próximo paso: haga el curso, obtenga $1,000 y reciba clientes reales.",
-    "send_timing": "immediately"
-  },
-  "onboarding/nfr-installed/next-step/old": {
+  "onboarding/nfr-installed/next-step/en-old": {
     "title": "Next Step",
     "subject": "Bitrix24 Partner Program | Next Steps",
     "preheader": "Next: take the course, get $1,000, and receive real client leads.",
     "send_timing": "immediately"
   },
-  "onboarding/nfr-installed/next-step/pl": {
+  "onboarding/nfr-installed/next-step/es-old": {
+    "title": "Next Step",
+    "subject": "Programa de Partners de Bitrix24 | 🚀Ahora tiene su NFR. ¿Qué sigue?",
+    "preheader": "Próximo paso: haga el curso, obtenga $1,000 y reciba clientes reales.",
+    "send_timing": "immediately"
+  },
+  "onboarding/nfr-installed/next-step/pl-old": {
     "title": "Next Step",
     "subject": "Program Partnerski Bitrix24 | Masz już swój NFR. Co dalej?",
     "preheader": "Następny krok: ukończ kurs, odbierz 1 000 USD i zacznij otrzymywać prawdziwe kontakty do klientów.",
@@ -323,13 +323,13 @@
     "preheader": "This is a hidden preheader",
     "send_timing": "14 days after previous email"
   },
-  "onboarding/partner-app-installed/next-step/br": {
+  "onboarding/partner-app-installed/next-step/br-old": {
     "title": "Next Step",
     "subject": "Programa de Parceiros Bitrix24 | Distribuição de Leads",
     "preheader": "Você recebeu acesso aos leads. Veja como processá-los corretamente.",
     "send_timing": "immediately"
   },
-  "onboarding/partner-app-installed/next-step/de": {
+  "onboarding/partner-app-installed/next-step/de-old": {
     "title": "Next Step",
     "subject": "Bitrix24 Partnerprogramm | Zugriff auf Leads",
     "preheader": "Sie haben Zugriff auf Leads erhalten. So bearbeiten Sie sie richtig.",
@@ -341,19 +341,19 @@
     "preheader": "This is a hidden preheader",
     "send_timing": "immediately"
   },
-  "onboarding/partner-app-installed/next-step/es": {
-    "title": "Next Step",
-    "subject": "Programa de Partners Bitrix24 | Programa de Distribución de Prospectos",
-    "preheader": "Se le ha concedido acceso a los leads. Aquí tiene cómo gestionarlos correctamente.",
-    "send_timing": "immediately"
-  },
-  "onboarding/partner-app-installed/next-step/old": {
+  "onboarding/partner-app-installed/next-step/en-old": {
     "title": "Next Step",
     "subject": "Bitrix24 Partner Program | Leads Distribution Program",
     "preheader": "You've been granted access to leads. Here's how to process them properly.",
     "send_timing": "immediately"
   },
-  "onboarding/partner-app-installed/next-step/pl": {
+  "onboarding/partner-app-installed/next-step/es-old": {
+    "title": "Next Step",
+    "subject": "Programa de Partners Bitrix24 | Programa de Distribución de Prospectos",
+    "preheader": "Se le ha concedido acceso a los leads. Aquí tiene cómo gestionarlos correctamente.",
+    "send_timing": "immediately"
+  },
+  "onboarding/partner-app-installed/next-step/pl-old": {
     "title": "Next Step",
     "subject": "Program Partnerski Bitrix24 | Program Dystrybucji Leadów",
     "preheader": "Uzyskałeś dostęp do leadów. Oto jak prawidłowo je obsługiwać.",
@@ -377,13 +377,13 @@
     "preheader": "This is a hidden preheader",
     "send_timing": "14 days after previous email"
   },
-  "onboarding/qualified/next-step/br": {
+  "onboarding/qualified/next-step/br-old": {
     "title": "Next Step",
     "subject": "Programa de Parceiros Bitrix24 | Cadastro Pré-Aprovado",
     "preheader": "Sua inscrição foi pré-aprovada. Faltam apenas 2 etapas para se tornar um parceiro Bitrix24.",
     "send_timing": "immediately"
   },
-  "onboarding/qualified/next-step/de": {
+  "onboarding/qualified/next-step/de-old": {
     "title": "Next Step",
     "subject": "Ihre ersten Schritte im Bitrix24 Partnerprogramm",
     "preheader": "Ihre Partneranfrage ist bereits genehmigt. Nur noch 3 Schritte - und Sie werden ein Bitrix24 Partner.",
@@ -395,31 +395,31 @@
     "preheader": "Next steps: schedule a call and complete your partner setup.",
     "send_timing": "immediately"
   },
-  "onboarding/qualified/next-step/es": {
-    "title": "Next Step",
-    "subject": "Programa de Partners de Bitrix24 | Solicitud de Partner preaprobada",
-    "preheader": "Solicitud de Partner preaprobada: últimos pasos para convertirte en Partner de Bitrix24",
-    "send_timing": "immediately"
-  },
-  "onboarding/qualified/next-step/old": {
+  "onboarding/qualified/next-step/en-old": {
     "title": "Next Step",
     "subject": "Bitrix24 Partner Program | Pre-Approved Registration",
     "preheader": "Your application is pre-approved. Just 3 final steps to become a Bitrix24 Partner.",
     "send_timing": "immediately"
   },
-  "onboarding/qualified/next-step/pl": {
+  "onboarding/qualified/next-step/es-old": {
+    "title": "Next Step",
+    "subject": "Programa de Partners de Bitrix24 | Solicitud de Partner preaprobada",
+    "preheader": "Solicitud de Partner preaprobada: últimos pasos para convertirte en Partner de Bitrix24",
+    "send_timing": "immediately"
+  },
+  "onboarding/qualified/next-step/pl-old": {
     "title": "Next Step",
     "subject": "Gratulacje! Zgłoszenie do Programu Partnerskiego Bitrix24 zostało wstępnie zaakceptowane",
     "preheader": "Zgłoszenie zostało wstępnie zaakceptowane. Pozostały tylko 3 kroki do zostania Partnerem Bitrix24.",
     "send_timing": "immediately"
   },
-  "onboarding/registered/application-received/br": {
+  "onboarding/registered/application-received/br-old": {
     "title": "Application Received",
     "subject": "Programa de Parcerias Bitrix24 | Inscrição Aprovada",
     "preheader": "Sua inscrição no Programa de Parcerias Bitrix24 foi aprovada. Comece o onboarding agora para desbloquear seu desconto de parceiro de 20%.",
     "send_timing": "immediately"
   },
-  "onboarding/registered/application-received/de": {
+  "onboarding/registered/application-received/de-old": {
     "title": "Application Received",
     "subject": "Bitrix24 Partnerprogramm | Ihre Partneranfrage wurde akzeptiert",
     "preheader": "Ihr Antrag für das Bitrix24 Partnerprogramm wurde genehmigt. Beginnen Sie jetzt mit dem Onboarding, um Ihren 20%-Partnerrabatt freizuschalten.",
@@ -431,31 +431,31 @@
     "preheader": "Access your account using the login details below.",
     "send_timing": "immediately"
   },
-  "onboarding/registered/application-received/es": {
-    "title": "Application Received",
-    "subject": "Programa de Partners de Bitrix24 | Solicitud Recibida",
-    "preheader": "Hemos recibido su solicitud para unirse al Programa de Partners de Bitrix24.",
-    "send_timing": "immediately"
-  },
-  "onboarding/registered/application-received/old": {
+  "onboarding/registered/application-received/en-old": {
     "title": "Application Received",
     "subject": "Bitrix24 Partner Program | Application Approved",
     "preheader": "Your Bitrix24 Partner application has been approved. Start onboarding now to unlock your 20% partner discount.",
     "send_timing": "immediately"
   },
-  "onboarding/registered/application-received/pl": {
+  "onboarding/registered/application-received/es-old": {
+    "title": "Application Received",
+    "subject": "Programa de Partners de Bitrix24 | Solicitud Recibida",
+    "preheader": "Hemos recibido su solicitud para unirse al Programa de Partners de Bitrix24.",
+    "send_timing": "immediately"
+  },
+  "onboarding/registered/application-received/pl-old": {
     "title": "Application Received",
     "subject": "Program Partnerski Bitrix24 | Zgłoszenie Odebrane",
     "preheader": "Twoje zgłoszenie do Programu Partnerskiego Bitrix24 zostało zatwierdzone. Rozpocznij onboarding, aby uzyskać 20% rabatu partnerskiego.",
     "send_timing": "immediately"
   },
-  "onboarding/registered/initial-questions/br": {
+  "onboarding/registered/initial-questions/br-old": {
     "title": "Initial Questions",
     "subject": "Sua parceria Bitrix24 está quase pronta! Vamos conversar agora? 🚀",
     "preheader": "Faltam apenas 2 passos para concluir sua aprovação como Parceiro Bitrix24.",
     "send_timing": "immediately"
   },
-  "onboarding/registered/initial-questions/de": {
+  "onboarding/registered/initial-questions/de-old": {
     "title": "Initial Questions",
     "subject": "Bitrix24 Partnerprogramm | Einleitende Fragen",
     "preheader": "Wir danken Ihnen für Ihr Interesse, Teil unserer Bitrix24-Partner-Community zu werden!",
@@ -467,25 +467,25 @@
     "preheader": "Thank you for your interest in becoming part of the Bitrix24 Partner community!",
     "send_timing": "immediately"
   },
-  "onboarding/registered/initial-questions/es": {
+  "onboarding/registered/initial-questions/es-old": {
     "title": "Initial Questions",
     "subject": "Programa de Partners de Bitrix24 | Cuestionario inicial",
     "preheader": "¡Gracias por su interés en unirse a la comunidad de Partners de Bitrix24!",
     "send_timing": "immediately"
   },
-  "onboarding/registered/initial-questions/pl": {
+  "onboarding/registered/initial-questions/pl-old": {
     "title": "Initial Questions",
     "subject": "Program Partnerski Bitrix24 | Ankieta kwalifikacyjna",
     "preheader": "Dziękujemy za zainteresowanie dołączeniem do społeczności partnerów Bitrix24!",
     "send_timing": "immediately"
   },
-  "onboarding/rejected/application-rejected/br": {
+  "onboarding/rejected/application-rejected/br-old": {
     "title": "Application Rejected",
     "subject": "Programa de Parcerias Bitrix24 | Inscrição Rejeitada",
     "preheader": "",
     "send_timing": "immediately"
   },
-  "onboarding/rejected/application-rejected/de": {
+  "onboarding/rejected/application-rejected/de-old": {
     "title": "Application Rejected",
     "subject": "Bitrix24 Partnerprogramm | Ihre Partneranfrage wurde abgelehnt",
     "preheader": "",
@@ -497,67 +497,67 @@
     "preheader": "",
     "send_timing": "immediately"
   },
-  "onboarding/rejected/application-rejected/es": {
-    "title": "Application Rejected",
-    "subject": "Programa de Partners de Bitrix24 | Solicitud Rechazada",
-    "preheader": "",
-    "send_timing": "immediately"
-  },
-  "onboarding/rejected/application-rejected/old": {
+  "onboarding/rejected/application-rejected/en-old": {
     "title": "Application Rejected",
     "subject": "Bitrix24 Partner Program | Application Rejected",
     "preheader": "",
     "send_timing": "immediately"
   },
-  "onboarding/rejected/application-rejected/pl": {
+  "onboarding/rejected/application-rejected/es-old": {
+    "title": "Application Rejected",
+    "subject": "Programa de Partners de Bitrix24 | Solicitud Rechazada",
+    "preheader": "",
+    "send_timing": "immediately"
+  },
+  "onboarding/rejected/application-rejected/pl-old": {
     "title": "Application Rejected",
     "subject": "Program Partnerski Bitrix24 | Odrzucenie zgłoszenia",
     "preheader": "",
     "send_timing": "immediately"
   },
-  "onboarding/rejected/does-not-respond/br": {
+  "onboarding/rejected/does-not-respond/br-old": {
     "title": "Does Not Respond",
     "subject": "Programa de Parceiros Bitrix24 | Cadastro Rejeitado",
     "preheader": "Prezado Candidato, não recebemos um retorno de sua parte.",
     "send_timing": "immediately"
   },
-  "onboarding/rejected/does-not-respond/es": {
+  "onboarding/rejected/does-not-respond/es-old": {
     "title": "Does Not Respond",
     "subject": "Programa de Partners de Bitrix24 | Solicitud Rechazada",
     "preheader": "Estimado Candidato, no hemos recibido respuesta por su parte.",
     "send_timing": "immediately"
   },
-  "onboarding/rejected/partnership-cancelled/br": {
+  "onboarding/rejected/partnership-cancelled/br-old": {
     "title": "Partnership Cancelled",
     "subject": "Programa de Parceiros Bitrix24 | Suspensão por inatividade",
     "preheader": "Prezado Parceiro, Seu status de parceiro foi suspenso por inatividade.",
     "send_timing": "immediately"
   },
-  "onboarding/rejected/partnership-cancelled/de": {
+  "onboarding/rejected/partnership-cancelled/de-old": {
     "title": "Partnership Cancelled",
     "subject": "Bitrix24 Partnerprogramm | Partnerschaft wegen Inaktivität ausgesetzt",
     "preheader": "Ihr Partnerstatus wurde aufgrund von Inaktivität ausgesetzt.",
     "send_timing": "immediately"
   },
-  "onboarding/rejected/partnership-cancelled/es": {
-    "title": "Partnership Cancelled",
-    "subject": "Programa de Partners de Bitrix24 | Asociación suspendida por inactividad",
-    "preheader": "Estimado Partner, su estado de partner ha sido suspendido por inactividad.",
-    "send_timing": "immediately"
-  },
-  "onboarding/rejected/partnership-cancelled/old": {
+  "onboarding/rejected/partnership-cancelled/en-old": {
     "title": "Partnership Cancelled",
     "subject": "Bitrix24 Partner Program | Partnership suspended due to inactivity",
     "preheader": "Dear Partner, your partner status has been suspended due to inactivity.",
     "send_timing": "immediately"
   },
-  "onboarding/rejected/partnership-cancelled/pl": {
+  "onboarding/rejected/partnership-cancelled/es-old": {
+    "title": "Partnership Cancelled",
+    "subject": "Programa de Partners de Bitrix24 | Asociación suspendida por inactividad",
+    "preheader": "Estimado Partner, su estado de partner ha sido suspendido por inactividad.",
+    "send_timing": "immediately"
+  },
+  "onboarding/rejected/partnership-cancelled/pl-old": {
     "title": "Partnership Cancelled",
     "subject": "Program Partnerski Bitrix24 | Współpraca zawieszona z powodu braku aktywności",
     "preheader": "Drogi Partnerze, Twój status partnerski został zawieszony z powodu braku aktywności.",
     "send_timing": "immediately"
   },
-  "onboarding/rejected/recovery/br": {
+  "onboarding/rejected/recovery/br-old": {
     "title": "Recovery",
     "subject": "Programa de Parceiros Bitrix24 | Continue seu Cadastro",
     "preheader": "Prezado Candidato, conclua seu cadastro no Programa de Parceiros Bitrix24!",
@@ -581,13 +581,13 @@
     "preheader": "This is a hidden preheader",
     "send_timing": "14 days after previous email"
   },
-  "onboarding/second-sale/next-step/br": {
+  "onboarding/second-sale/next-step/br-old": {
     "title": "Next Step",
     "subject": "Programa de Parceiros Bitrix24 | Análise do seu progresso",
     "preheader": "Você está a um passo de se tornar um Parceiro Silver. Vamos conversar.",
     "send_timing": "immediately"
   },
-  "onboarding/second-sale/next-step/de": {
+  "onboarding/second-sale/next-step/de-old": {
     "title": "Next Step",
     "subject": "Bitrix24 Partnerprogramm | Ihr Fortschritt",
     "preheader": "Sie sind nur noch einen Schritt vom Silver Partner-Status entfernt. Lassen Sie uns sprechen.",
@@ -599,22 +599,34 @@
     "preheader": "This is a hidden preheader",
     "send_timing": "immediately"
   },
-  "onboarding/second-sale/next-step/es": {
-    "title": "Next Step",
-    "subject": "Programa de Partners de Bitrix24 | Revisión de progreso",
-    "preheader": "Está a un paso de convertirse en Partner Silver. Hablemos.",
-    "send_timing": "immediately"
-  },
-  "onboarding/second-sale/next-step/old": {
+  "onboarding/second-sale/next-step/en-old": {
     "title": "Next Step",
     "subject": "Bitrix24 Partner Program | Progress Checkup",
     "preheader": "You're one step closer to Silver Partner Status. Let's talk.",
     "send_timing": "immediately"
   },
-  "onboarding/second-sale/next-step/pl": {
+  "onboarding/second-sale/next-step/es-old": {
+    "title": "Next Step",
+    "subject": "Programa de Partners de Bitrix24 | Revisión de progreso",
+    "preheader": "Está a un paso de convertirse en Partner Silver. Hablemos.",
+    "send_timing": "immediately"
+  },
+  "onboarding/second-sale/next-step/pl-old": {
     "title": "Next Step",
     "subject": "Program Partnerski Bitrix24 | Kontrola postępów",
     "preheader": "Jesteś o krok bliżej do statusu Srebrnego Partnera. Porozmawiajmy.",
+    "send_timing": "immediately"
+  },
+  "onboarding/silver-prequalified/next-step/br-old": {
+    "title": "Next Step",
+    "subject": "",
+    "preheader": "Agendar reunião",
+    "send_timing": "immediately"
+  },
+  "onboarding/silver-prequalified/next-step/de-old": {
+    "title": "Next Step",
+    "subject": "",
+    "preheader": "",
     "send_timing": "immediately"
   },
   "onboarding/silver-prequalified/next-step/en": {
@@ -623,7 +635,25 @@
     "preheader": "This is a hidden preheader",
     "send_timing": "immediately"
   },
-  "onboarding/training-completed/follow-up-1/br": {
+  "onboarding/silver-prequalified/next-step/en-old": {
+    "title": "Next Step",
+    "subject": "",
+    "preheader": "Schedule a Call",
+    "send_timing": "immediately"
+  },
+  "onboarding/silver-prequalified/next-step/es-old": {
+    "title": "Next Step",
+    "subject": "",
+    "preheader": "Programar",
+    "send_timing": "immediately"
+  },
+  "onboarding/silver-prequalified/next-step/pl-old": {
+    "title": "Next Step",
+    "subject": "",
+    "preheader": "Schedule a Call",
+    "send_timing": "immediately"
+  },
+  "onboarding/training-completed/follow-up-1/br-old": {
     "title": "Follow Up 1",
     "subject": "Programa de Parceiros Bitrix24 | Por que você parou?",
     "preheader": "Vamos conversar sobre como avançar e desbloquear seus benefícios de parceiro.",
@@ -635,19 +665,19 @@
     "preheader": "You’re one step away from receiving leads",
     "send_timing": "2 days after previous email"
   },
-  "onboarding/training-completed/follow-up-1/es": {
-    "title": "Follow Up 1",
-    "subject": "Programa de Partners de Bitrix24 | ¿Por qué se detuvo?",
-    "preheader": "Hablemos sobre cómo avanzar y desbloquear sus beneficios como Partner.",
-    "send_timing": "2 days after previous email"
-  },
-  "onboarding/training-completed/follow-up-1/old": {
+  "onboarding/training-completed/follow-up-1/en-old": {
     "title": "Follow Up 1",
     "subject": "Bitrix24 Partner Program | Why did you stop?",
     "preheader": "Let's discuss how to move forward and unlock your partner benefits.",
     "send_timing": "2 days after previous email"
   },
-  "onboarding/training-completed/follow-up-1/pl": {
+  "onboarding/training-completed/follow-up-1/es-old": {
+    "title": "Follow Up 1",
+    "subject": "Programa de Partners de Bitrix24 | ¿Por qué se detuvo?",
+    "preheader": "Hablemos sobre cómo avanzar y desbloquear sus beneficios como Partner.",
+    "send_timing": "2 days after previous email"
+  },
+  "onboarding/training-completed/follow-up-1/pl-old": {
     "title": "Follow Up 1",
     "subject": "Program Partnerski Bitrix24 | Czy napotkali Państwo trudności?",
     "preheader": "Porozmawiajmy o dalszych krokach i możliwościach odblokowania korzyści partnerskich.",
@@ -665,13 +695,13 @@
     "preheader": "Start receiving verified client requests - don’t delay",
     "send_timing": "14 days after previous email"
   },
-  "onboarding/training-completed/next-step/br": {
+  "onboarding/training-completed/next-step/br-old": {
     "title": "Next Step",
     "subject": "Programa de Parceiros Bitrix24 | Curso finalizado. Obtenha seus leads gratuitos! 🥳",
     "preheader": "Próxima etapa: instale o aplicativo e seja conectado com clientes do Bitrix24.",
     "send_timing": "immediately"
   },
-  "onboarding/training-completed/next-step/de": {
+  "onboarding/training-completed/next-step/de-old": {
     "title": "Next Step",
     "subject": "Bitrix24 Partnerprogramm | Sie haben den Kurs gemacht und können jetzt kostenlose Leads bekommen",
     "preheader": "Nächster Schritt: Installieren Sie die App und lassen Sie sich mit Bitrix24-Kunden verbinden.",
@@ -683,19 +713,19 @@
     "preheader": "Install the Partner App and get your first request.",
     "send_timing": "immediately"
   },
-  "onboarding/training-completed/next-step/es": {
-    "title": "Next Step",
-    "subject": "Programa de Partners de Bitrix24 | Aprobó el curso. ¡Es hora de obtener sus leads calificados sin cargo!",
-    "preheader": "Próximo paso: instale la aplicación y conéctese con clientes de Bitrix24.",
-    "send_timing": "immediately"
-  },
-  "onboarding/training-completed/next-step/old": {
+  "onboarding/training-completed/next-step/en-old": {
     "title": "Next Step",
     "subject": "Bitrix24 Partner Program | Get your Free Leads",
     "preheader": "Next step: install the app and get matched with Bitrix24 clients.",
     "send_timing": "immediately"
   },
-  "onboarding/training-completed/next-step/pl": {
+  "onboarding/training-completed/next-step/es-old": {
+    "title": "Next Step",
+    "subject": "Programa de Partners de Bitrix24 | Aprobó el curso. ¡Es hora de obtener sus leads calificados sin cargo!",
+    "preheader": "Próximo paso: instale la aplicación y conéctese con clientes de Bitrix24.",
+    "send_timing": "immediately"
+  },
+  "onboarding/training-completed/next-step/pl-old": {
     "title": "Next Step",
     "subject": "Program Partnerski Bitrix24 | Ukończyłeś kurs! Teraz pora na darmowe leady!",
     "preheader": "Następny krok: zainstaluj aplikację i połącz się z klientami Bitrix24.",

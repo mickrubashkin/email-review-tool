@@ -16,6 +16,7 @@ type EmailListItem struct {
 	Stage      string  `json:"stage"`
 	SortOrder  int     `json:"sort_order"`
 	Language   string  `json:"language"`
+	Variant    string  `json:"variant"`
 }
 
 type EmailDetail struct {
@@ -29,6 +30,7 @@ type EmailDetail struct {
 	Stage        string    `json:"stage"`
 	SortOrder    int       `json:"sort_order"`
 	Language     string    `json:"language"`
+	Variant      string    `json:"variant"`
 	BodyText     *string   `json:"-"`
 	ContentParts *string   `json:"-"`
 	UpdatedAt    time.Time `json:"-"`

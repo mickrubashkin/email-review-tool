@@ -30,6 +30,7 @@ type seedEmail struct {
 	Stage        string
 	SortOrder    int
 	Language     string
+	Variant      string
 	BodyText     string
 	ContentParts EmailContentParts
 	OriginalHTML string
@@ -83,6 +84,11 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Unable to seed %s: %v\n", email.Slug, err)
 			os.Exit(1)
 		}
+	}
+
+	if err := deleteStaleSeedEmails(ctx, dbpool, emails); err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to delete stale seed emails: %v\n", err)
+		os.Exit(1)
 	}
 
 	fmt.Printf("Seeded %d emails\n", len(emails))
@@ -181,9 +187,9 @@ func parseSeedEmail(root string, path string, metaByKey map[string]seedEmailMeta
 
 	stageOrder, stage := parseOrderedName(parts[0])
 	emailOrder, emailName := parseOrderedName(parts[1])
-	language := strings.TrimSuffix(parts[2], filepath.Ext(parts[2]))
-	metaKey := strings.Join([]string{sequence, stage, emailName, language}, "/")
-	emailMeta := metaByKey[metaKey]
+	fileName := strings.TrimSuffix(parts[2], filepath.Ext(parts[2]))
+	language, variant := parseLanguageVariant(fileName)
+	emailMeta := lookupSeedEmailMeta(metaByKey, stage, emailName, language, variant)
 	title := titleFromName(emailName)
 	if emailMeta.Title != nil {
 		title = *emailMeta.Title
@@ -198,7 +204,7 @@ func parseSeedEmail(root string, path string, metaByKey map[string]seedEmailMeta
 	contentParts := extractEmailContentParts(originalHTML, emailMeta, bodyText)
 
 	return seedEmail{
-		Slug:         strings.Join([]string{sequence, stage, emailName, language}, "-"),
+		Slug:         seedEmailSlug(stage, emailName, language, variant),
 		Sequence:     sequence,
 		Title:        title,
 		Subject:      emailMeta.Subject,
@@ -207,10 +213,51 @@ func parseSeedEmail(root string, path string, metaByKey map[string]seedEmailMeta
 		Stage:        stage,
 		SortOrder:    stageOrder*100 + emailOrder,
 		Language:     language,
+		Variant:      variant,
 		BodyText:     bodyText,
 		ContentParts: contentParts,
 		OriginalHTML: originalHTML,
 	}, nil
+}
+
+func parseLanguageVariant(fileName string) (string, string) {
+	if fileName == "old" {
+		return "en", "old"
+	}
+
+	if language, ok := strings.CutSuffix(fileName, "-old"); ok {
+		return language, "old"
+	}
+
+	return fileName, "new"
+}
+
+func lookupSeedEmailMeta(metaByKey map[string]seedEmailMeta, stage string, emailName string, language string, variant string) seedEmailMeta {
+	keys := []string{}
+	if variant == "old" {
+		keys = append(keys, strings.Join([]string{sequence, stage, emailName, language + "-old"}, "/"))
+	}
+	if variant == "old" && language == "en" {
+		keys = append(keys, strings.Join([]string{sequence, stage, emailName, "old"}, "/"))
+	}
+	keys = append(keys, strings.Join([]string{sequence, stage, emailName, language}, "/"))
+
+	for _, key := range keys {
+		if meta, ok := metaByKey[key]; ok {
+			return meta
+		}
+	}
+
+	return seedEmailMeta{}
+}
+
+func seedEmailSlug(stage string, emailName string, language string, variant string) string {
+	parts := []string{sequence, stage, emailName, language}
+	if variant == "old" {
+		parts = append(parts, "old")
+	}
+
+	return strings.Join(parts, "-")
 }
 
 func parseOrderedName(name string) (int, string) {
@@ -264,11 +311,12 @@ func upsertEmail(ctx context.Context, dbpool *pgxpool.Pool, email seedEmail) err
 			stage,
 			sort_order,
 			language,
+			variant,
 			body_text,
 			content_parts,
 			original_html
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 		ON CONFLICT (slug) DO UPDATE SET
 			sequence = EXCLUDED.sequence,
 			title = EXCLUDED.title,
@@ -278,6 +326,7 @@ func upsertEmail(ctx context.Context, dbpool *pgxpool.Pool, email seedEmail) err
 			stage = EXCLUDED.stage,
 			sort_order = EXCLUDED.sort_order,
 			language = EXCLUDED.language,
+			variant = EXCLUDED.variant,
 			body_text = EXCLUDED.body_text,
 			content_parts = EXCLUDED.content_parts,
 			original_html = EXCLUDED.original_html,
@@ -290,10 +339,26 @@ func upsertEmail(ctx context.Context, dbpool *pgxpool.Pool, email seedEmail) err
 			OR emails.stage IS DISTINCT FROM EXCLUDED.stage
 			OR emails.sort_order IS DISTINCT FROM EXCLUDED.sort_order
 			OR emails.language IS DISTINCT FROM EXCLUDED.language
+			OR emails.variant IS DISTINCT FROM EXCLUDED.variant
 			OR emails.body_text IS DISTINCT FROM EXCLUDED.body_text
 			OR emails.content_parts IS DISTINCT FROM EXCLUDED.content_parts
 			OR emails.original_html IS DISTINCT FROM EXCLUDED.original_html;
-	`, email.Slug, email.Sequence, email.Title, email.Subject, email.Preheader, email.SendTiming, email.Stage, email.SortOrder, email.Language, email.BodyText, email.ContentParts, email.OriginalHTML)
+	`, email.Slug, email.Sequence, email.Title, email.Subject, email.Preheader, email.SendTiming, email.Stage, email.SortOrder, email.Language, email.Variant, email.BodyText, email.ContentParts, email.OriginalHTML)
+
+	return err
+}
+
+func deleteStaleSeedEmails(ctx context.Context, dbpool *pgxpool.Pool, emails []seedEmail) error {
+	slugs := make([]string, 0, len(emails))
+	for _, email := range emails {
+		slugs = append(slugs, email.Slug)
+	}
+
+	_, err := dbpool.Exec(ctx, `
+		DELETE FROM emails
+		WHERE sequence = $1
+			AND NOT (slug = ANY($2));
+	`, sequence, slugs)
 
 	return err
 }

@@ -30,6 +30,7 @@ type seedEmailFile struct {
 	Path     string
 	Name     string
 	Language string
+	Variant  string
 }
 
 var (
@@ -76,7 +77,7 @@ func main() {
 
 	nextMeta := map[string]seedEmailMeta{}
 	for _, email := range emails {
-		meta, err := buildMeta(email, currentMeta[email.Key])
+		meta, err := buildMeta(email, currentMetaForEmail(currentMeta, email))
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Unable to build meta for %s: %v\n", email.Path, err)
 			os.Exit(1)
@@ -142,14 +143,16 @@ func loadSeedEmailFiles(root string) ([]seedEmailFile, error) {
 
 		_, stage := parseOrderedName(parts[0])
 		_, emailName := parseOrderedName(parts[1])
-		language := strings.TrimSuffix(parts[2], filepath.Ext(parts[2]))
-		key := strings.Join([]string{sequence, stage, emailName, language}, "/")
+		fileName := strings.TrimSuffix(parts[2], filepath.Ext(parts[2]))
+		language, variant := parseLanguageVariant(fileName)
+		key := metaKey(stage, emailName, language, variant)
 
 		emails = append(emails, seedEmailFile{
 			Key:      key,
 			Path:     path,
 			Name:     emailName,
 			Language: language,
+			Variant:  variant,
 		})
 		return nil
 	})
@@ -162,6 +165,56 @@ func loadSeedEmailFiles(root string) ([]seedEmailFile, error) {
 	})
 
 	return emails, nil
+}
+
+func parseLanguageVariant(fileName string) (string, string) {
+	if fileName == "old" {
+		return "en", "old"
+	}
+
+	if language, ok := strings.CutSuffix(fileName, "-old"); ok {
+		return language, "old"
+	}
+
+	return fileName, "new"
+}
+
+func metaKey(stage string, emailName string, language string, variant string) string {
+	keyLanguage := language
+	if variant == "old" {
+		keyLanguage = language + "-old"
+	}
+
+	return strings.Join([]string{sequence, stage, emailName, keyLanguage}, "/")
+}
+
+func currentMetaForEmail(currentMeta map[string]seedEmailMeta, email seedEmailFile) seedEmailMeta {
+	if meta, ok := currentMeta[email.Key]; ok {
+		return meta
+	}
+
+	if email.Variant == "old" && email.Language == "en" {
+		legacyOldKey := strings.Join([]string{sequence, stageFromKey(email.Key), email.Name, "old"}, "/")
+		if meta, ok := currentMeta[legacyOldKey]; ok {
+			return meta
+		}
+	}
+
+	legacyLanguageKey := strings.Join([]string{sequence, stageFromKey(email.Key), email.Name, email.Language}, "/")
+	if meta, ok := currentMeta[legacyLanguageKey]; ok {
+		return meta
+	}
+
+	return seedEmailMeta{}
+}
+
+func stageFromKey(key string) string {
+	parts := strings.Split(key, "/")
+	if len(parts) >= 2 {
+		return parts[1]
+	}
+
+	return ""
 }
 
 func loadCurrentMeta(root string) (map[string]seedEmailMeta, error) {

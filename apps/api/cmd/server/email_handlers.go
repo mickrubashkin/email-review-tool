@@ -27,7 +27,8 @@ func listEmailsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 				send_timing,
 				stage,
 				sort_order,
-				language
+				language,
+				variant
 			FROM emails
 			ORDER BY sort_order, created_at;
 		`)
@@ -52,6 +53,7 @@ func listEmailsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 				&email.Stage,
 				&email.SortOrder,
 				&email.Language,
+				&email.Variant,
 			)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "failed to scan email row: %v\n", err)
@@ -89,6 +91,7 @@ func getEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 				stage,
 				sort_order,
 				language,
+				variant,
 				original_html
 			FROM emails
 			WHERE id = $1;
@@ -103,6 +106,7 @@ func getEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			&email.Stage,
 			&email.SortOrder,
 			&email.Language,
+			&email.Variant,
 			&email.OriginalHTML,
 		)
 

@@ -58,6 +58,39 @@
   background: var(--mantine-color-blue-6);
 }
 
+.variantSwitch {
+  flex: 0 0 auto;
+}
+
+.variantButton {
+  height: 18px;
+  padding: 0 5px;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  border-radius: 4px;
+  color: var(--mantine-color-gray-6);
+  background: rgba(255, 255, 255, 0.64);
+  font-size: 10px;
+  line-height: 16px;
+  text-transform: capitalize;
+  cursor: pointer;
+}
+
+.variantButton:hover:not(:disabled) {
+  border-color: rgba(109, 40, 217, 0.45);
+  color: #5b21b6;
+}
+
+.variantButton[data-active] {
+  border-color: rgba(109, 40, 217, 0.62);
+  color: #5b21b6;
+  background: rgba(237, 233, 254, 0.98);
+}
+
+.variantButton:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
 .emailCardContent {
   height: 100%;
 }

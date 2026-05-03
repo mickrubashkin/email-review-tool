@@ -1,4 +1,9 @@
-import type { EmailListItem, EmailVersionGroup, StageColumn } from "./types";
+import type {
+  EmailListItem,
+  EmailVariant,
+  EmailVersionGroup,
+  StageColumn,
+} from "./types";
 
 export const stageColors = [
   "#2fb4ec",
@@ -15,6 +20,7 @@ export const stageColors = [
 ];
 
 const preferredVersionOrder = ["en", "es", "br", "pl", "de", "old"];
+const preferredVariantOrder: EmailVariant[] = ["new", "old"];
 
 export function formatStageName(stage: string): string {
   return stage
@@ -26,6 +32,12 @@ export function formatStageName(stage: string): string {
 
 export function sortEmailVersions(versions: EmailListItem[]): EmailListItem[] {
   return [...versions].sort((first, second) => {
+    const firstVariantIndex = preferredVariantOrder.indexOf(first.variant);
+    const secondVariantIndex = preferredVariantOrder.indexOf(second.variant);
+    if (firstVariantIndex !== secondVariantIndex) {
+      return firstVariantIndex - secondVariantIndex;
+    }
+
     const firstIndex = preferredVersionOrder.indexOf(first.language);
     const secondIndex = preferredVersionOrder.indexOf(second.language);
     const normalizedFirstIndex =
@@ -42,7 +54,53 @@ export function sortEmailVersions(versions: EmailListItem[]): EmailListItem[] {
 }
 
 export function getDefaultVersion(versions: EmailListItem[]): EmailListItem {
-  return sortEmailVersions(versions)[0];
+  return getDefaultVersionForVariant(versions, "new") ?? sortEmailVersions(versions)[0];
+}
+
+export function getAvailableVariants(versions: EmailListItem[]): EmailVariant[] {
+  return preferredVariantOrder.filter((variant) =>
+    versions.some((version) => version.variant === variant)
+  );
+}
+
+export function getVersionsForVariant(
+  versions: EmailListItem[],
+  variant: EmailVariant
+): EmailListItem[] {
+  return sortEmailVersions(
+    versions.filter((version) => version.variant === variant)
+  );
+}
+
+export function getSelectedVariant(
+  versions: EmailListItem[],
+  selectedEmailId: string | undefined | null
+): EmailVariant {
+  const selectedEmail = versions.find((version) => version.id === selectedEmailId);
+  return selectedEmail?.variant ?? getDefaultVersion(versions).variant;
+}
+
+export function getDefaultVersionForVariant(
+  versions: EmailListItem[],
+  variant: EmailVariant
+): EmailListItem | undefined {
+  const variantVersions = getVersionsForVariant(versions, variant);
+  return (
+    variantVersions.find((version) => version.language === "en") ??
+    variantVersions[0]
+  );
+}
+
+export function getVersionForVariant(
+  versions: EmailListItem[],
+  variant: EmailVariant,
+  preferredLanguage?: string
+): EmailListItem | undefined {
+  const variantVersions = getVersionsForVariant(versions, variant);
+  return (
+    variantVersions.find((version) => version.language === preferredLanguage) ??
+    getDefaultVersionForVariant(versions, variant)
+  );
 }
 
 export function buildStageColumns(emails: EmailListItem[]): StageColumn[] {

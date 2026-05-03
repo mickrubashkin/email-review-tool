@@ -8,12 +8,15 @@ export type EmailListItem = {
   stage: string | null;
   sort_order: number;
   language: string;
+  variant: EmailVariant;
 };
 
 export type EmailDetail = EmailListItem & {
   slug: string;
   original_html: string;
 };
+
+export type EmailVariant = "new" | "old";
 
 export type EmailAnalysis = {
   summary: string;
