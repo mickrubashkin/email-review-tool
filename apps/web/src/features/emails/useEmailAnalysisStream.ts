@@ -25,7 +25,7 @@ export function useEmailAnalysisStream(email: EmailDetail | undefined, opened: b
     };
   }, []);
 
-  const analyze = () => {
+  const analyze = (options: { refresh?: boolean } = {}) => {
     if (!email) {
       return;
     }
@@ -37,27 +37,32 @@ export function useEmailAnalysisStream(email: EmailDetail | undefined, opened: b
     setStreamError(null);
     setStreamAnalysis(null);
 
-    stopStreamRef.current = analyzeEmailStream(email.id, {
-      onDelta: (text) => {
-        setStreamText((current) => current + text);
+    stopStreamRef.current = analyzeEmailStream(
+      email.id,
+      {
+        onDelta: (text) => {
+          setStreamText((current) => current + text);
+        },
+        onResult: (analysis) => {
+          setStreamAnalysis(analysis);
+        },
+        onDone: () => {
+          setStreamStatus("done");
+          stopStreamRef.current = null;
+        },
+        onError: (error) => {
+          setStreamStatus("error");
+          setStreamError(error);
+          stopStreamRef.current = null;
+        },
       },
-      onResult: (analysis) => {
-        setStreamAnalysis(analysis);
-      },
-      onDone: () => {
-        setStreamStatus("done");
-        stopStreamRef.current = null;
-      },
-      onError: (error) => {
-        setStreamStatus("error");
-        setStreamError(error);
-        stopStreamRef.current = null;
-      },
-    });
+      options
+    );
   };
 
   return {
     analyze,
+    reanalyze: () => analyze({ refresh: true }),
     streamAnalysis,
     streamEmailId,
     streamError,

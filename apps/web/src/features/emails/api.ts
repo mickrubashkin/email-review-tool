@@ -31,9 +31,17 @@ export function analyzeEmailStream(
     onResult?: (analysis: EmailAnalysis) => void;
     onDone?: () => void;
     onError?: (error: string) => void;
-  }
+  },
+  options: {
+    refresh?: boolean;
+  } = {}
 ) {
-  const url = `/api/emails/${emailId}/ai-analysis-stream`;
+  const searchParams = new URLSearchParams();
+  if (options.refresh) {
+    searchParams.set("refresh", "true");
+  }
+  const query = searchParams.toString();
+  const url = `/api/emails/${emailId}/ai-analysis-stream${query ? `?${query}` : ""}`;
 
   const source = new EventSource(url);
 

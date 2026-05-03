@@ -13,6 +13,61 @@ import (
 func registerAIRoutes(r chi.Router, dbpool *pgxpool.Pool, aiService AIAnalysisService) {
 	r.Post("/api/emails/{id}/ai-analysis", analyzeEmailHandler(dbpool, aiService))
 	r.Get("/api/emails/{id}/ai-analysis-stream", analyzeEmailStreamHandler(dbpool, aiService))
+	r.Get("/api/emails/{id}/ai-analysis-debug", debugAIAnalysisHandler(dbpool, aiService))
+}
+
+func debugAIAnalysisHandler(dbpool *pgxpool.Pool, aiService AIAnalysisService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if os.Getenv("AI_DEBUG_ENABLED") != "true" {
+			http.NotFound(w, r)
+			return
+		}
+
+		id := chi.URLParam(r, "id")
+		email, err := getEmailForAI(r.Context(), dbpool, id)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "failed to get email %s for ai debug: %v\n", id, err)
+			http.Error(w, "email not found", http.StatusNotFound)
+			return
+		}
+
+		debugPayload, err := buildAIAnalysisDebugPayload(aiService, email)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "failed to build ai debug payload for email %s: %v\n", id, err)
+			http.Error(w, "failed to build ai debug payload", http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(debugPayload)
+	}
+}
+
+func buildAIAnalysisDebugPayload(aiService AIAnalysisService, email EmailDetail) (map[string]any, error) {
+	requestBody := aiService.buildOpenAIAnalysisRequestBody(email)
+
+	var input any
+	inputText, ok := requestBody["input"].(string)
+	if ok {
+		if err := json.Unmarshal([]byte(inputText), &input); err != nil {
+			return nil, err
+		}
+	} else {
+		input = requestBody["input"]
+	}
+
+	text, _ := requestBody["text"].(map[string]any)
+	format, _ := text["format"].(map[string]any)
+
+	return map[string]any{
+		"model":             requestBody["model"],
+		"response_language": aiService.ResponseLanguage,
+		"prompt_hash":       aiService.PromptHash(),
+		"instructions":      requestBody["instructions"],
+		"input":             input,
+		"max_output_tokens": requestBody["max_output_tokens"],
+		"json_schema":       format["schema"],
+	}, nil
 }
 
 func analyzeEmailHandler(dbpool *pgxpool.Pool, aiService AIAnalysisService) http.HandlerFunc {
@@ -77,9 +132,13 @@ func analyzeEmailStreamHandler(dbpool *pgxpool.Pool, aiService AIAnalysisService
 		w.Header().Set("Connection", "keep-alive")
 		w.Header().Set("X-Accel-Buffering", "no")
 
-		if cachedAnalysis, ok := cachedAnalysisOrLogError(r, dbpool, email, aiService); ok {
-			writeAIStreamResult(w, flusher, cachedAnalysis)
-			return
+		forceRefresh := r.URL.Query().Get("refresh") == "true"
+		if !forceRefresh {
+			cachedAnalysis, ok := cachedAnalysisOrLogError(r, dbpool, email, aiService)
+			if ok {
+				writeAIStreamResult(w, flusher, cachedAnalysis)
+				return
+			}
 		}
 
 		result, err := aiService.AnalyzeEmailStream(r.Context(), email, func(delta string) error {

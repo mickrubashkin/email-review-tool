@@ -8,7 +8,13 @@ import {
   Text,
   Tooltip,
 } from "@mantine/core";
-import { ChevronDown, Columns2, Monitor, Smartphone } from "lucide-react";
+import {
+  ChevronDown,
+  Columns2,
+  Monitor,
+  RefreshCcw,
+  Smartphone,
+} from "lucide-react";
 import { useState } from "react";
 
 import { AISparkleIcon } from "./AISparkleIcon";
@@ -58,6 +64,7 @@ export function EmailPreviewDrawer({
   const [previewMode, setPreviewMode] = useState<PreviewMode>("desktop");
   const {
     analyze,
+    reanalyze,
     streamAnalysis,
     streamEmailId,
     streamError,
@@ -90,6 +97,7 @@ export function EmailPreviewDrawer({
   const headerTitle = email
     ? `${email.title}${email.send_timing ? ` (${formatTimingLabel(email.send_timing)})` : ""}`
     : "";
+  const isAnalyzingCurrentEmail = streamStatus === "streaming" && isCurrentStream;
 
   return (
     <Drawer
@@ -142,13 +150,27 @@ export function EmailPreviewDrawer({
                 <ActionIcon
                   aria-label="Analyze with AI"
                   className={styles.aiAction}
-                  loading={streamStatus === "streaming" && isCurrentStream}
-                  onClick={analyze}
+                  loading={isAnalyzingCurrentEmail}
+                  onClick={() => analyze()}
                   radius="md"
                   size="lg"
                   variant="light"
                 >
                   <AISparkleIcon />
+                </ActionIcon>
+              </Tooltip>
+
+              <Tooltip label="Generate a new AI analysis. This will make a new AI request and may use tokens/cost.">
+                <ActionIcon
+                  aria-label="Generate a new AI analysis"
+                  className={styles.aiAction}
+                  disabled={isAnalyzingCurrentEmail}
+                  onClick={reanalyze}
+                  radius="md"
+                  size="lg"
+                  variant="light"
+                >
+                  <RefreshCcw aria-hidden="true" size={16} strokeWidth={2.2} />
                 </ActionIcon>
               </Tooltip>
             </Group>
