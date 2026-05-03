@@ -8,9 +8,12 @@ import {
   Text,
   Tooltip,
 } from "@mantine/core";
+import { notifications } from "@mantine/notifications";
 import {
   ChevronDown,
   Columns2,
+  Copy,
+  Download,
   Monitor,
   RefreshCcw,
   Smartphone,
@@ -98,6 +101,51 @@ export function EmailPreviewDrawer({
     ? `${email.title}${email.send_timing ? ` (${formatTimingLabel(email.send_timing)})` : ""}`
     : "";
   const isAnalyzingCurrentEmail = streamStatus === "streaming" && isCurrentStream;
+  const handleCopyHTML = async () => {
+    if (!email) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(email.original_html);
+      notifications.show({
+        color: "green",
+        message: "Original HTML copied to clipboard",
+        title: "Copied",
+      });
+    } catch {
+      notifications.show({
+        color: "red",
+        message: "Browser blocked clipboard access. Try downloading the HTML instead.",
+        title: "Copy failed",
+      });
+    }
+  };
+
+  const handleDownloadHTML = () => {
+    if (!email) {
+      return;
+    }
+
+    const blob = new Blob([email.original_html], {
+      type: "text/html;charset=utf-8",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = buildHTMLFileName(email);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+
+    notifications.show({
+      color: "green",
+      message: `${link.download} is ready`,
+      title: "Downloaded",
+    });
+  };
 
   return (
     <Drawer
@@ -145,6 +193,32 @@ export function EmailPreviewDrawer({
                   onChange={setPreviewMode}
                 />
               ) : null}
+
+              <Tooltip label="Copy original HTML">
+                <ActionIcon
+                  aria-label="Copy original HTML"
+                  className={styles.exportAction}
+                  onClick={handleCopyHTML}
+                  radius="md"
+                  size="lg"
+                  variant="light"
+                >
+                  <Copy aria-hidden="true" size={16} strokeWidth={2.2} />
+                </ActionIcon>
+              </Tooltip>
+
+              <Tooltip label="Download original HTML">
+                <ActionIcon
+                  aria-label="Download original HTML"
+                  className={styles.exportAction}
+                  onClick={handleDownloadHTML}
+                  radius="md"
+                  size="lg"
+                  variant="light"
+                >
+                  <Download aria-hidden="true" size={16} strokeWidth={2.2} />
+                </ActionIcon>
+              </Tooltip>
 
               <Tooltip label="Analyze with AI">
                 <ActionIcon
@@ -385,4 +459,17 @@ function formatTimingLabel(value: string) {
     .filter(Boolean)
     .map((word) => `${word.charAt(0).toUpperCase()}${word.slice(1)}`)
     .join(" ");
+}
+
+function buildHTMLFileName(email: EmailDetail) {
+  const baseName = email.slug || email.title || "email";
+  const sanitizedBaseName = baseName
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9_-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+
+  return `${sanitizedBaseName || "email"}.html`;
 }
