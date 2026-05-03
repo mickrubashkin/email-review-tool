@@ -22,10 +22,11 @@ func registerAIRoutes(r chi.Router, dbpool *pgxpool.Pool, aiService AIAnalysisSe
 func listAIAnalysisLogsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		filters := AIAnalysisLogFilters{
-			Status:  strings.TrimSpace(r.URL.Query().Get("status")),
-			EmailID: strings.TrimSpace(r.URL.Query().Get("email_id")),
-			Model:   strings.TrimSpace(r.URL.Query().Get("model")),
-			Limit:   parseAIAnalysisLogsLimit(r.URL.Query().Get("limit")),
+			Status:      strings.TrimSpace(r.URL.Query().Get("status")),
+			CacheStatus: strings.TrimSpace(r.URL.Query().Get("cache_status")),
+			EmailID:     strings.TrimSpace(r.URL.Query().Get("email_id")),
+			Model:       strings.TrimSpace(r.URL.Query().Get("model")),
+			Limit:       parseAIAnalysisLogsLimit(r.URL.Query().Get("limit")),
 		}
 
 		logs, err := listAIAnalysisLogs(r.Context(), dbpool, filters)

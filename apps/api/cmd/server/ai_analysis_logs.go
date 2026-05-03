@@ -9,10 +9,11 @@ import (
 )
 
 type AIAnalysisLogFilters struct {
-	Status  string
-	EmailID string
-	Model   string
-	Limit   int
+	Status      string
+	CacheStatus string
+	EmailID     string
+	Model       string
+	Limit       int
 }
 
 func insertAIAnalysisLog(ctx context.Context, dbpool *pgxpool.Pool, emailID string, metrics AIAnalysisMetrics) error {
@@ -60,6 +61,16 @@ func listAIAnalysisLogs(ctx context.Context, dbpool *pgxpool.Pool, filters AIAna
 		args = append(args, filters.Status)
 		where = append(where, fmt.Sprintf("l.status = $%d", len(args)))
 	}
+	if filters.CacheStatus != "" {
+		args = append(args, filters.CacheStatus)
+		where = append(where, fmt.Sprintf(`
+			CASE
+				WHEN l.cached_tokens IS NULL THEN 'unknown'
+				WHEN l.cached_tokens > 0 THEN 'hit'
+				ELSE 'miss'
+			END = $%d
+		`, len(args)))
+	}
 	if filters.EmailID != "" {
 		args = append(args, filters.EmailID)
 		where = append(where, fmt.Sprintf("l.email_id = $%d", len(args)))
@@ -79,6 +90,11 @@ func listAIAnalysisLogs(ctx context.Context, dbpool *pgxpool.Pool, filters AIAna
 			e.variant,
 			l.model,
 			l.status,
+			CASE
+				WHEN l.cached_tokens IS NULL THEN 'unknown'
+				WHEN l.cached_tokens > 0 THEN 'hit'
+				ELSE 'miss'
+			END AS cache_status,
 			l.latency_ms,
 			l.input_tokens,
 			l.output_tokens,
@@ -114,6 +130,7 @@ func listAIAnalysisLogs(ctx context.Context, dbpool *pgxpool.Pool, filters AIAna
 			&log.Variant,
 			&log.Model,
 			&log.Status,
+			&log.CacheStatus,
 			&log.LatencyMS,
 			&log.InputTokens,
 			&log.OutputTokens,

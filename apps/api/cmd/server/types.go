@@ -88,6 +88,7 @@ type AIAnalysisLogItem struct {
 	Variant      *string   `json:"variant"`
 	Model        string    `json:"model"`
 	Status       string    `json:"status"`
+	CacheStatus  string    `json:"cache_status"`
 	LatencyMS    int       `json:"latency_ms"`
 	InputTokens  *int      `json:"input_tokens"`
 	OutputTokens *int      `json:"output_tokens"`

@@ -18,6 +18,11 @@
   background: var(--mantine-color-white);
 }
 
+.summary {
+  max-width: 1320px;
+  margin: 0 auto 16px;
+}
+
 .tableShell {
   max-width: 1320px;
   margin: 0 auto;

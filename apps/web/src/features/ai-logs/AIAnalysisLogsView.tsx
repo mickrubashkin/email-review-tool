@@ -22,6 +22,11 @@ import type { AIAnalysisLogFilters, AIAnalysisLogItem } from "../emails/types";
 import styles from "./AIAnalysisLogsView.module.css";
 
 const limitOptions = ["50", "100", "250", "500"];
+const cacheStatusOptions = [
+  { value: "hit", label: "Hit" },
+  { value: "miss", label: "Miss" },
+  { value: "unknown", label: "Unknown" },
+];
 
 export function AIAnalysisLogsView() {
   const [filters, setFilters] = useState<AIAnalysisLogFilters>({
@@ -35,9 +40,11 @@ export function AIAnalysisLogsView() {
     queryFn: () => fetchAIAnalysisLogs(filters),
   });
 
-  const logs = logsQuery.data ?? [];
+  const logs = useMemo(() => logsQuery.data ?? [], [logsQuery.data]);
+  const summary = useMemo(() => buildCacheSummary(logs), [logs]);
   const visibleFilters = useMemo(
     () => ({
+      cache_status: filters.cache_status ?? "",
       email_id: filters.email_id ?? "",
       limit: filters.limit ?? "100",
       model: filters.model ?? "",
@@ -70,6 +77,19 @@ export function AIAnalysisLogsView() {
             value={visibleFilters.status || null}
             onChange={(value) =>
               setFilters((current) => ({ ...current, status: value ?? "" }))
+            }
+          />
+          <Select
+            clearable
+            data={cacheStatusOptions}
+            label="Cache"
+            placeholder="All cache states"
+            value={visibleFilters.cache_status || null}
+            onChange={(value) =>
+              setFilters((current) => ({
+                ...current,
+                cache_status: value ?? "",
+              }))
             }
           />
           <TextInput
@@ -111,6 +131,22 @@ export function AIAnalysisLogsView() {
         </Group>
       </section>
 
+      {logsQuery.isSuccess ? (
+        <section className={styles.summary}>
+          <Group gap="xs">
+            <SummaryBadge label="Total" value={summary.total} />
+            <SummaryBadge color="green" label="Hits" value={summary.hit} />
+            <SummaryBadge color="yellow" label="Misses" value={summary.miss} />
+            <SummaryBadge color="gray" label="Unknown" value={summary.unknown} />
+            <SummaryBadge
+              color="blue"
+              label="Avg cached"
+              value={summary.averageCachedTokens}
+            />
+          </Group>
+        </section>
+      ) : null}
+
       <section className={styles.tableShell}>
         {logsQuery.isLoading ? (
           <Stack align="center" justify="center" h={240}>
@@ -147,6 +183,7 @@ export function AIAnalysisLogsView() {
                   <Table.Th>Created</Table.Th>
                   <Table.Th>Email</Table.Th>
                   <Table.Th>Status</Table.Th>
+                  <Table.Th>Cache</Table.Th>
                   <Table.Th>Model</Table.Th>
                   <Table.Th>Latency</Table.Th>
                   <Table.Th>Tokens</Table.Th>
@@ -183,6 +220,11 @@ export function AIAnalysisLogsView() {
                     <Table.Td>
                       <Badge color={statusColor(log.status)} variant="light">
                         {log.status}
+                      </Badge>
+                    </Table.Td>
+                    <Table.Td>
+                      <Badge color={cacheStatusColor(log.cache_status)} variant="light">
+                        {log.cache_status}
                       </Badge>
                     </Table.Td>
                     <Table.Td className={styles.monoCell}>{log.model}</Table.Td>
@@ -232,6 +274,57 @@ export function AIAnalysisLogsView() {
   );
 }
 
+function SummaryBadge({
+  color,
+  label,
+  value,
+}: {
+  color?: string;
+  label: string;
+  value: number | string;
+}) {
+  return (
+    <Badge color={color} radius="sm" size="lg" variant="light">
+      {label}: {value}
+    </Badge>
+  );
+}
+
+function buildCacheSummary(logs: AIAnalysisLogItem[]) {
+  const summary = {
+    averageCachedTokens: "-",
+    hit: 0,
+    miss: 0,
+    total: logs.length,
+    unknown: 0,
+  };
+  const knownCachedTokenValues = logs
+    .map((log) => log.cached_tokens)
+    .filter((value): value is number => value !== null);
+
+  logs.forEach((log) => {
+    if (log.cache_status === "hit") {
+      summary.hit += 1;
+    } else if (log.cache_status === "miss") {
+      summary.miss += 1;
+    } else {
+      summary.unknown += 1;
+    }
+  });
+
+  if (knownCachedTokenValues.length > 0) {
+    const totalCachedTokens = knownCachedTokenValues.reduce(
+      (total, value) => total + value,
+      0
+    );
+    summary.averageCachedTokens = String(
+      Math.round(totalCachedTokens / knownCachedTokenValues.length)
+    );
+  }
+
+  return summary;
+}
+
 function formatDateTime(value: string) {
   return new Intl.DateTimeFormat(undefined, {
     dateStyle: "medium",
@@ -245,6 +338,17 @@ function statusColor(status: string) {
   }
   if (status === "error") {
     return "red";
+  }
+
+  return "gray";
+}
+
+function cacheStatusColor(status: AIAnalysisLogItem["cache_status"]) {
+  if (status === "hit") {
+    return "green";
+  }
+  if (status === "miss") {
+    return "yellow";
   }
 
   return "gray";

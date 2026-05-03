@@ -73,6 +73,7 @@ export type AIAnalysisLogItem = {
   variant: string | null;
   model: string;
   status: string;
+  cache_status: "hit" | "miss" | "unknown";
   latency_ms: number;
   input_tokens: number | null;
   output_tokens: number | null;
@@ -84,6 +85,7 @@ export type AIAnalysisLogItem = {
 
 export type AIAnalysisLogFilters = {
   status?: string;
+  cache_status?: string;
   email_id?: string;
   model?: string;
   limit?: string;

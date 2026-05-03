@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import {
   Alert,
   AppShell,
-  Badge,
   Box,
   Group,
   Loader,
