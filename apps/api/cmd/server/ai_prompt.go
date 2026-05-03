@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-const aiAnalysisSchemaVersion = "email-analysis-schema-v2"
+const aiAnalysisSchemaVersion = "email-analysis-schema-v3"
 
 func (service AIAnalysisService) PromptHash() string {
 	hash := sha256.Sum256([]byte(strings.Join([]string{
@@ -51,7 +51,8 @@ Review only email text and metadata.
 primary_cta is the actual button CTA.
 If primary_cta is present, do not infer the main CTA from links or repeated body text.
 Support links are not competing CTAs when they help complete primary_cta and are phrased as help.
-Use support, footer, and other links only as supporting context.
+Footer links are omitted from the input.
+Use support and other links only as supporting context.
 Return only JSON matching the schema.
 Write summary, recommendation titles, and details in %s.
 Limits:
@@ -139,12 +140,12 @@ func buildEmailAnalysisInput(reviewRules string, sequenceContext string, email E
 	parts := emailContentParts(email)
 
 	type emailInput struct {
-		Subject    string     `json:"subject"`
-		Preheader  string     `json:"preheader"`
-		BannerText string     `json:"banner_text"`
-		PrimaryCTA string     `json:"primary_cta"`
-		BodyText   string     `json:"body_text"`
-		Links      LinkGroups `json:"links"`
+		Subject    string             `json:"subject"`
+		Preheader  string             `json:"preheader"`
+		BannerText string             `json:"banner_text"`
+		PrimaryCTA string             `json:"primary_cta"`
+		BodyText   string             `json:"body_text"`
+		Links      analysisLinkGroups `json:"links"`
 	}
 
 	type analysisInput struct {
@@ -168,8 +169,8 @@ func buildEmailAnalysisInput(reviewRules string, sequenceContext string, email E
 			Subject:    firstNonEmpty(parts.Subject, stringValue(email.Subject)),
 			Preheader:  firstNonEmpty(parts.Preheader, stringValue(email.Preheader)),
 			BannerText: parts.BannerText,
-			PrimaryCTA: parts.PrimaryCTA,
-			BodyText:   limitText(firstNonEmpty(parts.BodyText, emailBodyText(email)), 3000),
+			PrimaryCTA: analysisPrimaryCTA(parts.PrimaryCTA),
+			BodyText:   limitText(analysisBodyText(firstNonEmpty(parts.BodyText, emailBodyText(email))), 3000),
 			Links:      emailLinkGroups(parts),
 		},
 	}
@@ -195,15 +196,74 @@ func emailContentParts(email EmailDetail) EmailContentParts {
 	return parts
 }
 
-func emailLinkGroups(parts EmailContentParts) LinkGroups {
+type analysisLinkGroups struct {
+	Primary []string `json:"primary"`
+	Support []string `json:"support"`
+	Other   []string `json:"other"`
+}
+
+func emailLinkGroups(parts EmailContentParts) analysisLinkGroups {
 	if len(parts.LinkGroups.Primary) > 0 ||
 		len(parts.LinkGroups.Support) > 0 ||
 		len(parts.LinkGroups.Footer) > 0 ||
 		len(parts.LinkGroups.Other) > 0 {
-		return parts.LinkGroups
+		return analysisLinkGroups{
+			Primary: nonFooterLinkTexts(parts.LinkGroups.Primary),
+			Support: nonFooterLinkTexts(parts.LinkGroups.Support),
+			Other:   nonFooterLinkTexts(parts.LinkGroups.Other),
+		}
 	}
 
-	return LinkGroups{Other: parts.Links}
+	return analysisLinkGroups{Other: nonFooterLinkTexts(parts.Links)}
+}
+
+func analysisPrimaryCTA(value string) string {
+	if isFooterLinkText(value) {
+		return ""
+	}
+
+	return value
+}
+
+func analysisBodyText(value string) string {
+	trimmedValue := strings.TrimSpace(value)
+	lowerValue := strings.ToLower(trimmedValue)
+	footerStart := len(trimmedValue)
+
+	for _, marker := range []string{
+		"alaio. all rights reserved.",
+		"this is an automatically generated notification",
+		"you received this email because",
+		"to manage your email preferences",
+	} {
+		if index := strings.Index(lowerValue, marker); index >= 0 && index < footerStart {
+			footerStart = index
+		}
+	}
+
+	return strings.TrimSpace(trimmedValue[:footerStart])
+}
+
+func nonFooterLinkTexts(values []string) []string {
+	filtered := make([]string, 0, len(values))
+	for _, value := range values {
+		if value != "" && !isFooterLinkText(value) {
+			filtered = append(filtered, value)
+		}
+	}
+
+	return filtered
+}
+
+func isFooterLinkText(value string) bool {
+	lowerValue := strings.ToLower(value)
+	return strings.Contains(lowerValue, "privacy") ||
+		strings.Contains(lowerValue, "unsubscribe") ||
+		strings.Contains(lowerValue, "terms") ||
+		strings.Contains(lowerValue, "telegram") ||
+		strings.Contains(lowerValue, "linkedin") ||
+		strings.Contains(lowerValue, "youtube") ||
+		strings.Contains(lowerValue, "facebook")
 }
 
 func emailBodyText(email EmailDetail) string {

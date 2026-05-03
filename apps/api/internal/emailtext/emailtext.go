@@ -119,7 +119,7 @@ func extractPrimaryCTA(value string) string {
 func extractPrimaryCTAFromLinks(links []linkInfo) string {
 	for _, link := range links {
 		text := link.Text
-		if text == "" {
+		if text == "" || isFooterLink(link) {
 			continue
 		}
 
@@ -130,10 +130,6 @@ func extractPrimaryCTAFromLinks(links []linkInfo) string {
 			strings.Contains(lowerAttrs, "display: inline-block") {
 			return text
 		}
-	}
-
-	if len(links) > 0 {
-		return links[0].Text
 	}
 
 	return ""
@@ -190,10 +186,10 @@ func classifyLinks(links []linkInfo, primaryCTA string) LinkGroups {
 
 	for _, link := range links {
 		switch {
-		case primaryCTA != "" && strings.EqualFold(link.Text, primaryCTA):
-			groups.Primary = appendUnique(groups.Primary, link.Text)
 		case isFooterLink(link):
 			groups.Footer = appendUnique(groups.Footer, link.Text)
+		case primaryCTA != "" && strings.EqualFold(link.Text, primaryCTA):
+			groups.Primary = appendUnique(groups.Primary, link.Text)
 		case isSupportLink(link):
 			groups.Support = appendUnique(groups.Support, link.Text)
 		default:
