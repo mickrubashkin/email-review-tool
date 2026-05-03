@@ -31,6 +31,7 @@
 
 .emailCardTitle {
   flex: 1;
+  min-width: 0;
   color: var(--mantine-color-gray-9);
 }
 
@@ -60,11 +61,12 @@
 
 .variantSwitch {
   flex: 0 0 auto;
+  padding-top: 1px;
 }
 
 .variantButton {
   height: 18px;
-  padding: 0 5px;
+  padding: 0 6px;
   border: 1px solid rgba(148, 163, 184, 0.45);
   border-radius: 4px;
   color: var(--mantine-color-gray-6);

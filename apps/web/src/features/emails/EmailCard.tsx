@@ -1,6 +1,5 @@
 import { type MouseEvent, useEffect, useRef, useState } from "react";
 import {
-  Badge,
   Card,
   Group,
   Stack,
@@ -140,7 +139,7 @@ export function EmailCard({
       <Card className={styles.emailCard} withBorder padding="md" radius="md">
         <Stack className={styles.emailCardContent} gap={0}>
           <Stack className={styles.emailCardBody} gap={6}>
-            <Group justify="space-between" gap="xs">
+            <Group justify="space-between" gap="xs" align="flex-start">
               <Text
                 className={styles.emailCardTitle}
                 fw={600}
@@ -149,9 +148,20 @@ export function EmailCard({
               >
                 {formatEmailTitle(selectedEmail.title)}
               </Text>
-              <Badge size="xs" variant="light" radius="sm">
-                {selectedEmail.language}
-              </Badge>
+              <Group className={styles.variantSwitch} gap={2}>
+                {(["new", "old"] as const).map((variant) => (
+                  <button
+                    className={styles.variantButton}
+                    data-active={variant === selectedVariant || undefined}
+                    disabled={!availableVariants.includes(variant)}
+                    key={variant}
+                    type="button"
+                    onClick={(event) => handleVariantClick(event, variant)}
+                  >
+                    {variant}
+                  </button>
+                ))}
+              </Group>
             </Group>
 
             <Group gap={4}>
@@ -187,24 +197,10 @@ export function EmailCard({
             ) : null}
           </Stack>
 
-          <Group className={styles.emailCardFooter} justify="space-between">
+          <Group className={styles.emailCardFooter}>
             <Text size="xs" lineClamp={1}>
               {selectedEmail.send_timing ?? "No timing"}
             </Text>
-            <Group className={styles.variantSwitch} gap={2}>
-              {(["new", "old"] as const).map((variant) => (
-                <button
-                  className={styles.variantButton}
-                  data-active={variant === selectedVariant || undefined}
-                  disabled={!availableVariants.includes(variant)}
-                  key={variant}
-                  type="button"
-                  onClick={(event) => handleVariantClick(event, variant)}
-                >
-                  {variant}
-                </button>
-              ))}
-            </Group>
           </Group>
         </Stack>
       </Card>

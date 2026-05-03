@@ -25,11 +25,11 @@ export function MailPreview({ email, isScanning, viewport }: MailPreviewProps) {
                     Bitrix24 Partners
                   </Text>
                   <Text size="sm">{email.subject ?? email.title}</Text>
-                  {email.subject ? (
+                  {/* {email.subject ? (
                     <Text size="xs" c="dimmed">
                       {email.subject}
                     </Text>
-                  ) : null}
+                  ) : null} */}
                   {email.preheader ? (
                     <Text size="xs" c="dimmed">
                       {email.preheader}
