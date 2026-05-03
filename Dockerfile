@@ -19,6 +19,7 @@ COPY --from=builder /out/server /app/server
 COPY --from=builder /out/seed /app/seed
 COPY --from=builder /out/goose /usr/local/bin/goose
 COPY db /app/db
+COPY apps/api/ai /app/ai
 COPY apps/api/entrypoint.sh /app/entrypoint.sh
 
 RUN chmod +x /app/entrypoint.sh
