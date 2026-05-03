@@ -6,17 +6,17 @@ import type {
 } from "./types";
 
 export const stageColors = [
-  "#2fb4ec",
-  "#35c4f3",
-  "#58d6d2",
-  "#00e4ef",
-  "#6bc7f3",
-  "#ff9f1c",
-  "#2fb4ec",
-  "#ffb650",
-  "#a46a00",
-  "#68db00",
-  "#ff5c73",
+  "#4A6FA5",
+  "#5C85B3",
+  "#6F9BBE",
+  "#6A9FB5",
+  "#8FB7A3",
+  "#A7C48A",
+  "#B8CF7A",
+  "#8FBF6A",
+  "#5FA85C",
+  "#FF5752",
+  "#FF5752",
 ];
 
 const preferredVersionOrder = ["en", "es", "br", "pl", "de", "old"];
