@@ -5,15 +5,54 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func registerAIRoutes(r chi.Router, dbpool *pgxpool.Pool, aiService AIAnalysisService) {
+	r.Get("/api/ai-analysis-logs", listAIAnalysisLogsHandler(dbpool))
 	r.Post("/api/emails/{id}/ai-analysis", analyzeEmailHandler(dbpool, aiService))
 	r.Get("/api/emails/{id}/ai-analysis-stream", analyzeEmailStreamHandler(dbpool, aiService))
 	r.Get("/api/emails/{id}/ai-analysis-debug", debugAIAnalysisHandler(dbpool, aiService))
+}
+
+func listAIAnalysisLogsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		filters := AIAnalysisLogFilters{
+			Status:  strings.TrimSpace(r.URL.Query().Get("status")),
+			EmailID: strings.TrimSpace(r.URL.Query().Get("email_id")),
+			Model:   strings.TrimSpace(r.URL.Query().Get("model")),
+			Limit:   parseAIAnalysisLogsLimit(r.URL.Query().Get("limit")),
+		}
+
+		logs, err := listAIAnalysisLogs(r.Context(), dbpool, filters)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "failed to list ai analysis logs: %v\n", err)
+			http.Error(w, "failed to load ai analysis logs", http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(logs)
+	}
+}
+
+func parseAIAnalysisLogsLimit(value string) int {
+	limit, err := strconv.Atoi(strings.TrimSpace(value))
+	if err != nil {
+		return 100
+	}
+	if limit <= 0 {
+		return 100
+	}
+	if limit > 500 {
+		return 500
+	}
+
+	return limit
 }
 
 func debugAIAnalysisHandler(dbpool *pgxpool.Pool, aiService AIAnalysisService) http.HandlerFunc {

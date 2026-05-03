@@ -1,0 +1,58 @@
+.page {
+  min-height: 100dvh;
+  padding: 24px;
+  background: var(--mantine-color-gray-0);
+}
+
+.header {
+  max-width: 1320px;
+  margin: 0 auto 18px;
+}
+
+.filters {
+  max-width: 1320px;
+  margin: 0 auto 16px;
+  padding: 14px;
+  border: 1px solid var(--mantine-color-gray-2);
+  border-radius: var(--mantine-radius-sm);
+  background: var(--mantine-color-white);
+}
+
+.tableShell {
+  max-width: 1320px;
+  margin: 0 auto;
+  border: 1px solid var(--mantine-color-gray-2);
+  border-radius: var(--mantine-radius-sm);
+  background: var(--mantine-color-white);
+}
+
+.table {
+  min-width: 1040px;
+}
+
+.emailCell {
+  max-width: 280px;
+}
+
+.monoCell {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+}
+
+.errorButton {
+  padding: 0;
+  border: 0;
+  color: var(--mantine-color-red-7);
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.errorText {
+  display: block;
+  max-height: 360px;
+  overflow: auto;
+  white-space: pre-wrap;
+}

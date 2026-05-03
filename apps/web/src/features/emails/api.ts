@@ -1,4 +1,10 @@
-import type { EmailAnalysis, EmailDetail, EmailListItem } from "./types";
+import type {
+  AIAnalysisLogFilters,
+  AIAnalysisLogItem,
+  EmailAnalysis,
+  EmailDetail,
+  EmailListItem,
+} from "./types";
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, init);
@@ -16,6 +22,24 @@ export function fetchEmails(): Promise<EmailListItem[]> {
 
 export function fetchEmailDetail(emailId: string): Promise<EmailDetail> {
   return fetchJson<EmailDetail>(`/api/emails/${emailId}`);
+}
+
+export function fetchAIAnalysisLogs(
+  filters: AIAnalysisLogFilters
+): Promise<AIAnalysisLogItem[]> {
+  const params = new URLSearchParams();
+
+  Object.entries(filters).forEach(([key, value]) => {
+    const trimmedValue = value?.trim();
+    if (trimmedValue) {
+      params.set(key, trimmedValue);
+    }
+  });
+
+  const query = params.toString();
+  return fetchJson<AIAnalysisLogItem[]>(
+    `/api/ai-analysis-logs${query ? `?${query}` : ""}`
+  );
 }
 
 export function analyzeEmail(emailId: string): Promise<EmailAnalysis> {

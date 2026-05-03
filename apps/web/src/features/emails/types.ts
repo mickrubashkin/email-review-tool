@@ -64,6 +64,31 @@ export type EmailRecommendation = {
   details: string;
 };
 
+export type AIAnalysisLogItem = {
+  id: string;
+  email_id: string | null;
+  email_title: string | null;
+  email_slug: string | null;
+  language: string | null;
+  variant: string | null;
+  model: string;
+  status: string;
+  latency_ms: number;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  total_tokens: number | null;
+  cached_tokens: number | null;
+  error_message: string | null;
+  created_at: string;
+};
+
+export type AIAnalysisLogFilters = {
+  status?: string;
+  email_id?: string;
+  model?: string;
+  limit?: string;
+};
+
 export type EmailVersionGroup = {
   key: string;
   stage: string;

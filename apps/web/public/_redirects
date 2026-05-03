@@ -1,2 +1,3 @@
 /api/* https://email-review-tool-production.up.railway.app/api/:splat 200
 /health https://email-review-tool-production.up.railway.app/health 200
+/ai-logs /index.html 200

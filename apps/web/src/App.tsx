@@ -13,6 +13,7 @@ import {
 import { useMediaQuery } from "@mantine/hooks";
 import { useQuery } from "@tanstack/react-query";
 
+import { AIAnalysisLogsView } from "./features/ai-logs/AIAnalysisLogsView";
 import { fetchEmailDetail, fetchEmails } from "./features/emails/api";
 import { EmailBoard } from "./features/emails/EmailBoard";
 import { EmailPreviewDrawer } from "./features/emails/EmailPreviewDrawer";
@@ -23,6 +24,14 @@ import {
 import styles from "./App.module.css";
 
 export default function App() {
+  if (window.location.pathname === "/ai-logs") {
+    return <AIAnalysisLogsView />;
+  }
+
+  return <EmailBoardApp />;
+}
+
+function EmailBoardApp() {
   const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
   const [selectedVersionByGroup, setSelectedVersionByGroup] = useState<
     Record<string, string>

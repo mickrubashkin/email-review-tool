@@ -112,6 +112,14 @@ func applyOpenAIUsage(metrics *AIAnalysisMetrics, responseBytes []byte) {
 			InputTokens  *int `json:"input_tokens"`
 			OutputTokens *int `json:"output_tokens"`
 			TotalTokens  *int `json:"total_tokens"`
+			// Chat Completions and some Responses payloads report cached prompt tokens here.
+			PromptTokensDetails struct {
+				CachedTokens *int `json:"cached_tokens"`
+			} `json:"prompt_tokens_details"`
+			// Keep this for Responses usage payloads if they expose input token details.
+			InputTokensDetails struct {
+				CachedTokens *int `json:"cached_tokens"`
+			} `json:"input_tokens_details"`
 		} `json:"usage"`
 	}
 	if err := json.Unmarshal(responseBytes, &response); err != nil {
@@ -121,6 +129,20 @@ func applyOpenAIUsage(metrics *AIAnalysisMetrics, responseBytes []byte) {
 	metrics.InputTokens = response.Usage.InputTokens
 	metrics.OutputTokens = response.Usage.OutputTokens
 	metrics.TotalTokens = response.Usage.TotalTokens
+	metrics.CachedTokens = firstInt(
+		response.Usage.InputTokensDetails.CachedTokens,
+		response.Usage.PromptTokensDetails.CachedTokens,
+	)
+}
+
+func firstInt(values ...*int) *int {
+	for _, value := range values {
+		if value != nil {
+			return value
+		}
+	}
+
+	return nil
 }
 
 func extractOpenAIOutputText(responseBytes []byte) (string, error) {
