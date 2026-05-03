@@ -106,7 +106,7 @@ export default function App() {
 
           {emailsQuery.isError ? (
             <Alert color="red" title="Failed to load emails">
-              Check that the API server is running on port 8080.
+              Check that the API server is reachable.
             </Alert>
           ) : null}
 
