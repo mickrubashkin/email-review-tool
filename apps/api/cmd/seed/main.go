@@ -281,7 +281,18 @@ func upsertEmail(ctx context.Context, dbpool *pgxpool.Pool, email seedEmail) err
 			body_text = EXCLUDED.body_text,
 			content_parts = EXCLUDED.content_parts,
 			original_html = EXCLUDED.original_html,
-			updated_at = now();
+			updated_at = now()
+		WHERE emails.sequence IS DISTINCT FROM EXCLUDED.sequence
+			OR emails.title IS DISTINCT FROM EXCLUDED.title
+			OR emails.subject IS DISTINCT FROM EXCLUDED.subject
+			OR emails.preheader IS DISTINCT FROM EXCLUDED.preheader
+			OR emails.send_timing IS DISTINCT FROM EXCLUDED.send_timing
+			OR emails.stage IS DISTINCT FROM EXCLUDED.stage
+			OR emails.sort_order IS DISTINCT FROM EXCLUDED.sort_order
+			OR emails.language IS DISTINCT FROM EXCLUDED.language
+			OR emails.body_text IS DISTINCT FROM EXCLUDED.body_text
+			OR emails.content_parts IS DISTINCT FROM EXCLUDED.content_parts
+			OR emails.original_html IS DISTINCT FROM EXCLUDED.original_html;
 	`, email.Slug, email.Sequence, email.Title, email.Subject, email.Preheader, email.SendTiming, email.Stage, email.SortOrder, email.Language, email.BodyText, email.ContentParts, email.OriginalHTML)
 
 	return err
