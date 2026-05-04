@@ -89,6 +89,30 @@ func TestNewMagicLinkEmailSendersUsesSMTPWhenConfigured(t *testing.T) {
 	}
 }
 
+func TestNewMagicLinkEmailSendersConfiguresImplicitSMTPTLS(t *testing.T) {
+	t.Setenv("RESEND_API_KEY", "")
+	t.Setenv("SMTP_HOST", "smtp.gmail.com")
+	t.Setenv("SMTP_PORT", "465")
+	t.Setenv("SMTP_TLS", "true")
+	t.Setenv("AUTH_LOG_MAGIC_LINKS", "false")
+
+	senders := newMagicLinkEmailSendersFromEnv()
+	if len(senders) != 1 {
+		t.Fatalf("expected one sender, got %d", len(senders))
+	}
+
+	smtpSender, ok := senders[0].(SMTPEmailSender)
+	if !ok {
+		t.Fatalf("expected smtp sender, got %#v", senders[0])
+	}
+	if smtpSender.Port != 465 {
+		t.Fatalf("expected smtp port 465, got %d", smtpSender.Port)
+	}
+	if !smtpSender.useImplicitTLS() {
+		t.Fatalf("expected implicit TLS to be enabled")
+	}
+}
+
 func TestMagicLinkSMTPMessageIncludesTextAndHTML(t *testing.T) {
 	link := "https://example.com/auth/callback?token=test"
 	message := string(magicLinkSMTPMessage("Sender <sender@gmail.com>", "user@alaio.com", link))

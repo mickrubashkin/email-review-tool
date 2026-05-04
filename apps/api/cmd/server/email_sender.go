@@ -3,11 +3,13 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"html"
 	"io"
+	"net"
 	"net/http"
 	"net/mail"
 	"net/smtp"
@@ -69,12 +71,60 @@ type SMTPEmailSender struct {
 	Username string
 	Password string
 	From     string
+	TLS      bool
 }
 
 func (sender SMTPEmailSender) SendMagicLink(_ context.Context, to string, link string) error {
+	if sender.useImplicitTLS() {
+		return sender.sendMagicLinkWithImplicitTLS(to, link)
+	}
+
 	address := sender.smtpAddress()
 	auth := smtp.PlainAuth("", sender.Username, sender.Password, sender.Host)
 	return smtp.SendMail(address, auth, smtpEnvelopeAddress(sender.From), []string{to}, magicLinkSMTPMessage(sender.From, to, link))
+}
+
+func (sender SMTPEmailSender) sendMagicLinkWithImplicitTLS(to string, link string) error {
+	connection, err := tlsDialWithTimeout("tcp", sender.smtpAddress(), 15*time.Second)
+	if err != nil {
+		return err
+	}
+	defer connection.Close()
+
+	client, err := smtp.NewClient(connection, sender.Host)
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+
+	auth := smtp.PlainAuth("", sender.Username, sender.Password, sender.Host)
+	if err := client.Auth(auth); err != nil {
+		return err
+	}
+	if err := client.Mail(smtpEnvelopeAddress(sender.From)); err != nil {
+		return err
+	}
+	if err := client.Rcpt(to); err != nil {
+		return err
+	}
+
+	writer, err := client.Data()
+	if err != nil {
+		return err
+	}
+	if _, err := writer.Write(magicLinkSMTPMessage(sender.From, to, link)); err != nil {
+		_ = writer.Close()
+		return err
+	}
+	if err := writer.Close(); err != nil {
+		return err
+	}
+
+	return client.Quit()
+}
+
+func (sender SMTPEmailSender) useImplicitTLS() bool {
+	return sender.TLS || sender.Port == 465
 }
 
 func (sender SMTPEmailSender) smtpAddress() string {
@@ -160,6 +210,7 @@ func newMagicLinkEmailSendersFromEnv() []EmailSender {
 			Username: strings.TrimSpace(os.Getenv("SMTP_USERNAME")),
 			Password: strings.TrimSpace(os.Getenv("SMTP_PASSWORD")),
 			From:     authFromEmail(),
+			TLS:      envBoolDefault("SMTP_TLS", false),
 		})
 	}
 	if apiKey != "" {
@@ -188,6 +239,11 @@ func smtpPort() int {
 	}
 
 	return port
+}
+
+func tlsDialWithTimeout(network string, address string, timeout time.Duration) (net.Conn, error) {
+	dialer := &net.Dialer{Timeout: timeout}
+	return tls.DialWithDialer(dialer, network, address, nil)
 }
 
 func smtpEnvelopeAddress(value string) string {
