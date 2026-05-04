@@ -7,6 +7,7 @@ import {
   Tooltip,
   UnstyledButton,
 } from "@mantine/core";
+import { ExternalLink } from "lucide-react";
 
 import type { EmailVariant, EmailVersionGroup } from "./types";
 import {
@@ -131,6 +132,10 @@ export function EmailCard({
     }
   };
 
+  const handleReviewClick = (event: MouseEvent<HTMLAnchorElement>) => {
+    event.stopPropagation();
+  };
+
   return (
     <UnstyledButton
       className={styles.emailCardButton}
@@ -197,10 +202,18 @@ export function EmailCard({
             ) : null}
           </Stack>
 
-          <Group className={styles.emailCardFooter}>
+          <Group className={styles.emailCardFooter} justify="space-between" wrap="nowrap">
             <Text size="xs" lineClamp={1}>
               {selectedEmail.send_timing ?? "No timing"}
             </Text>
+            <a
+              className={styles.reviewLink}
+              href={`/emails/${encodeURIComponent(selectedEmail.id)}/review`}
+              onClick={handleReviewClick}
+            >
+              <ExternalLink aria-hidden="true" size={12} strokeWidth={2.2} />
+              Review
+            </a>
           </Group>
         </Stack>
       </Card>

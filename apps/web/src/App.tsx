@@ -20,6 +20,7 @@ import {
   buildStageColumns,
   getDefaultVersion,
 } from "./features/emails/stages";
+import { EmailReviewView } from "./features/review/EmailReviewView";
 import styles from "./App.module.css";
 
 export default function App() {
@@ -27,7 +28,17 @@ export default function App() {
     return <AIAnalysisLogsView />;
   }
 
+  const reviewEmailId = getReviewEmailId(window.location.pathname);
+  if (reviewEmailId) {
+    return <EmailReviewView emailId={reviewEmailId} />;
+  }
+
   return <EmailBoardApp />;
+}
+
+function getReviewEmailId(pathname: string) {
+  const match = pathname.match(/^\/emails\/([^/]+)\/review\/?$/);
+  return match ? decodeURIComponent(match[1]) : null;
 }
 
 function EmailBoardApp() {

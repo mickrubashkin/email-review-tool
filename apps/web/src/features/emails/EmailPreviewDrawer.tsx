@@ -8,12 +8,11 @@ import {
   Text,
   Tooltip,
 } from "@mantine/core";
-import { notifications } from "@mantine/notifications";
 import {
   ChevronDown,
-  Columns2,
   Copy,
   Download,
+  ExternalLink,
   Monitor,
   RefreshCcw,
   Smartphone,
@@ -22,6 +21,7 @@ import { useState } from "react";
 
 import { AISparkleIcon } from "./AISparkleIcon";
 import { AnalysisPanel } from "./AnalysisPanel";
+import { copyOriginalHTML, downloadOriginalHTML } from "./exportHtml";
 import { MailPreview } from "./MailPreview";
 import {
   getAvailableVariants,
@@ -39,7 +39,7 @@ import type {
 import { useEmailAnalysisStream } from "./useEmailAnalysisStream";
 import styles from "./EmailPreviewDrawer.module.css";
 
-type PreviewMode = "desktop" | "mobile" | "both";
+type PreviewMode = "desktop" | "mobile";
 
 type EmailPreviewDrawerProps = {
   email: EmailDetail | undefined;
@@ -80,11 +80,7 @@ export function EmailPreviewDrawer({
   const streamPreview = buildStreamPreview(streamText);
   const shouldShowAnalysisPanel =
     isCurrentStream && (streamStatus !== "idle" || Boolean(displayedAnalysis));
-  const activePreviewMode = isMobile
-    ? "mobile"
-    : shouldShowAnalysisPanel && previewMode === "both"
-      ? "desktop"
-      : previewMode;
+  const activePreviewMode = isMobile ? "mobile" : previewMode;
   const selectedVersion = emailGroup?.versions.find(
     (version) => version.id === selectedEmailId
   );
@@ -102,49 +98,15 @@ export function EmailPreviewDrawer({
     : "";
   const isAnalyzingCurrentEmail = streamStatus === "streaming" && isCurrentStream;
   const handleCopyHTML = async () => {
-    if (!email) {
-      return;
-    }
-
-    try {
-      await navigator.clipboard.writeText(email.original_html);
-      notifications.show({
-        color: "green",
-        message: "Original HTML copied to clipboard",
-        title: "Copied",
-      });
-    } catch {
-      notifications.show({
-        color: "red",
-        message: "Browser blocked clipboard access. Try downloading the HTML instead.",
-        title: "Copy failed",
-      });
+    if (email) {
+      await copyOriginalHTML(email);
     }
   };
 
   const handleDownloadHTML = () => {
-    if (!email) {
-      return;
+    if (email) {
+      downloadOriginalHTML(email);
     }
-
-    const blob = new Blob([email.original_html], {
-      type: "text/html;charset=utf-8",
-    });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-
-    link.href = url;
-    link.download = buildHTMLFileName(email);
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
-
-    notifications.show({
-      color: "green",
-      message: `${link.download} is ready`,
-      title: "Downloaded",
-    });
   };
 
   return (
@@ -155,9 +117,7 @@ export function EmailPreviewDrawer({
       size={
         isMobile
           ? "100%"
-          : activePreviewMode === "both"
-            ? "min(1680px, 98vw)"
-            : "min(1180px, 96vw)"
+          : "min(1180px, 96vw)"
       }
       title={
         <div className={styles.drawerTitleBar}>
@@ -189,10 +149,23 @@ export function EmailPreviewDrawer({
               {!isMobile ? (
                 <PreviewModeSwitch
                   activePreviewMode={activePreviewMode}
-                  showBoth={!shouldShowAnalysisPanel}
                   onChange={setPreviewMode}
                 />
               ) : null}
+
+              <Tooltip label="Open review page">
+                <ActionIcon
+                  aria-label="Open review page"
+                  className={styles.exportAction}
+                  component="a"
+                  href={`/emails/${encodeURIComponent(email.id)}/review`}
+                  radius="md"
+                  size="lg"
+                  variant="light"
+                >
+                  <ExternalLink aria-hidden="true" size={16} strokeWidth={2.2} />
+                </ActionIcon>
+              </Tooltip>
 
               <Tooltip label="Copy original HTML">
                 <ActionIcon
@@ -383,11 +356,9 @@ function VariantSwitch({
 function PreviewModeSwitch({
   activePreviewMode,
   onChange,
-  showBoth,
 }: {
   activePreviewMode: PreviewMode;
   onChange: (mode: PreviewMode) => void;
-  showBoth: boolean;
 }) {
   return (
     <Group className={styles.viewportSwitch} gap={0}>
@@ -413,19 +384,6 @@ function PreviewModeSwitch({
           <Smartphone aria-hidden="true" size={16} strokeWidth={2.2} />
         </button>
       </Tooltip>
-      {showBoth ? (
-        <Tooltip label="Compare desktop and mobile">
-          <button
-            aria-label="Compare desktop and mobile"
-            className={styles.viewportButton}
-            data-active={activePreviewMode === "both" || undefined}
-            type="button"
-            onClick={() => onChange("both")}
-          >
-            <Columns2 aria-hidden="true" size={16} strokeWidth={2.2} />
-          </button>
-        </Tooltip>
-      ) : null}
     </Group>
   );
 }
@@ -439,15 +397,6 @@ function PreviewArea({
   isScanning: boolean;
   previewMode: PreviewMode;
 }) {
-  if (previewMode === "both") {
-    return (
-      <div className={styles.previewCompareGrid}>
-        <MailPreview email={email} isScanning={isScanning} viewport="desktop" />
-        <MailPreview email={email} isScanning={isScanning} viewport="mobile" />
-      </div>
-    );
-  }
-
   return (
     <MailPreview email={email} isScanning={isScanning} viewport={previewMode} />
   );
@@ -459,17 +408,4 @@ function formatTimingLabel(value: string) {
     .filter(Boolean)
     .map((word) => `${word.charAt(0).toUpperCase()}${word.slice(1)}`)
     .join(" ");
-}
-
-function buildHTMLFileName(email: EmailDetail) {
-  const baseName = email.slug || email.title || "email";
-  const sanitizedBaseName = baseName
-    .toLowerCase()
-    .trim()
-    .replace(/\s+/g, "-")
-    .replace(/[^a-z0-9_-]+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "");
-
-  return `${sanitizedBaseName || "email"}.html`;
 }

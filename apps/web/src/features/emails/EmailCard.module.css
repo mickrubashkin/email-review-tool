@@ -109,3 +109,19 @@
   background: rgba(222, 248, 255, 0.82);
   color: var(--mantine-color-gray-5);
 }
+
+.reviewLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+  color: var(--mantine-color-blue-7);
+  font-size: 11px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.reviewLink:hover {
+  color: var(--mantine-color-blue-9);
+  text-decoration: underline;
+}

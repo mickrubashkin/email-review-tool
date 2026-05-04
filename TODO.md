@@ -1,5 +1,9 @@
 # TODO
 
+## Nice to have
+- [ ] Контроль расхода токенов пользователем, алерт админу (почта? тг-бот?)
+- [ ] Админ может дублировать письмо, создавать событие, добавлять письмо
+
 ## Next product backlog
 - [ ] Track AI cache hits and misses
 - [ ] Add email-based authorization

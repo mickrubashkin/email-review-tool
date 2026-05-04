@@ -1,0 +1,229 @@
+.page {
+  min-height: 100dvh;
+  background: var(--mantine-color-gray-0);
+}
+
+.header {
+  position: sticky;
+  z-index: 10;
+  top: 0;
+  border-bottom: 1px solid var(--mantine-color-gray-2);
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(8px);
+}
+
+.headerInner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mantine-spacing-md);
+  min-height: 72px;
+  padding: 12px 20px;
+}
+
+.headerMain {
+  min-width: 0;
+}
+
+.titleBlock {
+  min-width: 0;
+}
+
+.titleText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.headerActions {
+  flex: 0 0 auto;
+}
+
+.selectWrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.select {
+  height: 36px;
+  min-width: 76px;
+  padding: 0 30px 0 10px;
+  border: 1px solid var(--mantine-color-gray-3);
+  border-radius: var(--mantine-radius-md);
+  color: var(--mantine-color-gray-7);
+  background: var(--mantine-color-white);
+  appearance: none;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.select:disabled {
+  opacity: 0.54;
+  cursor: not-allowed;
+}
+
+.selectIcon {
+  position: absolute;
+  top: 50%;
+  right: 9px;
+  color: var(--mantine-color-gray-6);
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.segmentedControl {
+  padding: 3px;
+  border: 1px solid var(--mantine-color-gray-2);
+  border-radius: var(--mantine-radius-md);
+  background: var(--mantine-color-white);
+}
+
+.segmentedButton,
+.iconSegmentedButton {
+  height: 28px;
+  border: 0;
+  border-radius: calc(var(--mantine-radius-md) - 3px);
+  color: var(--mantine-color-gray-6);
+  background: transparent;
+  cursor: pointer;
+}
+
+.segmentedButton {
+  padding: 0 9px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.iconSegmentedButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  padding: 0;
+}
+
+.segmentedButton:hover:not(:disabled),
+.iconSegmentedButton:hover {
+  color: var(--mantine-color-blue-7);
+  background: var(--mantine-color-blue-0);
+}
+
+.segmentedButton[data-active],
+.iconSegmentedButton[data-active] {
+  color: var(--mantine-color-blue-7);
+  background: var(--mantine-color-blue-0);
+}
+
+.segmentedButton:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+.content {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 8px minmax(280px, var(--review-panel-width));
+  gap: 0;
+  padding: var(--mantine-spacing-md);
+}
+
+.previewColumn {
+  min-width: 0;
+  padding-right: var(--mantine-spacing-sm);
+}
+
+.splitter {
+  position: relative;
+  align-self: stretch;
+  min-height: calc(100dvh - 104px);
+  border-radius: 999px;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.splitter::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  border-radius: 999px;
+  background: var(--mantine-color-gray-3);
+  content: "";
+  transform: translateX(-50%);
+  transition:
+    background 120ms ease,
+    width 120ms ease;
+}
+
+.splitter:hover::before,
+.splitter[data-active]::before {
+  width: 4px;
+  background: var(--mantine-color-blue-4);
+}
+
+.reviewPanel {
+  position: sticky;
+  top: 88px;
+  align-self: start;
+  min-width: 0;
+  max-height: calc(100dvh - 104px);
+  overflow: auto;
+  margin-left: var(--mantine-spacing-sm);
+  border: 1px solid var(--mantine-color-gray-2);
+  border-radius: var(--mantine-radius-sm);
+  background: var(--mantine-color-white);
+}
+
+.tabPanel {
+  padding: var(--mantine-spacing-sm);
+}
+
+.emptyState {
+  min-height: 220px;
+  padding: 28px 18px;
+}
+
+.centerState {
+  min-height: 100dvh;
+}
+
+@media (max-width: 64em) {
+  .headerInner {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .headerMain {
+    width: 100%;
+  }
+
+  .headerActions {
+    width: 100%;
+    align-items: center;
+  }
+
+  .content {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--mantine-spacing-md);
+  }
+
+  .previewColumn {
+    padding-right: 0;
+  }
+
+  .splitter {
+    display: none;
+  }
+
+  .reviewPanel {
+    position: static;
+    max-height: none;
+    margin-left: 0;
+    order: 2;
+  }
+}
