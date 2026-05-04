@@ -1,0 +1,16 @@
+.page {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: var(--mantine-spacing-xl);
+  background:
+    linear-gradient(135deg, rgba(7, 21, 106, 0.36), rgba(2, 65, 108, 0.18)),
+    url("https://global.bitrix24.com/bitrix/templates/bitrix24/themes/light/space/space.jpg"),
+    linear-gradient(135deg, #07156a 0%, #112a95 42%, #02416c 100%);
+  background-position: center;
+  background-size: cover;
+}
+
+.panel {
+  width: min(100%, 420px);
+}

@@ -1,19 +1,43 @@
 import type {
   AIAnalysisLogFilters,
   AIAnalysisLogItem,
+  AuthUser,
   EmailAnalysis,
   EmailDetail,
   EmailListItem,
 } from "./types";
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, init);
+  const response = await fetch(url, {
+    ...init,
+    credentials: "include",
+  });
 
   if (!response.ok) {
     throw new Error(`Request failed: ${response.status}`);
   }
 
   return response.json() as Promise<T>;
+}
+
+export function requestMagicLink(email: string): Promise<{ ok: boolean }> {
+  return fetchJson<{ ok: boolean }>("/api/auth/request-link", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ email }),
+  });
+}
+
+export function fetchCurrentUser(): Promise<AuthUser> {
+  return fetchJson<AuthUser>("/api/auth/me");
+}
+
+export function logout(): Promise<{ ok: boolean }> {
+  return fetchJson<{ ok: boolean }>("/api/auth/logout", {
+    method: "POST",
+  });
 }
 
 export function fetchEmails(): Promise<EmailListItem[]> {
@@ -67,7 +91,7 @@ export function analyzeEmailStream(
   const query = searchParams.toString();
   const url = `/api/emails/${emailId}/ai-analysis-stream${query ? `?${query}` : ""}`;
 
-  const source = new EventSource(url);
+  const source = new EventSource(url, { withCredentials: true });
 
   source.addEventListener("delta", (event) => {
     try {

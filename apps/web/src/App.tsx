@@ -1,8 +1,10 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   AppShell,
+  Badge,
   Box,
+  Button,
   Group,
   Loader,
   Stack,
@@ -10,20 +12,77 @@ import {
   Title,
 } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { AIAnalysisLogsView } from "./features/ai-logs/AIAnalysisLogsView";
-import { fetchEmailDetail, fetchEmails } from "./features/emails/api";
+import { LoginView } from "./features/auth/LoginView";
+import {
+  fetchCurrentUser,
+  fetchEmailDetail,
+  fetchEmails,
+  logout,
+} from "./features/emails/api";
 import { EmailBoard } from "./features/emails/EmailBoard";
 import { EmailPreviewDrawer } from "./features/emails/EmailPreviewDrawer";
 import {
   buildStageColumns,
   getDefaultVersion,
 } from "./features/emails/stages";
+import type { AuthUser } from "./features/emails/types";
 import { EmailReviewView } from "./features/review/EmailReviewView";
 import styles from "./App.module.css";
 
 export default function App() {
+  if (window.location.pathname === "/auth/callback") {
+    return <AuthCallbackView />;
+  }
+
+  return <AuthenticatedApp />;
+}
+
+function AuthCallbackView() {
+  useEffect(() => {
+    const token = new URLSearchParams(window.location.search).get("token");
+    const query = token ? `?token=${encodeURIComponent(token)}` : "";
+    window.location.replace(`/api/auth/callback${query}`);
+  }, []);
+
+  return (
+    <Stack align="center" justify="center" h="100dvh">
+      <Loader />
+      <Text c="dimmed">Signing in</Text>
+    </Stack>
+  );
+}
+
+function AuthenticatedApp() {
+  const queryClient = useQueryClient();
+  const currentUserQuery = useQuery({
+    queryKey: ["auth", "me"],
+    queryFn: fetchCurrentUser,
+    retry: false,
+  });
+  const logoutMutation = useMutation({
+    mutationFn: logout,
+    onSettled: () => {
+      queryClient.removeQueries();
+      window.location.href = "/";
+    },
+  });
+
+  if (currentUserQuery.isLoading) {
+    return (
+      <Stack align="center" justify="center" h="100dvh">
+        <Loader />
+        <Text c="dimmed">Checking session</Text>
+      </Stack>
+    );
+  }
+
+  if (currentUserQuery.isError || !currentUserQuery.data) {
+    return <LoginView />;
+  }
+
   if (window.location.pathname === "/ai-logs") {
     return <AIAnalysisLogsView />;
   }
@@ -33,7 +92,13 @@ export default function App() {
     return <EmailReviewView emailId={reviewEmailId} />;
   }
 
-  return <EmailBoardApp />;
+  return (
+    <EmailBoardApp
+      currentUser={currentUserQuery.data}
+      isLoggingOut={logoutMutation.isPending}
+      onLogout={() => logoutMutation.mutate()}
+    />
+  );
 }
 
 function getReviewEmailId(pathname: string) {
@@ -41,7 +106,15 @@ function getReviewEmailId(pathname: string) {
   return match ? decodeURIComponent(match[1]) : null;
 }
 
-function EmailBoardApp() {
+function EmailBoardApp({
+  currentUser,
+  isLoggingOut,
+  onLogout,
+}: {
+  currentUser: AuthUser;
+  isLoggingOut: boolean;
+  onLogout: () => void;
+}) {
   const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
   const [selectedVersionByGroup, setSelectedVersionByGroup] = useState<
     Record<string, string>
@@ -108,9 +181,28 @@ function EmailBoardApp() {
             </Text>
           </Stack>
 
-          <Text className={styles.headerCount} size="sm" c="dimmed">
-            {emailsQuery.data?.length ?? 0} emails
-          </Text>
+          <Group gap="sm" wrap="nowrap">
+            <Text className={styles.headerCount} size="sm" c="dimmed">
+              {emailsQuery.data?.length ?? 0} emails
+            </Text>
+            <Group gap={6} wrap="nowrap">
+              <Text className={styles.headerUser} size="sm" c="dimmed">
+                {currentUser.email}
+              </Text>
+              <Badge color={currentUser.role === "admin" ? "blue" : "gray"}>
+                {currentUser.role}
+              </Badge>
+            </Group>
+            <Button
+              color="gray"
+              loading={isLoggingOut}
+              size="xs"
+              variant="white"
+              onClick={onLogout}
+            >
+              Logout
+            </Button>
+          </Group>
         </Group>
       </AppShell.Header>
 

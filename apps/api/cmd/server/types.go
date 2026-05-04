@@ -97,3 +97,9 @@ type AIAnalysisLogItem struct {
 	ErrorMessage *string   `json:"error_message"`
 	CreatedAt    time.Time `json:"created_at"`
 }
+
+type AuthUser struct {
+	ID    string `json:"-"`
+	Email string `json:"email"`
+	Role  string `json:"role"`
+}

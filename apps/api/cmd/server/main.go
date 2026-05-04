@@ -35,6 +35,7 @@ func main() {
 	}
 
 	r := chi.NewRouter()
+	r.Use(authMiddleware(dbpool))
 	aiService, err := newAIAnalysisService()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to create AI analysis service: %v\n", err)
@@ -42,6 +43,7 @@ func main() {
 	}
 
 	registerHealthRoute(r, dbpool)
+	registerAuthRoutes(r, dbpool, newMagicLinkEmailSender())
 	registerEmailRoutes(r, dbpool)
 	registerAIRoutes(r, dbpool, aiService)
 

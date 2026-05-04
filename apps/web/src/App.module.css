@@ -10,6 +10,14 @@
   white-space: nowrap;
 }
 
+.headerUser {
+  max-width: 220px;
+  color: rgba(255, 255, 255, 0.82) !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .boardPage {
   height: calc(100dvh - var(--app-shell-header-height));
   background:

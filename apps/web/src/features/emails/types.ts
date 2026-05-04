@@ -91,6 +91,11 @@ export type AIAnalysisLogFilters = {
   limit?: string;
 };
 
+export type AuthUser = {
+  email: string;
+  role: "admin" | "reviewer";
+};
+
 export type EmailVersionGroup = {
   key: string;
   stage: string;
