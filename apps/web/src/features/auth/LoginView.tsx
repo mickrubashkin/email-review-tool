@@ -84,13 +84,13 @@ export function LoginView() {
               </Alert>
             ) : null}
 
-            <Button
+            {/* <Button
               loading={requestLinkMutation.isPending}
               type="submit"
               fullWidth
             >
               Send magic link
-            </Button>
+            </Button> */}
 
             <Stack gap="xs">
               <PasswordInput
