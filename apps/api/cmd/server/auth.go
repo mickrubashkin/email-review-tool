@@ -27,8 +27,14 @@ type authRequest struct {
 	Email string `json:"email"`
 }
 
+type inviteCodeRequest struct {
+	Email string `json:"email"`
+	Code  string `json:"code"`
+}
+
 func registerAuthRoutes(r chi.Router, dbpool *pgxpool.Pool, emailSender EmailSender) {
 	r.Post("/api/auth/request-link", requestMagicLinkHandler(dbpool, emailSender))
+	r.Post("/api/auth/invite-code", inviteCodeLoginHandler(dbpool))
 	r.Get("/api/auth/callback", magicLinkCallbackHandler(dbpool))
 	r.Get("/api/auth/me", meHandler(dbpool))
 	r.Post("/api/auth/logout", logoutHandler(dbpool))
@@ -102,6 +108,37 @@ func requestMagicLinkHandler(dbpool *pgxpool.Pool, emailSender EmailSender) http
 	}
 }
 
+func inviteCodeLoginHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var payload inviteCodeRequest
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			http.Error(w, "invalid request", http.StatusBadRequest)
+			return
+		}
+
+		email := normalizeEmail(payload.Email)
+		if !isAllowedAuthEmail(email) || !isValidInviteCode(payload.Code) {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		user, err := upsertAuthUser(r.Context(), dbpool, email)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "failed to upsert auth user %s: %v\n", email, err)
+			http.Error(w, "failed to sign in", http.StatusInternalServerError)
+			return
+		}
+
+		if err := createSessionCookie(r.Context(), dbpool, w, user); err != nil {
+			fmt.Fprintf(os.Stderr, "failed to create invite-code session for %s: %v\n", user.Email, err)
+			http.Error(w, "failed to sign in", http.StatusInternalServerError)
+			return
+		}
+
+		writeAuthOK(w)
+	}
+}
+
 func magicLinkCallbackHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		token := strings.TrimSpace(r.URL.Query().Get("token"))
@@ -117,25 +154,12 @@ func magicLinkCallbackHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			return
 		}
 
-		sessionToken, err := randomToken()
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "failed to create session token for %s: %v\n", user.Email, err)
+		if err := createSessionCookie(r.Context(), dbpool, w, user); err != nil {
+			fmt.Fprintf(os.Stderr, "failed to create magic-link session for %s: %v\n", user.Email, err)
 			http.Redirect(w, r, "/", http.StatusSeeOther)
 			return
 		}
 
-		expiresAt := time.Now().Add(30 * 24 * time.Hour)
-		_, err = dbpool.Exec(r.Context(), `
-			INSERT INTO sessions (session_hash, user_id, expires_at)
-			VALUES ($1, $2, $3);
-		`, hashToken(sessionToken), user.ID, expiresAt)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "failed to save session for %s: %v\n", user.Email, err)
-			http.Redirect(w, r, "/", http.StatusSeeOther)
-			return
-		}
-
-		http.SetCookie(w, sessionCookie(sessionToken, expiresAt))
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 	}
 }
@@ -187,6 +211,25 @@ func currentUserFromRequest(ctx context.Context, dbpool *pgxpool.Pool, r *http.R
 	}
 
 	return user, nil
+}
+
+func createSessionCookie(ctx context.Context, dbpool *pgxpool.Pool, w http.ResponseWriter, user AuthUser) error {
+	sessionToken, err := randomToken()
+	if err != nil {
+		return err
+	}
+
+	expiresAt := time.Now().Add(30 * 24 * time.Hour)
+	_, err = dbpool.Exec(ctx, `
+		INSERT INTO sessions (session_hash, user_id, expires_at)
+		VALUES ($1, $2, $3);
+	`, hashToken(sessionToken), user.ID, expiresAt)
+	if err != nil {
+		return err
+	}
+
+	http.SetCookie(w, sessionCookie(sessionToken, expiresAt))
+	return nil
 }
 
 func upsertAuthUser(ctx context.Context, dbpool *pgxpool.Pool, email string) (AuthUser, error) {
@@ -256,6 +299,21 @@ func isAllowedAuthEmail(email string) bool {
 
 	_, domain, ok := strings.Cut(email, "@")
 	return ok && domain == allowedDomain
+}
+
+func isValidInviteCode(code string) bool {
+	normalizedCode := strings.TrimSpace(code)
+	if normalizedCode == "" {
+		return false
+	}
+
+	codeHash := strings.TrimSpace(os.Getenv("AUTH_INVITE_CODE_HASH"))
+	if codeHash != "" {
+		return hashToken(normalizedCode) == codeHash
+	}
+
+	rawCode := strings.TrimSpace(os.Getenv("AUTH_INVITE_CODE"))
+	return rawCode != "" && normalizedCode == rawCode
 }
 
 func normalizeEmail(value string) string {

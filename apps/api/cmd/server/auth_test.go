@@ -37,3 +37,36 @@ func TestRequestMagicLinkDisallowedDomainDoesNotSendEmail(t *testing.T) {
 		t.Fatalf("expected email sender not to be called, got %d calls", emailSender.calls)
 	}
 }
+
+func TestIsValidInviteCodeUsesRawCode(t *testing.T) {
+	t.Setenv("AUTH_INVITE_CODE", "team-code")
+	t.Setenv("AUTH_INVITE_CODE_HASH", "")
+
+	if !isValidInviteCode("team-code") {
+		t.Fatalf("expected raw invite code to be valid")
+	}
+	if isValidInviteCode("wrong-code") {
+		t.Fatalf("expected wrong invite code to be invalid")
+	}
+}
+
+func TestIsValidInviteCodeUsesHash(t *testing.T) {
+	t.Setenv("AUTH_INVITE_CODE", "")
+	t.Setenv("AUTH_INVITE_CODE_HASH", hashToken("team-code"))
+
+	if !isValidInviteCode("team-code") {
+		t.Fatalf("expected hashed invite code to be valid")
+	}
+	if isValidInviteCode("wrong-code") {
+		t.Fatalf("expected wrong invite code to be invalid")
+	}
+}
+
+func TestIsValidInviteCodeRequiresConfiguredCode(t *testing.T) {
+	t.Setenv("AUTH_INVITE_CODE", "")
+	t.Setenv("AUTH_INVITE_CODE_HASH", "")
+
+	if isValidInviteCode("team-code") {
+		t.Fatalf("expected invite code to be invalid when no code is configured")
+	}
+}

@@ -3,14 +3,15 @@ import {
   Alert,
   Button,
   Paper,
+  PasswordInput,
   Stack,
   Text,
   TextInput,
   Title,
 } from "@mantine/core";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { requestMagicLink } from "../emails/api";
+import { requestMagicLink, signInWithInviteCode } from "../emails/api";
 import styles from "./LoginView.module.css";
 
 const allowedDomain = (
@@ -21,11 +22,20 @@ const allowedDomain = (
   .replace(/^@/, "");
 
 export function LoginView() {
+  const queryClient = useQueryClient();
   const [email, setEmail] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
   const [domainError, setDomainError] = useState<string | null>(null);
 
   const requestLinkMutation = useMutation({
     mutationFn: requestMagicLink,
+  });
+  const inviteCodeMutation = useMutation({
+    mutationFn: ({ email, code }: { email: string; code: string }) =>
+      signInWithInviteCode(email, code),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
+    },
   });
 
   return (
@@ -64,6 +74,7 @@ export function LoginView() {
                 setEmail(event.currentTarget.value);
                 setDomainError(null);
                 requestLinkMutation.reset();
+                inviteCodeMutation.reset();
               }}
             />
 
@@ -81,6 +92,41 @@ export function LoginView() {
               Send magic link
             </Button>
 
+            <Stack gap="xs">
+              <PasswordInput
+                autoComplete="one-time-code"
+                label="Invite code"
+                placeholder="Enter invite code"
+                value={inviteCode}
+                onChange={(event) => {
+                  setInviteCode(event.currentTarget.value);
+                  inviteCodeMutation.reset();
+                }}
+              />
+              <Button
+                disabled={inviteCode.trim() === ""}
+                loading={inviteCodeMutation.isPending}
+                variant="light"
+                onClick={() => {
+                  const normalizedEmail = email.trim().toLowerCase();
+                  if (!isAllowedEmailDomain(normalizedEmail)) {
+                    setDomainError(
+                      `Access is only available for ${allowedDomain} emails.`
+                    );
+                    return;
+                  }
+
+                  setDomainError(null);
+                  inviteCodeMutation.mutate({
+                    email: normalizedEmail,
+                    code: inviteCode,
+                  });
+                }}
+              >
+                Sign in with invite code
+              </Button>
+            </Stack>
+
             {requestLinkMutation.isSuccess ? (
               <Alert color="green" title="Magic link requested">
                 Check server logs for the magic link.
@@ -90,6 +136,12 @@ export function LoginView() {
             {requestLinkMutation.isError ? (
               <Alert color="red" title="Could not request link">
                 Check that the API server is reachable.
+              </Alert>
+            ) : null}
+
+            {inviteCodeMutation.isError ? (
+              <Alert color="red" title="Could not sign in">
+                Check your email and invite code.
               </Alert>
             ) : null}
           </Stack>

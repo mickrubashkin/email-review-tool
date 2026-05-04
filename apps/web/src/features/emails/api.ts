@@ -30,6 +30,19 @@ export function requestMagicLink(email: string): Promise<{ ok: boolean }> {
   });
 }
 
+export function signInWithInviteCode(
+  email: string,
+  code: string
+): Promise<{ ok: boolean }> {
+  return fetchJson<{ ok: boolean }>("/api/auth/invite-code", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ email, code }),
+  });
+}
+
 export function fetchCurrentUser(): Promise<AuthUser> {
   return fetchJson<AuthUser>("/api/auth/me");
 }
