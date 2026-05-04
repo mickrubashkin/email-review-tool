@@ -1,6 +1,8 @@
 import type {
   AIAnalysisLogFilters,
   AIAnalysisLogItem,
+  AuthEventFilters,
+  AuthEventItem,
   AuthUser,
   EmailAnalysis,
   EmailDetail,
@@ -45,6 +47,24 @@ export function signInWithInviteCode(
 
 export function fetchCurrentUser(): Promise<AuthUser> {
   return fetchJson<AuthUser>("/api/auth/me");
+}
+
+export function fetchAuthEvents(
+  filters: AuthEventFilters
+): Promise<AuthEventItem[]> {
+  const params = new URLSearchParams();
+
+  Object.entries(filters).forEach(([key, value]) => {
+    const trimmedValue = value?.trim();
+    if (trimmedValue) {
+      params.set(key, trimmedValue);
+    }
+  });
+
+  const query = params.toString();
+  return fetchJson<AuthEventItem[]>(
+    `/api/auth/events${query ? `?${query}` : ""}`
+  );
 }
 
 export function logout(): Promise<{ ok: boolean }> {

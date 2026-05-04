@@ -2,4 +2,5 @@
 /health https://email-review-tool-production.up.railway.app/health 200
 /auth/callback /index.html 200
 /ai-logs /index.html 200
+/auth-events /index.html 200
 /emails/*/review /index.html 200

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -35,6 +36,7 @@ type inviteCodeRequest struct {
 func registerAuthRoutes(r chi.Router, dbpool *pgxpool.Pool, emailSender EmailSender) {
 	r.Post("/api/auth/request-link", requestMagicLinkHandler(dbpool, emailSender))
 	r.Post("/api/auth/invite-code", inviteCodeLoginHandler(dbpool))
+	r.Get("/api/auth/events", listAuthEventsHandler(dbpool))
 	r.Get("/api/auth/callback", magicLinkCallbackHandler(dbpool))
 	r.Get("/api/auth/me", meHandler(dbpool))
 	r.Post("/api/auth/logout", logoutHandler(dbpool))
@@ -81,6 +83,12 @@ func requestMagicLinkHandler(dbpool *pgxpool.Pool, emailSender EmailSender) http
 			writeAuthOK(w)
 			return
 		}
+		logAuthEvent(r.Context(), dbpool, r, AuthEvent{
+			UserID:    &user.ID,
+			Email:     user.Email,
+			EventType: "magic_link_requested",
+			Success:   true,
+		})
 
 		token, err := randomToken()
 		if err != nil {
@@ -118,6 +126,13 @@ func inviteCodeLoginHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 
 		email := normalizeEmail(payload.Email)
 		if !isAllowedAuthEmail(email) || !isValidInviteCode(payload.Code) {
+			if email != "" {
+				logAuthEvent(r.Context(), dbpool, r, AuthEvent{
+					Email:     email,
+					EventType: "failed_invite_code",
+					Success:   false,
+				})
+			}
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
@@ -128,6 +143,12 @@ func inviteCodeLoginHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			http.Error(w, "failed to sign in", http.StatusInternalServerError)
 			return
 		}
+		logAuthEvent(r.Context(), dbpool, r, AuthEvent{
+			UserID:    &user.ID,
+			Email:     user.Email,
+			EventType: "invite_code_login",
+			Success:   true,
+		})
 
 		if err := createSessionCookie(r.Context(), dbpool, w, user); err != nil {
 			fmt.Fprintf(os.Stderr, "failed to create invite-code session for %s: %v\n", user.Email, err)
@@ -153,6 +174,12 @@ func magicLinkCallbackHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			http.Redirect(w, r, "/", http.StatusSeeOther)
 			return
 		}
+		logAuthEvent(r.Context(), dbpool, r, AuthEvent{
+			UserID:    &user.ID,
+			Email:     user.Email,
+			EventType: "magic_link_login",
+			Success:   true,
+		})
 
 		if err := createSessionCookie(r.Context(), dbpool, w, user); err != nil {
 			fmt.Fprintf(os.Stderr, "failed to create magic-link session for %s: %v\n", user.Email, err)
@@ -180,6 +207,14 @@ func meHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 func logoutHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if cookie, err := r.Cookie(sessionCookieName); err == nil {
+			if user, userErr := currentUserFromRequest(r.Context(), dbpool, r); userErr == nil {
+				logAuthEvent(r.Context(), dbpool, r, AuthEvent{
+					UserID:    &user.ID,
+					Email:     user.Email,
+					EventType: "logout",
+					Success:   true,
+				})
+			}
 			_, _ = dbpool.Exec(r.Context(), `
 				DELETE FROM sessions
 				WHERE session_hash = $1;
@@ -188,6 +223,55 @@ func logoutHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 
 		http.SetCookie(w, expiredSessionCookie())
 		writeAuthOK(w)
+	}
+}
+
+func listAuthEventsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, err := currentUserFromRequest(r.Context(), dbpool, r)
+		if err != nil {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		if user.Role != "admin" {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+
+		filters := AuthEventFilters{
+			Email:     strings.TrimSpace(r.URL.Query().Get("email")),
+			EventType: strings.TrimSpace(r.URL.Query().Get("event_type")),
+			Success:   strings.TrimSpace(r.URL.Query().Get("success")),
+			Limit:     parseAuthEventsLimit(r.URL.Query().Get("limit")),
+		}
+
+		events, err := listAuthEvents(r.Context(), dbpool, filters)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "failed to list auth events: %v\n", err)
+			http.Error(w, "failed to load auth events", http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(events)
+	}
+}
+
+func parseAuthEventsLimit(value string) int {
+	limit, err := strconv.Atoi(strings.TrimSpace(value))
+	if err != nil || limit <= 0 {
+		return 100
+	}
+	if limit > 500 {
+		return 500
+	}
+
+	return limit
+}
+
+func logAuthEvent(ctx context.Context, dbpool *pgxpool.Pool, r *http.Request, event AuthEvent) {
+	if err := insertAuthEvent(ctx, dbpool, r, event); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to insert auth event %s for %s: %v\n", event.EventType, event.Email, err)
 	}
 }
 

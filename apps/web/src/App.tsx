@@ -15,6 +15,7 @@ import { useMediaQuery } from "@mantine/hooks";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { AIAnalysisLogsView } from "./features/ai-logs/AIAnalysisLogsView";
+import { AuthEventsView } from "./features/auth-events/AuthEventsView";
 import { LoginView } from "./features/auth/LoginView";
 import {
   fetchCurrentUser,
@@ -85,6 +86,10 @@ function AuthenticatedApp() {
 
   if (window.location.pathname === "/ai-logs") {
     return <AIAnalysisLogsView />;
+  }
+
+  if (window.location.pathname === "/auth-events") {
+    return <AuthEventsView />;
   }
 
   const reviewEmailId = getReviewEmailId(window.location.pathname);

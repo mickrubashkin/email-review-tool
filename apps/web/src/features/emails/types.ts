@@ -96,6 +96,24 @@ export type AuthUser = {
   role: "admin" | "reviewer";
 };
 
+export type AuthEventItem = {
+  id: string;
+  user_id: string | null;
+  email: string;
+  event_type: string;
+  success: boolean;
+  ip_address: string | null;
+  user_agent: string | null;
+  created_at: string;
+};
+
+export type AuthEventFilters = {
+  email?: string;
+  event_type?: string;
+  success?: string;
+  limit?: string;
+};
+
 export type EmailVersionGroup = {
   key: string;
   stage: string;
