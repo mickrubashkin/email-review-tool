@@ -1,0 +1,5 @@
+[[redirects]]
+  from = "/*"
+  to = "https://email-review.rubashkin.xyz/:splat"
+  status = 301
+  force = true
