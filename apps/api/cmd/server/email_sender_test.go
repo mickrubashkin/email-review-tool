@@ -11,7 +11,6 @@ import (
 
 func TestNewMagicLinkEmailSendersUsesLogFallbackWithoutResendKey(t *testing.T) {
 	t.Setenv("RESEND_API_KEY", "")
-	t.Setenv("SMTP_HOST", "")
 	t.Setenv("AUTH_LOG_MAGIC_LINKS", "false")
 
 	senders := newMagicLinkEmailSendersFromEnv()
@@ -25,7 +24,6 @@ func TestNewMagicLinkEmailSendersUsesLogFallbackWithoutResendKey(t *testing.T) {
 
 func TestNewMagicLinkEmailSendersUsesResendWhenConfigured(t *testing.T) {
 	t.Setenv("RESEND_API_KEY", "re_test")
-	t.Setenv("SMTP_HOST", "")
 	t.Setenv("AUTH_FROM_EMAIL", "Email Review Tool <login@alaio.com>")
 	t.Setenv("AUTH_LOG_MAGIC_LINKS", "false")
 
@@ -48,98 +46,11 @@ func TestNewMagicLinkEmailSendersUsesResendWhenConfigured(t *testing.T) {
 
 func TestNewMagicLinkEmailSendersCanSendAndLog(t *testing.T) {
 	t.Setenv("RESEND_API_KEY", "re_test")
-	t.Setenv("SMTP_HOST", "")
 	t.Setenv("AUTH_LOG_MAGIC_LINKS", "true")
 
 	senders := newMagicLinkEmailSendersFromEnv()
 	if len(senders) != 2 {
 		t.Fatalf("expected resend and log senders, got %d", len(senders))
-	}
-}
-
-func TestNewMagicLinkEmailSendersUsesSMTPWhenConfigured(t *testing.T) {
-	t.Setenv("RESEND_API_KEY", "")
-	t.Setenv("SMTP_HOST", "smtp.gmail.com")
-	t.Setenv("SMTP_PORT", "587")
-	t.Setenv("SMTP_USERNAME", "sender@gmail.com")
-	t.Setenv("SMTP_PASSWORD", "app-password")
-	t.Setenv("AUTH_FROM_EMAIL", "Sender <sender@gmail.com>")
-	t.Setenv("AUTH_LOG_MAGIC_LINKS", "false")
-
-	senders := newMagicLinkEmailSendersFromEnv()
-	if len(senders) != 1 {
-		t.Fatalf("expected one sender, got %d", len(senders))
-	}
-
-	smtpSender, ok := senders[0].(SMTPEmailSender)
-	if !ok {
-		t.Fatalf("expected smtp sender, got %#v", senders[0])
-	}
-	if smtpSender.Host != "smtp.gmail.com" {
-		t.Fatalf("expected smtp host, got %q", smtpSender.Host)
-	}
-	if smtpSender.Port != 587 {
-		t.Fatalf("expected smtp port 587, got %d", smtpSender.Port)
-	}
-	if smtpSender.Username != "sender@gmail.com" || smtpSender.Password != "app-password" {
-		t.Fatalf("expected smtp credentials to be configured")
-	}
-	if smtpSender.From != "Sender <sender@gmail.com>" {
-		t.Fatalf("expected from email, got %q", smtpSender.From)
-	}
-}
-
-func TestNewMagicLinkEmailSendersConfiguresImplicitSMTPTLS(t *testing.T) {
-	t.Setenv("RESEND_API_KEY", "")
-	t.Setenv("SMTP_HOST", "smtp.gmail.com")
-	t.Setenv("SMTP_PORT", "465")
-	t.Setenv("SMTP_TLS", "true")
-	t.Setenv("AUTH_LOG_MAGIC_LINKS", "false")
-
-	senders := newMagicLinkEmailSendersFromEnv()
-	if len(senders) != 1 {
-		t.Fatalf("expected one sender, got %d", len(senders))
-	}
-
-	smtpSender, ok := senders[0].(SMTPEmailSender)
-	if !ok {
-		t.Fatalf("expected smtp sender, got %#v", senders[0])
-	}
-	if smtpSender.Port != 465 {
-		t.Fatalf("expected smtp port 465, got %d", smtpSender.Port)
-	}
-	if !smtpSender.useImplicitTLS() {
-		t.Fatalf("expected implicit TLS to be enabled")
-	}
-}
-
-func TestMagicLinkSMTPMessageIncludesTextAndHTML(t *testing.T) {
-	link := "https://example.com/auth/callback?token=test"
-	message := string(magicLinkSMTPMessage("Sender <sender@gmail.com>", "user@alaio.com", link))
-
-	for _, expected := range []string{
-		"From: Sender <sender@gmail.com>",
-		"To: user@alaio.com",
-		"Subject: Sign in to Email Review Tool",
-		"Content-Type: multipart/alternative",
-		"Content-Type: text/plain; charset=UTF-8",
-		"Content-Type: text/html; charset=UTF-8",
-		link,
-		"Sign in",
-	} {
-		if !strings.Contains(message, expected) {
-			t.Fatalf("expected SMTP message to contain %q, got %q", expected, message)
-		}
-	}
-}
-
-func TestSMTPEnvelopeAddressUsesBareAddress(t *testing.T) {
-	if got := smtpEnvelopeAddress("Sender <sender@gmail.com>"); got != "sender@gmail.com" {
-		t.Fatalf("expected bare address, got %q", got)
-	}
-
-	if got := smtpEnvelopeAddress("sender@gmail.com"); got != "sender@gmail.com" {
-		t.Fatalf("expected plain address to stay unchanged, got %q", got)
 	}
 }
 

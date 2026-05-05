@@ -3,18 +3,13 @@ package main
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"html"
 	"io"
-	"net"
 	"net/http"
-	"net/mail"
-	"net/smtp"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -63,77 +58,6 @@ type ResendEmailSender struct {
 	From     string
 	Endpoint string
 	Client   *http.Client
-}
-
-type SMTPEmailSender struct {
-	Host     string
-	Port     int
-	Username string
-	Password string
-	From     string
-	TLS      bool
-}
-
-func (sender SMTPEmailSender) SendMagicLink(_ context.Context, to string, link string) error {
-	if sender.useImplicitTLS() {
-		return sender.sendMagicLinkWithImplicitTLS(to, link)
-	}
-
-	address := sender.smtpAddress()
-	auth := smtp.PlainAuth("", sender.Username, sender.Password, sender.Host)
-	return smtp.SendMail(address, auth, smtpEnvelopeAddress(sender.From), []string{to}, magicLinkSMTPMessage(sender.From, to, link))
-}
-
-func (sender SMTPEmailSender) sendMagicLinkWithImplicitTLS(to string, link string) error {
-	connection, err := tlsDialWithTimeout("tcp", sender.smtpAddress(), 15*time.Second)
-	if err != nil {
-		return err
-	}
-	defer connection.Close()
-
-	client, err := smtp.NewClient(connection, sender.Host)
-	if err != nil {
-		return err
-	}
-	defer client.Close()
-
-	auth := smtp.PlainAuth("", sender.Username, sender.Password, sender.Host)
-	if err := client.Auth(auth); err != nil {
-		return err
-	}
-	if err := client.Mail(smtpEnvelopeAddress(sender.From)); err != nil {
-		return err
-	}
-	if err := client.Rcpt(to); err != nil {
-		return err
-	}
-
-	writer, err := client.Data()
-	if err != nil {
-		return err
-	}
-	if _, err := writer.Write(magicLinkSMTPMessage(sender.From, to, link)); err != nil {
-		_ = writer.Close()
-		return err
-	}
-	if err := writer.Close(); err != nil {
-		return err
-	}
-
-	return client.Quit()
-}
-
-func (sender SMTPEmailSender) useImplicitTLS() bool {
-	return sender.TLS || sender.Port == 465
-}
-
-func (sender SMTPEmailSender) smtpAddress() string {
-	port := sender.Port
-	if port == 0 {
-		port = 587
-	}
-
-	return fmt.Sprintf("%s:%d", sender.Host, port)
 }
 
 func (sender ResendEmailSender) SendMagicLink(ctx context.Context, to string, link string) error {
@@ -199,20 +123,9 @@ func newMagicLinkEmailSender() EmailSender {
 
 func newMagicLinkEmailSendersFromEnv() []EmailSender {
 	apiKey := strings.TrimSpace(os.Getenv("RESEND_API_KEY"))
-	smtpHost := strings.TrimSpace(os.Getenv("SMTP_HOST"))
-	shouldLog := (apiKey == "" && smtpHost == "") || envBoolDefault("AUTH_LOG_MAGIC_LINKS", true)
+	shouldLog := apiKey == "" || envBoolDefault("AUTH_LOG_MAGIC_LINKS", true)
 
 	var senders []EmailSender
-	if smtpHost != "" {
-		senders = append(senders, SMTPEmailSender{
-			Host:     smtpHost,
-			Port:     smtpPort(),
-			Username: strings.TrimSpace(os.Getenv("SMTP_USERNAME")),
-			Password: strings.TrimSpace(os.Getenv("SMTP_PASSWORD")),
-			From:     authFromEmail(),
-			TLS:      envBoolDefault("SMTP_TLS", false),
-		})
-	}
 	if apiKey != "" {
 		senders = append(senders, ResendEmailSender{
 			APIKey: apiKey,
@@ -227,38 +140,10 @@ func newMagicLinkEmailSendersFromEnv() []EmailSender {
 	return senders
 }
 
-func smtpPort() int {
-	portText := strings.TrimSpace(os.Getenv("SMTP_PORT"))
-	if portText == "" {
-		return 587
-	}
-
-	port, err := strconv.Atoi(portText)
-	if err != nil || port <= 0 {
-		return 587
-	}
-
-	return port
-}
-
-func tlsDialWithTimeout(network string, address string, timeout time.Duration) (net.Conn, error) {
-	dialer := &net.Dialer{Timeout: timeout}
-	return tls.DialWithDialer(dialer, network, address, nil)
-}
-
-func smtpEnvelopeAddress(value string) string {
-	address, err := mail.ParseAddress(value)
-	if err != nil {
-		return strings.TrimSpace(value)
-	}
-
-	return address.Address
-}
-
 func authFromEmail() string {
 	fromEmail := strings.TrimSpace(os.Getenv("AUTH_FROM_EMAIL"))
 	if fromEmail == "" {
-		return "Email Review Tool <login@alaio.com>"
+		return "noreply@auth.rubashkin.xyz"
 	}
 
 	return fromEmail
@@ -301,22 +186,4 @@ func magicLinkEmailHTML(link string) string {
     <p>If you did not request this email, you can ignore it.</p>
   </body>
 </html>`, escapedLink, escapedLink, escapedLink)
-}
-
-func magicLinkSMTPMessage(from string, to string, link string) []byte {
-	textBody := magicLinkEmailText(link)
-	htmlBody := magicLinkEmailHTML(link)
-	boundary := "email-review-tool-magic-link"
-	message := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: Sign in to Email Review Tool\r\nMIME-Version: 1.0\r\nContent-Type: multipart/alternative; boundary=%q\r\n\r\n--%s\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n%s\r\n\r\n--%s\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s\r\n\r\n--%s--\r\n",
-		from,
-		to,
-		boundary,
-		boundary,
-		textBody,
-		boundary,
-		htmlBody,
-		boundary,
-	)
-
-	return []byte(message)
 }
