@@ -649,8 +649,8 @@
   },
   "onboarding/training-completed/follow-up-1/en": {
     "title": "Follow Up 1",
-    "subject": "Bitrix24: Start working with your first client",
-    "preheader": "You’re one step away from receiving leads",
+    "subject": "Bitrix24: You’re one step away from getting leads",
+    "preheader": "Install the Partner App to start receiving client requests",
     "send_timing": "2 days after previous email"
   },
   "onboarding/training-completed/follow-up-1/en-old": {
@@ -673,14 +673,14 @@
   },
   "onboarding/training-completed/follow-up-2/en": {
     "title": "Follow Up 2",
-    "subject": "Bitrix24: Take your first client — here’s how",
-    "preheader": "Use these tools to start working with leads today",
+    "subject": "Bitrix24: Need help getting started?",
+    "preheader": "We'll guide you through installing the Partner App",
     "send_timing": "5 days after previous email"
   },
   "onboarding/training-completed/last-call/en": {
     "title": "Last Call",
-    "subject": "Bitrix24: Don’t miss your first client",
-    "preheader": "Start receiving verified client requests - don’t delay",
+    "subject": "Bitrix24: No app - no leads",
+    "preheader": "Install the Partner App to start receiving client requests",
     "send_timing": "14 days after previous email"
   },
   "onboarding/training-completed/next-step/br-old": {
@@ -698,7 +698,7 @@
   "onboarding/training-completed/next-step/en": {
     "title": "Next Step",
     "subject": "Bitrix24: Start receiving client leads",
-    "preheader": "Install the Partner App and get your first request.",
+    "preheader": "Install the Partner App to get your first requests",
     "send_timing": "immediately"
   },
   "onboarding/training-completed/next-step/en-old": {
