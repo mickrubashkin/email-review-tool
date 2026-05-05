@@ -61,12 +61,13 @@ export function LoginView() {
               <Text c="dimmed" size="sm">
                 Enter your work email to receive a magic login link.
               </Text>
+              <Text c="dimmed" size="sm">Only @alaio.com domain is allowed</Text>
             </Stack>
 
             <TextInput
               autoComplete="email"
               label="Email"
-              placeholder="name@example.com"
+              placeholder="name@alaio.com"
               required
               type="email"
               value={email}
@@ -84,15 +85,15 @@ export function LoginView() {
               </Alert>
             ) : null}
 
-            {/* <Button
+            <Button
               loading={requestLinkMutation.isPending}
               type="submit"
               fullWidth
             >
               Send magic link
-            </Button> */}
+            </Button>
 
-            <Stack gap="xs">
+            {/* <Stack gap="xs">
               <PasswordInput
                 autoComplete="one-time-code"
                 label="Invite code"
@@ -125,11 +126,11 @@ export function LoginView() {
               >
                 Sign in with invite code
               </Button>
-            </Stack>
+            </Stack> */}
 
             {requestLinkMutation.isSuccess ? (
               <Alert color="green" title="Magic link requested">
-                Check server logs for the magic link.
+                Check your email for the magic link.
               </Alert>
             ) : null}
 

@@ -179,7 +179,6 @@ function EmailBoardApp({
           <Stack gap={0}>
             <Group gap="xs">
               <Title order={4}>Email Review Tool</Title>
-              {/* <Badge variant="light">MVP</Badge> */}
             </Group>
             <Text size="xs" c="dimmed">
               Onboarding sequence review
