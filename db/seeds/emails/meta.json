@@ -235,8 +235,8 @@
   },
   "onboarding/nfr-installed/follow-up-2/en": {
     "title": "Follow Up 2",
-    "subject": "Bitrix24: Don’t lose access to leads and commission",
-    "preheader": "Finish your training within 90 days to keep your benefits active",
+    "subject": "Bitrix24: Complete training to unlock partner benefits",
+    "preheader": "Without training, you won't get access to leads or rewards",
     "send_timing": "5 days after previous email"
   },
   "onboarding/nfr-installed/follow-up-2/en-old": {
@@ -259,8 +259,8 @@
   },
   "onboarding/nfr-installed/last-call/en": {
     "title": "Last Call",
-    "subject": "Bitrix24: Last reminder - complete your training",
-    "preheader": "Complete your training to keep your partner status and benefits active.",
+    "subject": "Bitrix24: Training is required to stay in the program",
+    "preheader": "Complete your training before access is limited",
     "send_timing": "14 days after previous email"
   },
   "onboarding/nfr-installed/next-step/br-old": {
