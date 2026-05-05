@@ -392,7 +392,7 @@
   "onboarding/qualified/next-step/en": {
     "title": "Next Step",
     "subject": "Bitrix24: Your partner registration is pre-approved",
-    "preheader": "Next steps: schedule a call and complete your partner setup.",
+    "preheader": "Next step: complete your partner verification",
     "send_timing": "immediately"
   },
   "onboarding/qualified/next-step/en-old": {
@@ -488,12 +488,6 @@
   "onboarding/rejected/application-rejected/de-old": {
     "title": "Application Rejected",
     "subject": "Bitrix24 Partnerprogramm | Ihre Partneranfrage wurde abgelehnt",
-    "preheader": "",
-    "send_timing": "immediately"
-  },
-  "onboarding/rejected/application-rejected/en": {
-    "title": "Application Rejected",
-    "subject": "Bitrix24 Partner Program | Application Rejected",
     "preheader": "",
     "send_timing": "immediately"
   },
