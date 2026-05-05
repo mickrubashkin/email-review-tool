@@ -3,6 +3,7 @@ import {
   Alert,
   Button,
   Paper,
+  PasswordInput,
   Stack,
   Text,
   TextInput,
@@ -23,6 +24,7 @@ const allowedDomain = (
 export function LoginView() {
   const queryClient = useQueryClient();
   const [email, setEmail] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
   const [domainError, setDomainError] = useState<string | null>(null);
 
   const requestLinkMutation = useMutation({
@@ -56,8 +58,11 @@ export function LoginView() {
           <Stack gap="md">
             <Stack gap={4}>
               <Title order={2}>Sign in</Title>
-              <Text c="dimmed" size="sm">
+              {/* <Text c="dimmed" size="sm">
                 Enter your work email to receive a magic login link.
+              </Text> */}
+              <Text c="dimmed" size="sm">
+                Enter your work email and invitation code to log in.
               </Text>
               <Text c="dimmed" size="sm">Only @alaio.com domain is allowed</Text>
             </Stack>
@@ -83,15 +88,15 @@ export function LoginView() {
               </Alert>
             ) : null}
 
-            <Button
+            {/* <Button
               loading={requestLinkMutation.isPending}
               type="submit"
               fullWidth
             >
               Send magic link
-            </Button>
+            </Button> */}
 
-            {/* <Stack gap="xs">
+            <Stack gap="xs">
               <PasswordInput
                 autoComplete="one-time-code"
                 label="Invite code"
@@ -124,7 +129,7 @@ export function LoginView() {
               >
                 Sign in with invite code
               </Button>
-            </Stack> */}
+            </Stack>
 
             {requestLinkMutation.isSuccess ? (
               <Alert color="green" title="Magic link requested">
