@@ -11,12 +11,6 @@
     "preheader": "Ihr Antrag für das Bitrix24 Partnerprogramm wurde genehmigt. Beginnen Sie jetzt mit dem Onboarding, um Ihren 20%-Partnerrabatt freizuschalten.",
     "send_timing": "immediately"
   },
-  "onboarding/approved/application-approved/en": {
-    "title": "Application Approved",
-    "subject": "Bitrix24: Your partner application is approved",
-    "preheader": "Access your partner account and get started.",
-    "send_timing": "immediately"
-  },
   "onboarding/approved/application-approved/en-old": {
     "title": "Application Approved",
     "subject": "Bitrix24 Partner Program | Application Approved",
@@ -49,8 +43,8 @@
   },
   "onboarding/approved/follow-up-1/en": {
     "title": "Follow Up 1",
-    "subject": "Bitrix24: What’s blocking your next step?",
-    "preheader": "Let’s fix it together in a quick call",
+    "subject": "Bitrix24: You haven’t started yet",
+    "preheader": "Set up your NFR to begin working with clients",
     "send_timing": "2 days after previous email"
   },
   "onboarding/approved/follow-up-1/en-old": {
@@ -79,8 +73,8 @@
   },
   "onboarding/approved/follow-up-2/en": {
     "title": "Follow Up 2",
-    "subject": "This is an email subject line",
-    "preheader": "This is a hidden preheader",
+    "subject": "Bitrix24: Start using Bitrix24 for real clients",
+    "preheader": "Your NFR is where your partner work begins",
     "send_timing": "5 days after previous email"
   },
   "onboarding/approved/follow-up-2/en-old": {
@@ -109,8 +103,8 @@
   },
   "onboarding/approved/last-call/en": {
     "title": "Last Call",
-    "subject": "This is an email subject line",
-    "preheader": "This is a hidden preheader",
+    "subject": "Bitrix24: No setup - no progress",
+    "preheader": "Set up your NFR to start working with clients",
     "send_timing": "14 days after previous email"
   },
   "onboarding/approved/next-step/br-old": {
@@ -121,8 +115,8 @@
   },
   "onboarding/approved/next-step/en": {
     "title": "Next Step",
-    "subject": "Bitrix24: Set up your NFR to get started",
-    "preheader": "You’re one step away from working with Bitrix24",
+    "subject": "Bitrix24: You're approved - set up your NFR",
+    "preheader": "Start using Bitrix24 to prepare for client work",
     "send_timing": "immediately"
   },
   "onboarding/approved/next-step/en-old": {
@@ -361,20 +355,20 @@
   },
   "onboarding/qualified/follow-up-1/en": {
     "title": "First Follow-up",
-    "subject": "Bitrix24: Your partner registration is pre-approved",
-    "preheader": "Next steps: schedule a call and complete your partner setup.",
+    "subject": "Bitrix24: One step away from approval",
+    "preheader": "Book a short call to complete your verification",
     "send_timing": "2 days after previous email"
   },
   "onboarding/qualified/follow-up-2/en": {
     "title": "Follow Up 2",
-    "subject": "This is an email subject line",
-    "preheader": "This is a hidden preheader",
+    "subject": "Bitrix24: One step away from approval",
+    "preheader": "Finish the last step to get approved",
     "send_timing": "5 days after previous email"
   },
   "onboarding/qualified/last-call/en": {
     "title": "Last Call",
-    "subject": "This is an email subject line",
-    "preheader": "This is a hidden preheader",
+    "subject": "Bitrix24: Complete verification to avoid rejection",
+    "preheader": "Your application cannot be approved without this step",
     "send_timing": "14 days after previous email"
   },
   "onboarding/qualified/next-step/br-old": {
