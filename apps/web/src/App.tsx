@@ -178,7 +178,7 @@ function EmailBoardApp({
         <Group h="100%" px="md" justify="space-between">
           <Stack gap={0}>
             <Group gap="xs">
-              <Title order={4}>Email Review Tool</Title>
+              <Title order={4}>ReviewDesk</Title>
             </Group>
             <Text size="xs" c="dimmed">
               Onboarding sequence review

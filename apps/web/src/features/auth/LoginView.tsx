@@ -3,7 +3,6 @@ import {
   Alert,
   Button,
   Paper,
-  PasswordInput,
   Stack,
   Text,
   TextInput,
@@ -57,14 +56,16 @@ export function LoginView() {
         >
           <Stack gap="md">
             <Stack gap={4}>
-              <Title order={2}>Sign in</Title>
-              {/* <Text c="dimmed" size="sm">
-                Enter your work email to receive a magic login link.
-              </Text> */}
+              <Title order={2}>ReviewDesk</Title>
               <Text c="dimmed" size="sm">
-                Enter your work email and invitation code to log in.
+                Private workspace for authorized review teams.
               </Text>
-              <Text c="dimmed" size="sm">Only @alaio.com domain is allowed</Text>
+              <Text c="dimmed" size="sm">
+                Operated by Mikhail Rubashkin for collaborative email review.
+              </Text>
+              <Text c="dimmed" size="sm">
+                This tool never asks for your email password.
+              </Text>
             </Stack>
 
             <TextInput
@@ -97,16 +98,19 @@ export function LoginView() {
             </Button> */}
 
             <Stack gap="xs">
-              <PasswordInput
+              <TextInput
                 autoComplete="one-time-code"
                 label="Invite code"
-                placeholder="Enter invite code"
+                placeholder="Internal invite code"
                 value={inviteCode}
                 onChange={(event) => {
                   setInviteCode(event.currentTarget.value);
                   inviteCodeMutation.reset();
                 }}
               />
+              <Text c="dimmed" size="xs">
+                Use the internal invite code, not your email password.
+              </Text>
               <Button
                 disabled={inviteCode.trim() === ""}
                 loading={inviteCodeMutation.isPending}
