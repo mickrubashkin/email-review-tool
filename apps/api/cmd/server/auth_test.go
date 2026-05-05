@@ -38,6 +38,37 @@ func TestRequestMagicLinkDisallowedDomainDoesNotSendEmail(t *testing.T) {
 	}
 }
 
+func TestIsAllowedAuthEmailUsesDomainList(t *testing.T) {
+	t.Setenv("AUTH_ALLOWED_DOMAIN", "")
+	t.Setenv("AUTH_ALLOWED_DOMAINS", "alaio.com, @bitrix24.com, bitrix24.com.br")
+
+	for _, email := range []string{
+		"user@alaio.com",
+		"user@bitrix24.com",
+		"user@bitrix24.com.br",
+	} {
+		if !isAllowedAuthEmail(email) {
+			t.Fatalf("expected %s to be allowed", email)
+		}
+	}
+
+	if isAllowedAuthEmail("user@example.com") {
+		t.Fatalf("expected example.com to be disallowed")
+	}
+}
+
+func TestIsAllowedAuthEmailFallsBackToSingleDomain(t *testing.T) {
+	t.Setenv("AUTH_ALLOWED_DOMAIN", "alaio.com")
+	t.Setenv("AUTH_ALLOWED_DOMAINS", "")
+
+	if !isAllowedAuthEmail("user@alaio.com") {
+		t.Fatalf("expected configured domain to be allowed")
+	}
+	if isAllowedAuthEmail("user@bitrix24.com") {
+		t.Fatalf("expected unconfigured domain to be disallowed")
+	}
+}
+
 func TestIsValidInviteCodeUsesRawCode(t *testing.T) {
 	t.Setenv("AUTH_INVITE_CODE", "team-code")
 	t.Setenv("AUTH_INVITE_CODE_HASH", "")

@@ -13,12 +13,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { requestMagicLink, signInWithInviteCode } from "../emails/api";
 import styles from "./LoginView.module.css";
 
-const allowedDomain = (
-  import.meta.env.VITE_AUTH_ALLOWED_DOMAIN ?? "alaio.com"
-)
-  .trim()
-  .toLowerCase()
-  .replace(/^@/, "");
+const allowedDomains = getAllowedDomains();
+const allowedDomainsLabel = allowedDomains.map((domain) => `@${domain}`).join(", ");
 
 export function LoginView() {
   const queryClient = useQueryClient();
@@ -46,7 +42,9 @@ export function LoginView() {
 
             const normalizedEmail = email.trim().toLowerCase();
             if (!isAllowedEmailDomain(normalizedEmail)) {
-              setDomainError(`Access is only available for ${allowedDomain} emails.`);
+              setDomainError(
+                `Access is only available for ${allowedDomainsLabel} emails.`
+              );
               return;
             }
 
@@ -71,7 +69,7 @@ export function LoginView() {
             <TextInput
               autoComplete="email"
               label="Email"
-              placeholder="name@alaio.com"
+              placeholder={`name@${allowedDomains[0] ?? "alaio.com"}`}
               required
               type="email"
               value={email}
@@ -119,7 +117,7 @@ export function LoginView() {
                   const normalizedEmail = email.trim().toLowerCase();
                   if (!isAllowedEmailDomain(normalizedEmail)) {
                     setDomainError(
-                      `Access is only available for ${allowedDomain} emails.`
+                      `Access is only available for ${allowedDomainsLabel} emails.`
                     );
                     return;
                   }
@@ -161,5 +159,18 @@ export function LoginView() {
 
 function isAllowedEmailDomain(email: string) {
   const [, domain] = email.split("@");
-  return Boolean(domain) && domain === allowedDomain;
+  return Boolean(domain) && allowedDomains.includes(domain);
+}
+
+function getAllowedDomains() {
+  const value = String(
+    import.meta.env.VITE_AUTH_ALLOWED_DOMAINS ??
+      import.meta.env.VITE_AUTH_ALLOWED_DOMAIN ??
+      "alaio.com"
+  );
+
+  return value
+    .split(",")
+    .map((domain) => domain.trim().toLowerCase().replace(/^@/, ""))
+    .filter(Boolean);
 }

@@ -376,13 +376,40 @@ func consumeMagicToken(ctx context.Context, dbpool *pgxpool.Pool, token string) 
 }
 
 func isAllowedAuthEmail(email string) bool {
-	allowedDomain := strings.TrimPrefix(strings.ToLower(strings.TrimSpace(os.Getenv("AUTH_ALLOWED_DOMAIN"))), "@")
-	if allowedDomain == "" || email == "" {
+	allowedDomains := allowedAuthDomains()
+	if len(allowedDomains) == 0 || email == "" {
 		return false
 	}
 
 	_, domain, ok := strings.Cut(email, "@")
-	return ok && domain == allowedDomain
+	if !ok {
+		return false
+	}
+
+	for _, allowedDomain := range allowedDomains {
+		if domain == allowedDomain {
+			return true
+		}
+	}
+
+	return false
+}
+
+func allowedAuthDomains() []string {
+	value := strings.TrimSpace(os.Getenv("AUTH_ALLOWED_DOMAINS"))
+	if value == "" {
+		value = strings.TrimSpace(os.Getenv("AUTH_ALLOWED_DOMAIN"))
+	}
+
+	domains := []string{}
+	for _, domain := range strings.Split(value, ",") {
+		normalizedDomain := strings.TrimPrefix(strings.ToLower(strings.TrimSpace(domain)), "@")
+		if normalizedDomain != "" {
+			domains = append(domains, normalizedDomain)
+		}
+	}
+
+	return domains
 }
 
 func isValidInviteCode(code string) bool {
