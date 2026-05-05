@@ -3,7 +3,6 @@ import {
   Alert,
   Button,
   Paper,
-  PasswordInput,
   Stack,
   Text,
   TextInput,
@@ -24,7 +23,6 @@ const allowedDomain = (
 export function LoginView() {
   const queryClient = useQueryClient();
   const [email, setEmail] = useState("");
-  const [inviteCode, setInviteCode] = useState("");
   const [domainError, setDomainError] = useState<string | null>(null);
 
   const requestLinkMutation = useMutation({
