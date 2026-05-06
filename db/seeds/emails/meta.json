@@ -139,8 +139,8 @@
   },
   "onboarding/first-sale/follow-up-1/en": {
     "title": "Follow Up 1",
-    "subject": "This is an email subject line",
-    "preheader": "This is a hidden preheader",
+    "subject": "Bitrix24: Consistency leads to growth",
+    "preheader": "Take more leads and keep building momentum",
     "send_timing": "2 days after previous email"
   },
   "onboarding/first-sale/follow-up-1/es-old": {
@@ -175,8 +175,8 @@
   },
   "onboarding/first-sale/next-step/en": {
     "title": "Next Step",
-    "subject": "This is an email subject line",
-    "preheader": "This is a hidden preheader",
+    "subject": "Bitrix24: Great start - keep going",
+    "preheader": "Take more leads and close your next deal",
     "send_timing": "immediately"
   },
   "onboarding/first-sale/next-step/en-old": {
@@ -301,20 +301,20 @@
   },
   "onboarding/partner-app-installed/follow-up-1/en": {
     "title": "Follow Up 1",
-    "subject": "This is an email subject line",
-    "preheader": "This is a hidden preheader",
+    "subject": "Take your first lead",
+    "preheader": "You haven’t taken your first client request yet",
     "send_timing": "2 days after previous email"
   },
   "onboarding/partner-app-installed/follow-up-2/en": {
     "title": "Follow Up 2",
-    "subject": "This is an email subject line",
-    "preheader": "This is a hidden preheader",
+    "subject": "Turn your first lead into a deal",
+    "preheader": "Take a lead and move it toward your first sale",
     "send_timing": "5 days after previous email"
   },
   "onboarding/partner-app-installed/last-call/en": {
     "title": "Last Call",
-    "subject": "This is an email subject line",
-    "preheader": "This is a hidden preheader",
+    "subject": "You’re missing client opportunities",
+    "preheader": "Take your first lead and start closing deals",
     "send_timing": "14 days after previous email"
   },
   "onboarding/partner-app-installed/next-step/br-old": {
