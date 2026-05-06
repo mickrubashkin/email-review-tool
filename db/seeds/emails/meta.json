@@ -331,8 +331,8 @@
   },
   "onboarding/partner-app-installed/next-step/en": {
     "title": "Next Step",
-    "subject": "This is an email subject line",
-    "preheader": "This is a hidden preheader",
+    "subject": "Start working with your first client",
+    "preheader": "Open the Partner App and take your first request",
     "send_timing": "immediately"
   },
   "onboarding/partner-app-installed/next-step/en-old": {
