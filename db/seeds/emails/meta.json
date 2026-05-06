@@ -151,14 +151,14 @@
   },
   "onboarding/first-sale/follow-up-2/en": {
     "title": "Follow Up 2",
-    "subject": "This is an email subject line",
-    "preheader": "This is a hidden preheader",
+    "subject": "Bitrix24: Close your next deal faster",
+    "preheader": "Take more leads or increase deal size to grow faster",
     "send_timing": "5 days after previous email"
   },
   "onboarding/first-sale/last-call/en": {
     "title": "Last Call",
-    "subject": "This is an email subject line",
-    "preheader": "This is a hidden preheader",
+    "subject": "Bitrix24: Don't stop after your first success",
+    "preheader": "Take more leads and keep growing your results",
     "send_timing": "14 days after previous email"
   },
   "onboarding/first-sale/next-step/br-old": {
