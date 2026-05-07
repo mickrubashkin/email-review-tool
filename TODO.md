@@ -5,11 +5,11 @@
 - [ ] Админ может дублировать письмо, создавать событие, добавлять письмо
 
 ## Next product backlog
-- [ ] Track AI cache hits and misses
-- [ ] Add email-based authorization
-- [ ] Support allowlist by email domain or exact email address
+- [v] Track AI cache hits and misses
+- [v] Add email-based authorization
+- [v] Support allowlist by email domain or exact email address
 - [ ] Define permissions matrix for admin and user roles
-- [ ] Add a dedicated email review view
+- [v] Add a dedicated email review view
 - [ ] Add comments mode to the email review view
 - [ ] Decide whether review needs comments only or comments + chat
 - [ ] Add chat to the email review view if comments are not enough
@@ -30,14 +30,3 @@
 - [ ] Add diff view between email versions
 - [ ] Add notifications for review submitted, comments added, and version published
 - [ ] Decide whether realtime updates are needed for review workflow or if refresh/polling is enough
-
----
-
-## Out of scope for now
-
-- Email editing
-- Drag-and-drop flow
-- React Flow
-- User roles / permissions
-- Version history
-- AI suggestions
