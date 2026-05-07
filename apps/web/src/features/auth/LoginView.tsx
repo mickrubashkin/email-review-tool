@@ -56,7 +56,7 @@ export function LoginView() {
             <Stack gap={4}>
               <Title order={2}>ReviewDesk</Title>
               <Text c="dimmed" size="sm">
-                Private workspace for authorized review teams.
+                Private workspace for authorized email review teams.
               </Text>
               <Text c="dimmed" size="sm">
                 Operated by Mikhail Rubashkin for collaborative email review.
