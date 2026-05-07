@@ -206,14 +206,6 @@ export function EmailCard({
             <Text size="xs" lineClamp={1}>
               {selectedEmail.send_timing ?? "No timing"}
             </Text>
-            <a
-              className={styles.reviewLink}
-              href={`/emails/${encodeURIComponent(selectedEmail.id)}/review`}
-              onClick={handleReviewClick}
-            >
-              <ExternalLink aria-hidden="true" size={12} strokeWidth={2.2} />
-              Review
-            </a>
           </Group>
         </Stack>
       </Card>
