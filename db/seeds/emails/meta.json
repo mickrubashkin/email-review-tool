@@ -583,8 +583,8 @@
   },
   "onboarding/second-sale/next-step/en": {
     "title": "Next Step",
-    "subject": "This is an email subject line",
-    "preheader": "This is a hidden preheader",
+    "subject": "Bitrix24: You're on track for Silver",
+    "preheader": "Keep going to reach the next partner level",
     "send_timing": "immediately"
   },
   "onboarding/second-sale/next-step/en-old": {
