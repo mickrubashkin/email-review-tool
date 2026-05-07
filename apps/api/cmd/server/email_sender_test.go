@@ -24,7 +24,8 @@ func TestNewLoginCodeEmailSendersUsesLogFallbackWithoutResendKey(t *testing.T) {
 
 func TestNewLoginCodeEmailSendersUsesResendWhenConfigured(t *testing.T) {
 	t.Setenv("RESEND_API_KEY", "re_test")
-	t.Setenv("AUTH_FROM_EMAIL", "Email Review Tool <login@alaio.com>")
+	t.Setenv("AUTH_FROM_EMAIL", "ReviewDesk <login@auth.rubashkin.xyz>")
+	t.Setenv("AUTH_REPLY_TO_EMAIL", "Mikhail Rubashkin <mikhail@rubashkin.xyz>")
 	t.Setenv("AUTH_LOG_LOGIN_CODES", "false")
 
 	senders := newLoginCodeEmailSendersFromEnv()
@@ -39,8 +40,11 @@ func TestNewLoginCodeEmailSendersUsesResendWhenConfigured(t *testing.T) {
 	if resendSender.APIKey != "re_test" {
 		t.Fatalf("expected configured API key")
 	}
-	if resendSender.From != "Email Review Tool <login@alaio.com>" {
+	if resendSender.From != "ReviewDesk <login@auth.rubashkin.xyz>" {
 		t.Fatalf("expected configured from email, got %q", resendSender.From)
+	}
+	if resendSender.ReplyTo != "Mikhail Rubashkin <mikhail@rubashkin.xyz>" {
+		t.Fatalf("expected configured reply-to email, got %q", resendSender.ReplyTo)
 	}
 }
 
@@ -78,7 +82,8 @@ func TestResendEmailSenderSendsLoginCodePayload(t *testing.T) {
 
 	sender := ResendEmailSender{
 		APIKey:   "re_test",
-		From:     "Email Review Tool <login@alaio.com>",
+		From:     "ReviewDesk <login@auth.rubashkin.xyz>",
+		ReplyTo:  "Mikhail Rubashkin <mikhail@rubashkin.xyz>",
 		Endpoint: server.URL,
 		Client:   server.Client(),
 	}
@@ -88,8 +93,11 @@ func TestResendEmailSenderSendsLoginCodePayload(t *testing.T) {
 		t.Fatalf("expected send to succeed, got %v", err)
 	}
 
-	if receivedPayload.From != "Email Review Tool <login@alaio.com>" {
+	if receivedPayload.From != "ReviewDesk <login@auth.rubashkin.xyz>" {
 		t.Fatalf("expected from email, got %q", receivedPayload.From)
+	}
+	if receivedPayload.ReplyTo != "Mikhail Rubashkin <mikhail@rubashkin.xyz>" {
+		t.Fatalf("expected reply-to email, got %q", receivedPayload.ReplyTo)
 	}
 	if len(receivedPayload.To) != 1 || receivedPayload.To[0] != "user@alaio.com" {
 		t.Fatalf("expected recipient, got %#v", receivedPayload.To)
@@ -113,7 +121,7 @@ func TestResendEmailSenderReturnsHTTPError(t *testing.T) {
 
 	sender := ResendEmailSender{
 		APIKey:   "re_test",
-		From:     "Email Review Tool <login@alaio.com>",
+		From:     "ReviewDesk <login@auth.rubashkin.xyz>",
 		Endpoint: server.URL,
 		Client:   server.Client(),
 	}

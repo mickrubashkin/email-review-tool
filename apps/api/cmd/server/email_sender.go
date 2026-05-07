@@ -56,6 +56,7 @@ func (sender LogEmailSender) SendLoginCode(_ context.Context, to string, code st
 type ResendEmailSender struct {
 	APIKey   string
 	From     string
+	ReplyTo  string
 	Endpoint string
 	Client   *http.Client
 }
@@ -64,6 +65,7 @@ func (sender ResendEmailSender) SendLoginCode(ctx context.Context, to string, co
 	payload := resendEmailPayload{
 		From:    sender.From,
 		To:      []string{to},
+		ReplyTo: sender.ReplyTo,
 		Subject: "Your ReviewDesk sign-in code",
 		Text:    loginCodeEmailText(code),
 		HTML:    loginCodeEmailHTML(code),
@@ -112,6 +114,7 @@ func (sender ResendEmailSender) SendLoginCode(ctx context.Context, to string, co
 type resendEmailPayload struct {
 	From    string   `json:"from"`
 	To      []string `json:"to"`
+	ReplyTo string   `json:"reply_to,omitempty"`
 	Subject string   `json:"subject"`
 	HTML    string   `json:"html"`
 	Text    string   `json:"text"`
@@ -128,9 +131,10 @@ func newLoginCodeEmailSendersFromEnv() []EmailSender {
 	var senders []EmailSender
 	if apiKey != "" {
 		senders = append(senders, ResendEmailSender{
-			APIKey: apiKey,
-			From:   authFromEmail(),
-			Client: &http.Client{Timeout: 15 * time.Second},
+			APIKey:  apiKey,
+			From:    authFromEmail(),
+			ReplyTo: authReplyToEmail(),
+			Client:  &http.Client{Timeout: 15 * time.Second},
 		})
 	}
 	if shouldLog {
@@ -143,10 +147,14 @@ func newLoginCodeEmailSendersFromEnv() []EmailSender {
 func authFromEmail() string {
 	fromEmail := strings.TrimSpace(os.Getenv("AUTH_FROM_EMAIL"))
 	if fromEmail == "" {
-		return "noreply@auth.rubashkin.xyz"
+		return "ReviewDesk <login@auth.rubashkin.xyz>"
 	}
 
 	return fromEmail
+}
+
+func authReplyToEmail() string {
+	return strings.TrimSpace(os.Getenv("AUTH_REPLY_TO_EMAIL"))
 }
 
 func envBoolDefault(name string, defaultValue bool) bool {
