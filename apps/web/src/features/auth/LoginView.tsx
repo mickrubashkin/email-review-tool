@@ -15,10 +15,11 @@ import styles from "./LoginView.module.css";
 
 const allowedDomains = getAllowedDomains();
 const allowedDomainsLabel = allowedDomains.map((domain) => `@${domain}`).join(", ");
+const storedEmailKey = "reviewdesk_login_email";
 
 export function LoginView() {
   const queryClient = useQueryClient();
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(readStoredEmail);
   const [otpCode, setOTPCode] = useState("");
   const [domainError, setDomainError] = useState<string | null>(null);
 
@@ -74,7 +75,9 @@ export function LoginView() {
               type="email"
               value={email}
               onChange={(event) => {
-                setEmail(event.currentTarget.value);
+                const nextEmail = event.currentTarget.value;
+                setEmail(nextEmail);
+                writeStoredEmail(nextEmail);
                 setDomainError(null);
                 requestCodeMutation.reset();
                 verifyCodeMutation.reset();
@@ -163,6 +166,18 @@ export function LoginView() {
 function isAllowedEmailDomain(email: string) {
   const [, domain] = email.split("@");
   return Boolean(domain) && allowedDomains.includes(domain);
+}
+
+function readStoredEmail() {
+  if (typeof window === "undefined") {
+    return "";
+  }
+
+  return window.localStorage.getItem(storedEmailKey) ?? "";
+}
+
+function writeStoredEmail(email: string) {
+  window.localStorage.setItem(storedEmailKey, email);
 }
 
 function getAllowedDomains() {
