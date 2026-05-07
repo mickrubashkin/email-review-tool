@@ -605,6 +605,18 @@
     "preheader": "Jesteś o krok bliżej do statusu Srebrnego Partnera. Porozmawiajmy.",
     "send_timing": "immediately"
   },
+  "onboarding/silver-prequalified/follow-up-1/en": {
+    "title": "Follow Up 1",
+    "subject": "Bitrix24: Finalize your Silver status",
+    "preheader": "Book your call to activate your partner level",
+    "send_timing": "2 days after previous email"
+  },
+  "onboarding/silver-prequalified/last-call/en": {
+    "title": "Last Call",
+    "subject": "Bitrix24: Final step not completed",
+    "preheader": "Schedule your call to activate your Silver status",
+    "send_timing": "14 days after previous email"
+  },
   "onboarding/silver-prequalified/next-step/br-old": {
     "title": "Next Step",
     "subject": "",
@@ -619,8 +631,8 @@
   },
   "onboarding/silver-prequalified/next-step/en": {
     "title": "Next Step",
-    "subject": "This is an email subject line",
-    "preheader": "This is a hidden preheader",
+    "subject": "Bitrix24: Final step to activate your Silver status",
+    "preheader": "Book a call to confirm your status and plan next steps",
     "send_timing": "immediately"
   },
   "onboarding/silver-prequalified/next-step/en-old": {
