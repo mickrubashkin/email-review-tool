@@ -10,7 +10,7 @@ import {
 } from "@mantine/core";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { requestMagicLink, signInWithInviteCode } from "../emails/api";
+import { requestLoginCode, verifyLoginCode } from "../emails/api";
 import styles from "./LoginView.module.css";
 
 const allowedDomains = getAllowedDomains();
@@ -19,15 +19,15 @@ const allowedDomainsLabel = allowedDomains.map((domain) => `@${domain}`).join(",
 export function LoginView() {
   const queryClient = useQueryClient();
   const [email, setEmail] = useState("");
-  const [inviteCode, setInviteCode] = useState("");
+  const [otpCode, setOTPCode] = useState("");
   const [domainError, setDomainError] = useState<string | null>(null);
 
-  const requestLinkMutation = useMutation({
-    mutationFn: requestMagicLink,
+  const requestCodeMutation = useMutation({
+    mutationFn: requestLoginCode,
   });
-  const inviteCodeMutation = useMutation({
+  const verifyCodeMutation = useMutation({
     mutationFn: ({ email, code }: { email: string; code: string }) =>
-      signInWithInviteCode(email, code),
+      verifyLoginCode(email, code),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
     },
@@ -49,7 +49,7 @@ export function LoginView() {
             }
 
             setDomainError(null);
-            requestLinkMutation.mutate(normalizedEmail);
+            requestCodeMutation.mutate(normalizedEmail);
           }}
         >
           <Stack gap="md">
@@ -76,8 +76,8 @@ export function LoginView() {
               onChange={(event) => {
                 setEmail(event.currentTarget.value);
                 setDomainError(null);
-                requestLinkMutation.reset();
-                inviteCodeMutation.reset();
+                requestCodeMutation.reset();
+                verifyCodeMutation.reset();
               }}
             />
 
@@ -87,31 +87,34 @@ export function LoginView() {
               </Alert>
             ) : null}
 
-            {/* <Button
-              loading={requestLinkMutation.isPending}
+            <Button
+              loading={requestCodeMutation.isPending}
               type="submit"
               fullWidth
             >
-              Send magic link
-            </Button> */}
+              Send one-time code
+            </Button>
 
             <Stack gap="xs">
               <TextInput
                 autoComplete="one-time-code"
-                label="Invite code"
-                placeholder="Internal invite code"
-                value={inviteCode}
+                inputMode="numeric"
+                label="One-time code"
+                maxLength={6}
+                placeholder="123456"
+                value={otpCode}
                 onChange={(event) => {
-                  setInviteCode(event.currentTarget.value);
-                  inviteCodeMutation.reset();
+                  setOTPCode(event.currentTarget.value.replace(/\D/g, "").slice(0, 6));
+                  verifyCodeMutation.reset();
                 }}
               />
               <Text c="dimmed" size="xs">
-                Use the internal invite code, not your email password.
+                Enter the 6-digit code sent to your email. Do not enter your email
+                password.
               </Text>
               <Button
-                disabled={inviteCode.trim() === ""}
-                loading={inviteCodeMutation.isPending}
+                disabled={otpCode.trim().length !== 6}
+                loading={verifyCodeMutation.isPending}
                 variant="light"
                 onClick={() => {
                   const normalizedEmail = email.trim().toLowerCase();
@@ -123,31 +126,31 @@ export function LoginView() {
                   }
 
                   setDomainError(null);
-                  inviteCodeMutation.mutate({
+                  verifyCodeMutation.mutate({
                     email: normalizedEmail,
-                    code: inviteCode,
+                    code: otpCode,
                   });
                 }}
               >
-                Sign in with invite code
+                Sign in
               </Button>
             </Stack>
 
-            {requestLinkMutation.isSuccess ? (
-              <Alert color="green" title="Magic link requested">
-                Check your email for the magic link.
+            {requestCodeMutation.isSuccess ? (
+              <Alert color="green" title="Code sent">
+                Check your email for the one-time code.
               </Alert>
             ) : null}
 
-            {requestLinkMutation.isError ? (
-              <Alert color="red" title="Could not request link">
+            {requestCodeMutation.isError ? (
+              <Alert color="red" title="Could not send code">
                 Check that the API server is reachable.
               </Alert>
             ) : null}
 
-            {inviteCodeMutation.isError ? (
+            {verifyCodeMutation.isError ? (
               <Alert color="red" title="Could not sign in">
-                Check your email and invite code.
+                Check your email and one-time code.
               </Alert>
             ) : null}
           </Stack>

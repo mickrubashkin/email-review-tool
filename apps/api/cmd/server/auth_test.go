@@ -12,23 +12,23 @@ type recordingEmailSender struct {
 	calls int
 }
 
-func (sender *recordingEmailSender) SendMagicLink(_ context.Context, _ string, _ string) error {
+func (sender *recordingEmailSender) SendLoginCode(_ context.Context, _ string, _ string) error {
 	sender.calls++
 	return nil
 }
 
-func TestRequestMagicLinkDisallowedDomainDoesNotSendEmail(t *testing.T) {
+func TestRequestOTPCodeDisallowedDomainDoesNotSendEmail(t *testing.T) {
 	t.Setenv("AUTH_ALLOWED_DOMAIN", "alaio.com")
 
 	emailSender := &recordingEmailSender{}
 	request := httptest.NewRequest(
 		http.MethodPost,
-		"/api/auth/request-link",
+		"/api/auth/request-code",
 		strings.NewReader(`{"email":"user@example.com"}`),
 	)
 	response := httptest.NewRecorder()
 
-	requestMagicLinkHandler(nil, emailSender).ServeHTTP(response, request)
+	requestOTPCodeHandler(nil, emailSender).ServeHTTP(response, request)
 
 	if response.Code != http.StatusOK {
 		t.Fatalf("expected generic success, got %d", response.Code)
@@ -69,35 +69,16 @@ func TestIsAllowedAuthEmailFallsBackToSingleDomain(t *testing.T) {
 	}
 }
 
-func TestIsValidInviteCodeUsesRawCode(t *testing.T) {
-	t.Setenv("AUTH_INVITE_CODE", "team-code")
-	t.Setenv("AUTH_INVITE_CODE_HASH", "")
-
-	if !isValidInviteCode("team-code") {
-		t.Fatalf("expected raw invite code to be valid")
+func TestIsValidOTPCodeFormat(t *testing.T) {
+	for _, code := range []string{"123456", "000001"} {
+		if !isValidOTPCodeFormat(code) {
+			t.Fatalf("expected %s to be valid", code)
+		}
 	}
-	if isValidInviteCode("wrong-code") {
-		t.Fatalf("expected wrong invite code to be invalid")
-	}
-}
 
-func TestIsValidInviteCodeUsesHash(t *testing.T) {
-	t.Setenv("AUTH_INVITE_CODE", "")
-	t.Setenv("AUTH_INVITE_CODE_HASH", hashToken("team-code"))
-
-	if !isValidInviteCode("team-code") {
-		t.Fatalf("expected hashed invite code to be valid")
-	}
-	if isValidInviteCode("wrong-code") {
-		t.Fatalf("expected wrong invite code to be invalid")
-	}
-}
-
-func TestIsValidInviteCodeRequiresConfiguredCode(t *testing.T) {
-	t.Setenv("AUTH_INVITE_CODE", "")
-	t.Setenv("AUTH_INVITE_CODE_HASH", "")
-
-	if isValidInviteCode("team-code") {
-		t.Fatalf("expected invite code to be invalid when no code is configured")
+	for _, code := range []string{"", "12345", "1234567", "abc123", "12 456"} {
+		if isValidOTPCodeFormat(code) {
+			t.Fatalf("expected %q to be invalid", code)
+		}
 	}
 }

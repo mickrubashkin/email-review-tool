@@ -21,10 +21,9 @@ import styles from "./AuthEventsView.module.css";
 
 const limitOptions = ["50", "100", "250", "500"];
 const eventTypeOptions = [
-  { value: "magic_link_requested", label: "Magic link requested" },
-  { value: "magic_link_login", label: "Magic link login" },
-  { value: "invite_code_login", label: "Invite code login" },
-  { value: "failed_invite_code", label: "Failed invite code" },
+  { value: "otp_requested", label: "OTP requested" },
+  { value: "otp_login", label: "OTP login" },
+  { value: "failed_otp", label: "Failed OTP" },
   { value: "logout", label: "Logout" },
 ];
 
@@ -55,7 +54,7 @@ export function AuthEventsView() {
         <Stack gap={4}>
           <Title order={2}>Auth events</Title>
           <Text c="dimmed" size="sm">
-            Login, logout, and invite-code audit trail.
+            Login, logout, and one-time code audit trail.
           </Text>
         </Stack>
       </header>

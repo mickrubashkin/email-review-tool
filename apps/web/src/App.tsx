@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Alert,
   AppShell,
@@ -34,26 +34,7 @@ import { EmailReviewView } from "./features/review/EmailReviewView";
 import styles from "./App.module.css";
 
 export default function App() {
-  if (window.location.pathname === "/auth/callback") {
-    return <AuthCallbackView />;
-  }
-
   return <AuthenticatedApp />;
-}
-
-function AuthCallbackView() {
-  useEffect(() => {
-    const token = new URLSearchParams(window.location.search).get("token");
-    const query = token ? `?token=${encodeURIComponent(token)}` : "";
-    window.location.replace(`/api/auth/callback${query}`);
-  }, []);
-
-  return (
-    <Stack align="center" justify="center" h="100dvh">
-      <Loader />
-      <Text c="dimmed">Signing in</Text>
-    </Stack>
-  );
 }
 
 function AuthenticatedApp() {

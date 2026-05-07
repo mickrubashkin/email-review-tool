@@ -17,23 +17,23 @@ import (
 const resendEmailEndpoint = "https://api.resend.com/emails"
 
 type EmailSender interface {
-	SendMagicLink(ctx context.Context, to string, link string) error
+	SendLoginCode(ctx context.Context, to string, code string) error
 }
 
 type MultiEmailSender struct {
 	Senders []EmailSender
 }
 
-func (sender MultiEmailSender) SendMagicLink(ctx context.Context, to string, link string) error {
+func (sender MultiEmailSender) SendLoginCode(ctx context.Context, to string, code string) error {
 	var sendErrors []error
 	for _, child := range sender.Senders {
-		if err := child.SendMagicLink(ctx, to, link); err != nil {
+		if err := child.SendLoginCode(ctx, to, code); err != nil {
 			sendErrors = append(sendErrors, err)
 		}
 	}
 
 	if len(sendErrors) > 0 {
-		return fmt.Errorf("failed to send magic link: %w", errors.Join(sendErrors...))
+		return fmt.Errorf("failed to send login code: %w", errors.Join(sendErrors...))
 	}
 
 	return nil
@@ -43,13 +43,13 @@ type LogEmailSender struct {
 	Writer io.Writer
 }
 
-func (sender LogEmailSender) SendMagicLink(_ context.Context, to string, link string) error {
+func (sender LogEmailSender) SendLoginCode(_ context.Context, to string, code string) error {
 	writer := sender.Writer
 	if writer == nil {
 		writer = os.Stdout
 	}
 
-	_, err := fmt.Fprintf(writer, "Magic login link for %s: %s\n", to, link)
+	_, err := fmt.Fprintf(writer, "ReviewDesk login code for %s: %s\n", to, code)
 	return err
 }
 
@@ -60,13 +60,13 @@ type ResendEmailSender struct {
 	Client   *http.Client
 }
 
-func (sender ResendEmailSender) SendMagicLink(ctx context.Context, to string, link string) error {
+func (sender ResendEmailSender) SendLoginCode(ctx context.Context, to string, code string) error {
 	payload := resendEmailPayload{
 		From:    sender.From,
 		To:      []string{to},
-		Subject: "Sign in to Email Review Tool",
-		Text:    magicLinkEmailText(link),
-		HTML:    magicLinkEmailHTML(link),
+		Subject: "Your ReviewDesk sign-in code",
+		Text:    loginCodeEmailText(code),
+		HTML:    loginCodeEmailHTML(code),
 	}
 
 	bodyBytes, err := json.Marshal(payload)
@@ -117,13 +117,13 @@ type resendEmailPayload struct {
 	Text    string   `json:"text"`
 }
 
-func newMagicLinkEmailSender() EmailSender {
-	return MultiEmailSender{Senders: newMagicLinkEmailSendersFromEnv()}
+func newLoginCodeEmailSender() EmailSender {
+	return MultiEmailSender{Senders: newLoginCodeEmailSendersFromEnv()}
 }
 
-func newMagicLinkEmailSendersFromEnv() []EmailSender {
+func newLoginCodeEmailSendersFromEnv() []EmailSender {
 	apiKey := strings.TrimSpace(os.Getenv("RESEND_API_KEY"))
-	shouldLog := apiKey == "" || envBoolDefault("AUTH_LOG_MAGIC_LINKS", true)
+	shouldLog := apiKey == "" || envBoolDefault("AUTH_LOG_LOGIN_CODES", envBoolDefault("AUTH_LOG_MAGIC_LINKS", true))
 
 	var senders []EmailSender
 	if apiKey != "" {
@@ -158,32 +158,27 @@ func envBoolDefault(name string, defaultValue bool) bool {
 	return strings.EqualFold(value, "true") || value == "1"
 }
 
-func magicLinkEmailText(link string) string {
-	return fmt.Sprintf(`Sign in to Email Review Tool
+func loginCodeEmailText(code string) string {
+	return fmt.Sprintf(`Sign in to ReviewDesk
 
-Open this link to sign in:
+Use this one-time code to sign in:
 %s
 
-This link expires in 15 minutes.
+This code expires in 10 minutes.
 
-If you did not request this email, you can ignore it.`, link)
+If you did not request this email, you can ignore it.`, code)
 }
 
-func magicLinkEmailHTML(link string) string {
-	escapedLink := html.EscapeString(link)
+func loginCodeEmailHTML(code string) string {
+	escapedCode := html.EscapeString(code)
 	return fmt.Sprintf(`<!doctype html>
 <html>
   <body style="font-family: Arial, sans-serif; color: #1f2937; line-height: 1.5;">
-    <h1 style="font-size: 20px;">Sign in to Email Review Tool</h1>
-    <p>Open this link to sign in. It expires in 15 minutes.</p>
-    <p>
-      <a href="%s" style="display: inline-block; padding: 10px 14px; background: #1c7ed6; color: #ffffff; text-decoration: none; border-radius: 6px;">
-        Sign in
-      </a>
-    </p>
-    <p>If the button does not work, copy and paste this link into your browser:</p>
-    <p><a href="%s">%s</a></p>
+    <h1 style="font-size: 20px;">Sign in to ReviewDesk</h1>
+    <p>Use this one-time code to sign in. It expires in 10 minutes.</p>
+    <p style="font-size: 28px; font-weight: 700; letter-spacing: 4px; margin: 20px 0;">%s</p>
+    <p>ReviewDesk never asks for your email password.</p>
     <p>If you did not request this email, you can ignore it.</p>
   </body>
-</html>`, escapedLink, escapedLink, escapedLink)
+</html>`, escapedCode)
 }

@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"net/http"
 	"os"
 	"strconv"
@@ -15,6 +16,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -28,16 +30,15 @@ type authRequest struct {
 	Email string `json:"email"`
 }
 
-type inviteCodeRequest struct {
+type otpCodeRequest struct {
 	Email string `json:"email"`
 	Code  string `json:"code"`
 }
 
 func registerAuthRoutes(r chi.Router, dbpool *pgxpool.Pool, emailSender EmailSender) {
-	r.Post("/api/auth/request-link", requestMagicLinkHandler(dbpool, emailSender))
-	r.Post("/api/auth/invite-code", inviteCodeLoginHandler(dbpool))
+	r.Post("/api/auth/request-code", requestOTPCodeHandler(dbpool, emailSender))
+	r.Post("/api/auth/verify-code", verifyOTPCodeHandler(dbpool))
 	r.Get("/api/auth/events", listAuthEventsHandler(dbpool))
-	r.Get("/api/auth/callback", magicLinkCallbackHandler(dbpool))
 	r.Get("/api/auth/me", meHandler(dbpool))
 	r.Post("/api/auth/logout", logoutHandler(dbpool))
 }
@@ -63,7 +64,7 @@ func authMiddleware(dbpool *pgxpool.Pool) func(http.Handler) http.Handler {
 	}
 }
 
-func requestMagicLinkHandler(dbpool *pgxpool.Pool, emailSender EmailSender) http.HandlerFunc {
+func requestOTPCodeHandler(dbpool *pgxpool.Pool, emailSender EmailSender) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var payload authRequest
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
@@ -86,53 +87,58 @@ func requestMagicLinkHandler(dbpool *pgxpool.Pool, emailSender EmailSender) http
 		logAuthEvent(r.Context(), dbpool, r, AuthEvent{
 			UserID:    &user.ID,
 			Email:     user.Email,
-			EventType: "magic_link_requested",
+			EventType: "otp_requested",
 			Success:   true,
 		})
 
-		token, err := randomToken()
+		code, err := randomOTPCode()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "failed to create magic link token for %s: %v\n", email, err)
-			http.Error(w, "failed to create login link", http.StatusInternalServerError)
+			fmt.Fprintf(os.Stderr, "failed to create OTP code for %s: %v\n", email, err)
+			http.Error(w, "failed to create login code", http.StatusInternalServerError)
 			return
 		}
 
-		expiresAt := time.Now().Add(15 * time.Minute)
-		_, err = dbpool.Exec(r.Context(), `
-			INSERT INTO magic_login_tokens (token_hash, email, expires_at)
-			VALUES ($1, $2, $3);
-		`, hashToken(token), user.Email, expiresAt)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "failed to save magic link token for %s: %v\n", email, err)
-			http.Error(w, "failed to create login link", http.StatusInternalServerError)
+		if err := saveOTPCode(r.Context(), dbpool, user.Email, code); err != nil {
+			fmt.Fprintf(os.Stderr, "failed to save OTP code for %s: %v\n", email, err)
+			http.Error(w, "failed to create login code", http.StatusInternalServerError)
 			return
 		}
 
-		if err := emailSender.SendMagicLink(r.Context(), user.Email, authCallbackURL(token)); err != nil {
-			fmt.Fprintf(os.Stderr, "failed to send magic link for %s: %v\n", user.Email, err)
+		if err := emailSender.SendLoginCode(r.Context(), user.Email, code); err != nil {
+			fmt.Fprintf(os.Stderr, "failed to send OTP code for %s: %v\n", user.Email, err)
 		}
 
 		writeAuthOK(w)
 	}
 }
 
-func inviteCodeLoginHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
+func verifyOTPCodeHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var payload inviteCodeRequest
+		var payload otpCodeRequest
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 			http.Error(w, "invalid request", http.StatusBadRequest)
 			return
 		}
 
 		email := normalizeEmail(payload.Email)
-		if !isAllowedAuthEmail(email) || !isValidInviteCode(payload.Code) {
+		if !isAllowedAuthEmail(email) || !isValidOTPCodeFormat(payload.Code) {
 			if email != "" {
 				logAuthEvent(r.Context(), dbpool, r, AuthEvent{
 					Email:     email,
-					EventType: "failed_invite_code",
+					EventType: "failed_otp",
 					Success:   false,
 				})
 			}
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		if err := consumeOTPCode(r.Context(), dbpool, email, payload.Code); err != nil {
+			logAuthEvent(r.Context(), dbpool, r, AuthEvent{
+				Email:     email,
+				EventType: "failed_otp",
+				Success:   false,
+			})
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
@@ -146,48 +152,17 @@ func inviteCodeLoginHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 		logAuthEvent(r.Context(), dbpool, r, AuthEvent{
 			UserID:    &user.ID,
 			Email:     user.Email,
-			EventType: "invite_code_login",
+			EventType: "otp_login",
 			Success:   true,
 		})
 
 		if err := createSessionCookie(r.Context(), dbpool, w, user); err != nil {
-			fmt.Fprintf(os.Stderr, "failed to create invite-code session for %s: %v\n", user.Email, err)
+			fmt.Fprintf(os.Stderr, "failed to create OTP session for %s: %v\n", user.Email, err)
 			http.Error(w, "failed to sign in", http.StatusInternalServerError)
 			return
 		}
 
 		writeAuthOK(w)
-	}
-}
-
-func magicLinkCallbackHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		token := strings.TrimSpace(r.URL.Query().Get("token"))
-		if token == "" {
-			http.Redirect(w, r, "/", http.StatusSeeOther)
-			return
-		}
-
-		user, err := consumeMagicToken(r.Context(), dbpool, token)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "failed to consume magic link token: %v\n", err)
-			http.Redirect(w, r, "/", http.StatusSeeOther)
-			return
-		}
-		logAuthEvent(r.Context(), dbpool, r, AuthEvent{
-			UserID:    &user.ID,
-			Email:     user.Email,
-			EventType: "magic_link_login",
-			Success:   true,
-		})
-
-		if err := createSessionCookie(r.Context(), dbpool, w, user); err != nil {
-			fmt.Fprintf(os.Stderr, "failed to create magic-link session for %s: %v\n", user.Email, err)
-			http.Redirect(w, r, "/", http.StatusSeeOther)
-			return
-		}
-
-		http.Redirect(w, r, "/", http.StatusSeeOther)
 	}
 }
 
@@ -338,41 +313,78 @@ func upsertAuthUser(ctx context.Context, dbpool *pgxpool.Pool, email string) (Au
 	return user, err
 }
 
-func consumeMagicToken(ctx context.Context, dbpool *pgxpool.Pool, token string) (AuthUser, error) {
+func saveOTPCode(ctx context.Context, dbpool *pgxpool.Pool, email string, code string) error {
+	expiresAt := time.Now().Add(10 * time.Minute)
+	_, err := dbpool.Exec(ctx, `
+		UPDATE auth_otp_codes
+		SET used_at = now()
+		WHERE email = $1
+			AND used_at IS NULL;
+	`, email)
+	if err != nil {
+		return err
+	}
+
+	_, err = dbpool.Exec(ctx, `
+		INSERT INTO auth_otp_codes (email, code_hash, expires_at)
+		VALUES ($1, $2, $3);
+	`, email, hashToken(code), expiresAt)
+
+	return err
+}
+
+func consumeOTPCode(ctx context.Context, dbpool *pgxpool.Pool, email string, code string) error {
 	tx, err := dbpool.Begin(ctx)
 	if err != nil {
-		return AuthUser{}, err
+		return err
 	}
 	defer tx.Rollback(ctx)
 
-	var email string
+	var id string
+	var codeHash string
+	var attempts int
 	err = tx.QueryRow(ctx, `
-		UPDATE magic_login_tokens
-		SET used_at = now()
-		WHERE token_hash = $1
+		SELECT id, code_hash, attempts
+		FROM auth_otp_codes
+		WHERE email = $1
 			AND used_at IS NULL
 			AND expires_at > now()
-		RETURNING email;
-	`, hashToken(token)).Scan(&email)
+		ORDER BY created_at DESC
+		LIMIT 1
+		FOR UPDATE;
+	`, email).Scan(&id, &codeHash, &attempts)
 	if err != nil {
-		return AuthUser{}, err
+		return err
 	}
 
-	var user AuthUser
-	err = tx.QueryRow(ctx, `
-		SELECT id, email, role
-		FROM users
-		WHERE email = $1;
-	`, email).Scan(&user.ID, &user.Email, &user.Role)
+	if attempts >= 5 {
+		return pgx.ErrNoRows
+	}
+
+	if codeHash != hashToken(strings.TrimSpace(code)) {
+		_, _ = tx.Exec(ctx, `
+			UPDATE auth_otp_codes
+			SET attempts = attempts + 1
+			WHERE id = $1;
+		`, id)
+		if err := tx.Commit(ctx); err != nil {
+			return err
+		}
+
+		return pgx.ErrNoRows
+	}
+
+	_, err = tx.Exec(ctx, `
+		UPDATE auth_otp_codes
+		SET used_at = now(),
+			attempts = attempts + 1
+		WHERE id = $1;
+	`, id)
 	if err != nil {
-		return AuthUser{}, err
+		return err
 	}
 
-	if err := tx.Commit(ctx); err != nil {
-		return AuthUser{}, err
-	}
-
-	return user, nil
+	return tx.Commit(ctx)
 }
 
 func isAllowedAuthEmail(email string) bool {
@@ -412,19 +424,19 @@ func allowedAuthDomains() []string {
 	return domains
 }
 
-func isValidInviteCode(code string) bool {
+func isValidOTPCodeFormat(code string) bool {
 	normalizedCode := strings.TrimSpace(code)
-	if normalizedCode == "" {
+	if len(normalizedCode) != 6 {
 		return false
 	}
 
-	codeHash := strings.TrimSpace(os.Getenv("AUTH_INVITE_CODE_HASH"))
-	if codeHash != "" {
-		return hashToken(normalizedCode) == codeHash
+	for _, char := range normalizedCode {
+		if char < '0' || char > '9' {
+			return false
+		}
 	}
 
-	rawCode := strings.TrimSpace(os.Getenv("AUTH_INVITE_CODE"))
-	return rawCode != "" && normalizedCode == rawCode
+	return true
 }
 
 func normalizeEmail(value string) string {
@@ -440,18 +452,18 @@ func randomToken() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(bytes), nil
 }
 
+func randomOTPCode() (string, error) {
+	value, err := rand.Int(rand.Reader, big.NewInt(1000000))
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("%06d", value.Int64()), nil
+}
+
 func hashToken(value string) string {
 	hash := sha256.Sum256([]byte(value))
 	return hex.EncodeToString(hash[:])
-}
-
-func authCallbackURL(token string) string {
-	appURL := strings.TrimRight(os.Getenv("AUTH_APP_URL"), "/")
-	if appURL == "" {
-		appURL = "http://localhost:5173"
-	}
-
-	return fmt.Sprintf("%s/auth/callback?token=%s", appURL, token)
 }
 
 func sessionCookie(value string, expiresAt time.Time) *http.Cookie {

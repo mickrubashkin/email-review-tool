@@ -22,8 +22,8 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-export function requestMagicLink(email: string): Promise<{ ok: boolean }> {
-  return fetchJson<{ ok: boolean }>("/api/auth/request-link", {
+export function requestLoginCode(email: string): Promise<{ ok: boolean }> {
+  return fetchJson<{ ok: boolean }>("/api/auth/request-code", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -32,11 +32,11 @@ export function requestMagicLink(email: string): Promise<{ ok: boolean }> {
   });
 }
 
-export function signInWithInviteCode(
+export function verifyLoginCode(
   email: string,
   code: string
 ): Promise<{ ok: boolean }> {
-  return fetchJson<{ ok: boolean }>("/api/auth/invite-code", {
+  return fetchJson<{ ok: boolean }>("/api/auth/verify-code", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

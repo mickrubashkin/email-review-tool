@@ -9,11 +9,11 @@ import (
 	"testing"
 )
 
-func TestNewMagicLinkEmailSendersUsesLogFallbackWithoutResendKey(t *testing.T) {
+func TestNewLoginCodeEmailSendersUsesLogFallbackWithoutResendKey(t *testing.T) {
 	t.Setenv("RESEND_API_KEY", "")
-	t.Setenv("AUTH_LOG_MAGIC_LINKS", "false")
+	t.Setenv("AUTH_LOG_LOGIN_CODES", "false")
 
-	senders := newMagicLinkEmailSendersFromEnv()
+	senders := newLoginCodeEmailSendersFromEnv()
 	if len(senders) != 1 {
 		t.Fatalf("expected one sender, got %d", len(senders))
 	}
@@ -22,12 +22,12 @@ func TestNewMagicLinkEmailSendersUsesLogFallbackWithoutResendKey(t *testing.T) {
 	}
 }
 
-func TestNewMagicLinkEmailSendersUsesResendWhenConfigured(t *testing.T) {
+func TestNewLoginCodeEmailSendersUsesResendWhenConfigured(t *testing.T) {
 	t.Setenv("RESEND_API_KEY", "re_test")
 	t.Setenv("AUTH_FROM_EMAIL", "Email Review Tool <login@alaio.com>")
-	t.Setenv("AUTH_LOG_MAGIC_LINKS", "false")
+	t.Setenv("AUTH_LOG_LOGIN_CODES", "false")
 
-	senders := newMagicLinkEmailSendersFromEnv()
+	senders := newLoginCodeEmailSendersFromEnv()
 	if len(senders) != 1 {
 		t.Fatalf("expected one sender, got %d", len(senders))
 	}
@@ -44,17 +44,17 @@ func TestNewMagicLinkEmailSendersUsesResendWhenConfigured(t *testing.T) {
 	}
 }
 
-func TestNewMagicLinkEmailSendersCanSendAndLog(t *testing.T) {
+func TestNewLoginCodeEmailSendersCanSendAndLog(t *testing.T) {
 	t.Setenv("RESEND_API_KEY", "re_test")
-	t.Setenv("AUTH_LOG_MAGIC_LINKS", "true")
+	t.Setenv("AUTH_LOG_LOGIN_CODES", "true")
 
-	senders := newMagicLinkEmailSendersFromEnv()
+	senders := newLoginCodeEmailSendersFromEnv()
 	if len(senders) != 2 {
 		t.Fatalf("expected resend and log senders, got %d", len(senders))
 	}
 }
 
-func TestResendEmailSenderSendsMagicLinkPayload(t *testing.T) {
+func TestResendEmailSenderSendsLoginCodePayload(t *testing.T) {
 	var receivedPayload resendEmailPayload
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -83,8 +83,8 @@ func TestResendEmailSenderSendsMagicLinkPayload(t *testing.T) {
 		Client:   server.Client(),
 	}
 
-	link := "https://example.com/auth/callback?token=test"
-	if err := sender.SendMagicLink(context.Background(), "user@alaio.com", link); err != nil {
+	code := "123456"
+	if err := sender.SendLoginCode(context.Background(), "user@alaio.com", code); err != nil {
 		t.Fatalf("expected send to succeed, got %v", err)
 	}
 
@@ -94,14 +94,14 @@ func TestResendEmailSenderSendsMagicLinkPayload(t *testing.T) {
 	if len(receivedPayload.To) != 1 || receivedPayload.To[0] != "user@alaio.com" {
 		t.Fatalf("expected recipient, got %#v", receivedPayload.To)
 	}
-	if receivedPayload.Subject != "Sign in to Email Review Tool" {
+	if receivedPayload.Subject != "Your ReviewDesk sign-in code" {
 		t.Fatalf("expected subject, got %q", receivedPayload.Subject)
 	}
-	if !strings.Contains(receivedPayload.Text, link) {
-		t.Fatalf("expected text body to include link, got %q", receivedPayload.Text)
+	if !strings.Contains(receivedPayload.Text, code) {
+		t.Fatalf("expected text body to include code, got %q", receivedPayload.Text)
 	}
-	if !strings.Contains(receivedPayload.HTML, "Sign in") || !strings.Contains(receivedPayload.HTML, link) {
-		t.Fatalf("expected html body to include sign-in copy and link, got %q", receivedPayload.HTML)
+	if !strings.Contains(receivedPayload.HTML, "Sign in") || !strings.Contains(receivedPayload.HTML, code) {
+		t.Fatalf("expected html body to include sign-in copy and code, got %q", receivedPayload.HTML)
 	}
 }
 
@@ -118,7 +118,7 @@ func TestResendEmailSenderReturnsHTTPError(t *testing.T) {
 		Client:   server.Client(),
 	}
 
-	err := sender.SendMagicLink(context.Background(), "user@alaio.com", "https://example.com")
+	err := sender.SendLoginCode(context.Background(), "user@alaio.com", "123456")
 	if err == nil || !strings.Contains(err.Error(), "resend returned 400") {
 		t.Fatalf("expected resend HTTP error, got %v", err)
 	}

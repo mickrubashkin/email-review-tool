@@ -43,7 +43,7 @@ func main() {
 	}
 
 	registerHealthRoute(r, dbpool)
-	registerAuthRoutes(r, dbpool, newMagicLinkEmailSender())
+	registerAuthRoutes(r, dbpool, newLoginCodeEmailSender())
 	registerEmailRoutes(r, dbpool)
 	registerAIRoutes(r, dbpool, aiService)
 
