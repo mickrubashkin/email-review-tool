@@ -7,7 +7,6 @@ import {
   Tooltip,
   UnstyledButton,
 } from "@mantine/core";
-import { ExternalLink } from "lucide-react";
 
 import type { EmailVariant, EmailVersionGroup } from "./types";
 import {
@@ -130,10 +129,6 @@ export function EmailCard({
     if (nextEmail) {
       onSelectVersion(emailGroup.key, nextEmail.id);
     }
-  };
-
-  const handleReviewClick = (event: MouseEvent<HTMLAnchorElement>) => {
-    event.stopPropagation();
   };
 
   return (
