@@ -197,6 +197,84 @@
     "preheader": "Świetny początek. Zrób kolejny krok i odblokuj korzyści Partnera Srebrnego.",
     "send_timing": "immediately"
   },
+  "onboarding/lost/application-rejected/br-old": {
+    "title": "Application Rejected",
+    "subject": "Programa de Parcerias Bitrix24 | Inscrição Rejeitada",
+    "preheader": "",
+    "send_timing": "immediately"
+  },
+  "onboarding/lost/application-rejected/de-old": {
+    "title": "Application Rejected",
+    "subject": "Bitrix24 Partnerprogramm | Ihre Partneranfrage wurde abgelehnt",
+    "preheader": "",
+    "send_timing": "immediately"
+  },
+  "onboarding/lost/application-rejected/en-old": {
+    "title": "Application Rejected",
+    "subject": "Bitrix24 Partner Program | Application Rejected",
+    "preheader": "",
+    "send_timing": "immediately"
+  },
+  "onboarding/lost/application-rejected/es-old": {
+    "title": "Application Rejected",
+    "subject": "Programa de Partners de Bitrix24 | Solicitud Rechazada",
+    "preheader": "",
+    "send_timing": "immediately"
+  },
+  "onboarding/lost/application-rejected/pl-old": {
+    "title": "Application Rejected",
+    "subject": "Program Partnerski Bitrix24 | Odrzucenie zgłoszenia",
+    "preheader": "",
+    "send_timing": "immediately"
+  },
+  "onboarding/lost/does-not-respond/br-old": {
+    "title": "Does Not Respond",
+    "subject": "Programa de Parceiros Bitrix24 | Cadastro Rejeitado",
+    "preheader": "Prezado Candidato, não recebemos um retorno de sua parte.",
+    "send_timing": "immediately"
+  },
+  "onboarding/lost/does-not-respond/es-old": {
+    "title": "Does Not Respond",
+    "subject": "Programa de Partners de Bitrix24 | Solicitud Rechazada",
+    "preheader": "Estimado Candidato, no hemos recibido respuesta por su parte.",
+    "send_timing": "immediately"
+  },
+  "onboarding/lost/partnership-cancelled/br-old": {
+    "title": "Partnership Cancelled",
+    "subject": "Programa de Parceiros Bitrix24 | Suspensão por inatividade",
+    "preheader": "Prezado Parceiro, Seu status de parceiro foi suspenso por inatividade.",
+    "send_timing": "immediately"
+  },
+  "onboarding/lost/partnership-cancelled/de-old": {
+    "title": "Partnership Cancelled",
+    "subject": "Bitrix24 Partnerprogramm | Partnerschaft wegen Inaktivität ausgesetzt",
+    "preheader": "Ihr Partnerstatus wurde aufgrund von Inaktivität ausgesetzt.",
+    "send_timing": "immediately"
+  },
+  "onboarding/lost/partnership-cancelled/en-old": {
+    "title": "Partnership Cancelled",
+    "subject": "Bitrix24 Partner Program | Partnership suspended due to inactivity",
+    "preheader": "Dear Partner, your partner status has been suspended due to inactivity.",
+    "send_timing": "immediately"
+  },
+  "onboarding/lost/partnership-cancelled/es-old": {
+    "title": "Partnership Cancelled",
+    "subject": "Programa de Partners de Bitrix24 | Asociación suspendida por inactividad",
+    "preheader": "Estimado Partner, su estado de partner ha sido suspendido por inactividad.",
+    "send_timing": "immediately"
+  },
+  "onboarding/lost/partnership-cancelled/pl-old": {
+    "title": "Partnership Cancelled",
+    "subject": "Program Partnerski Bitrix24 | Współpraca zawieszona z powodu braku aktywności",
+    "preheader": "Drogi Partnerze, Twój status partnerski został zawieszony z powodu braku aktywności.",
+    "send_timing": "immediately"
+  },
+  "onboarding/lost/recovery/br-old": {
+    "title": "Recovery",
+    "subject": "Programa de Parceiros Bitrix24 | Continue seu Cadastro",
+    "preheader": "Prezado Candidato, conclua seu cadastro no Programa de Parceiros Bitrix24!",
+    "send_timing": "immediately"
+  },
   "onboarding/nfr-installed/follow-up-1/br-old": {
     "title": "Follow Up 1",
     "subject": "Programa de Parceiros Bitrix24 | 🎁 Bônus Kickstart de $1000 e leads gratuitos qualificados",
@@ -473,84 +551,6 @@
     "preheader": "Dziękujemy za zainteresowanie dołączeniem do społeczności partnerów Bitrix24!",
     "send_timing": "immediately"
   },
-  "onboarding/rejected/application-rejected/br-old": {
-    "title": "Application Rejected",
-    "subject": "Programa de Parcerias Bitrix24 | Inscrição Rejeitada",
-    "preheader": "",
-    "send_timing": "immediately"
-  },
-  "onboarding/rejected/application-rejected/de-old": {
-    "title": "Application Rejected",
-    "subject": "Bitrix24 Partnerprogramm | Ihre Partneranfrage wurde abgelehnt",
-    "preheader": "",
-    "send_timing": "immediately"
-  },
-  "onboarding/rejected/application-rejected/en-old": {
-    "title": "Application Rejected",
-    "subject": "Bitrix24 Partner Program | Application Rejected",
-    "preheader": "",
-    "send_timing": "immediately"
-  },
-  "onboarding/rejected/application-rejected/es-old": {
-    "title": "Application Rejected",
-    "subject": "Programa de Partners de Bitrix24 | Solicitud Rechazada",
-    "preheader": "",
-    "send_timing": "immediately"
-  },
-  "onboarding/rejected/application-rejected/pl-old": {
-    "title": "Application Rejected",
-    "subject": "Program Partnerski Bitrix24 | Odrzucenie zgłoszenia",
-    "preheader": "",
-    "send_timing": "immediately"
-  },
-  "onboarding/rejected/does-not-respond/br-old": {
-    "title": "Does Not Respond",
-    "subject": "Programa de Parceiros Bitrix24 | Cadastro Rejeitado",
-    "preheader": "Prezado Candidato, não recebemos um retorno de sua parte.",
-    "send_timing": "immediately"
-  },
-  "onboarding/rejected/does-not-respond/es-old": {
-    "title": "Does Not Respond",
-    "subject": "Programa de Partners de Bitrix24 | Solicitud Rechazada",
-    "preheader": "Estimado Candidato, no hemos recibido respuesta por su parte.",
-    "send_timing": "immediately"
-  },
-  "onboarding/rejected/partnership-cancelled/br-old": {
-    "title": "Partnership Cancelled",
-    "subject": "Programa de Parceiros Bitrix24 | Suspensão por inatividade",
-    "preheader": "Prezado Parceiro, Seu status de parceiro foi suspenso por inatividade.",
-    "send_timing": "immediately"
-  },
-  "onboarding/rejected/partnership-cancelled/de-old": {
-    "title": "Partnership Cancelled",
-    "subject": "Bitrix24 Partnerprogramm | Partnerschaft wegen Inaktivität ausgesetzt",
-    "preheader": "Ihr Partnerstatus wurde aufgrund von Inaktivität ausgesetzt.",
-    "send_timing": "immediately"
-  },
-  "onboarding/rejected/partnership-cancelled/en-old": {
-    "title": "Partnership Cancelled",
-    "subject": "Bitrix24 Partner Program | Partnership suspended due to inactivity",
-    "preheader": "Dear Partner, your partner status has been suspended due to inactivity.",
-    "send_timing": "immediately"
-  },
-  "onboarding/rejected/partnership-cancelled/es-old": {
-    "title": "Partnership Cancelled",
-    "subject": "Programa de Partners de Bitrix24 | Asociación suspendida por inactividad",
-    "preheader": "Estimado Partner, su estado de partner ha sido suspendido por inactividad.",
-    "send_timing": "immediately"
-  },
-  "onboarding/rejected/partnership-cancelled/pl-old": {
-    "title": "Partnership Cancelled",
-    "subject": "Program Partnerski Bitrix24 | Współpraca zawieszona z powodu braku aktywności",
-    "preheader": "Drogi Partnerze, Twój status partnerski został zawieszony z powodu braku aktywności.",
-    "send_timing": "immediately"
-  },
-  "onboarding/rejected/recovery/br-old": {
-    "title": "Recovery",
-    "subject": "Programa de Parceiros Bitrix24 | Continue seu Cadastro",
-    "preheader": "Prezado Candidato, conclua seu cadastro no Programa de Parceiros Bitrix24!",
-    "send_timing": "immediately"
-  },
   "onboarding/second-sale/follow-up-1/en": {
     "title": "Follow Up 1",
     "subject": "Bitrix24: You're close to Silver",
@@ -651,6 +651,12 @@
     "title": "Next Step",
     "subject": "",
     "preheader": "Schedule a Call",
+    "send_timing": "immediately"
+  },
+  "onboarding/silver/next-step/en": {
+    "title": "Next Step",
+    "subject": "Bitrix24: Welcome to Silver level",
+    "preheader": "Your status is confirmed - meet your Partner Account Manager",
     "send_timing": "immediately"
   },
   "onboarding/training-completed/follow-up-1/br-old": {
