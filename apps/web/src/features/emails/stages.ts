@@ -15,6 +15,7 @@ export const stageColors = [
   "#B8CF7A",
   "#8FBF6A",
   "#5FA85C",
+  "#7BD500",
   "#FF5752",
   "#FF5752",
 ];
