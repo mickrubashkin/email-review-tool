@@ -553,20 +553,20 @@
   },
   "onboarding/second-sale/follow-up-1/en": {
     "title": "Follow Up 1",
-    "subject": "This is an email subject line",
-    "preheader": "This is a hidden preheader",
+    "subject": "Bitrix24: You're close to Silver",
+    "preheader": "Reach $2,500 in sales and 2 clients to unlock Silver",
     "send_timing": "2 days after previous email"
   },
   "onboarding/second-sale/follow-up-2/en": {
     "title": "Follow Up 2",
-    "subject": "This is an email subject line",
-    "preheader": "This is a hidden preheader",
+    "subject": "Bitrix24: Reach Silver faster",
+    "preheader": "Take more leads or increase deal size to get there sooner",
     "send_timing": "5 days after previous email"
   },
   "onboarding/second-sale/last-call/en": {
     "title": "Last Call",
-    "subject": "This is an email subject line",
-    "preheader": "This is a hidden preheader",
+    "subject": "Bitrix24: Don’t miss Silver status",
+    "preheader": "You’re close — take action to reach the next level",
     "send_timing": "14 days after previous email"
   },
   "onboarding/second-sale/next-step/br-old": {
