@@ -13,6 +13,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
+	"github.com/mickrubashkin/email-review-tool/apps/api/internal/emailreview"
 	"github.com/mickrubashkin/email-review-tool/apps/api/internal/emailtext"
 )
 
@@ -34,6 +35,7 @@ type seedEmail struct {
 	BodyText     string
 	ContentParts EmailContentParts
 	OriginalHTML string
+	ReviewHTML   string
 }
 
 type seedEmailMeta struct {
@@ -200,6 +202,11 @@ func parseSeedEmail(root string, path string, metaByKey map[string]seedEmailMeta
 		return seedEmail{}, err
 	}
 	originalHTML := string(htmlBytes)
+	reviewHTML, err := emailreview.AddReviewBlocks(originalHTML)
+	if err != nil {
+		return seedEmail{}, fmt.Errorf("failed to add review blocks to %s: %w", relativePath, err)
+	}
+
 	bodyText := emailtext.HTMLToText(originalHTML)
 	contentParts := extractEmailContentParts(originalHTML, emailMeta, bodyText)
 
@@ -217,6 +224,7 @@ func parseSeedEmail(root string, path string, metaByKey map[string]seedEmailMeta
 		BodyText:     bodyText,
 		ContentParts: contentParts,
 		OriginalHTML: originalHTML,
+		ReviewHTML:   reviewHTML,
 	}, nil
 }
 
@@ -314,9 +322,10 @@ func upsertEmail(ctx context.Context, dbpool *pgxpool.Pool, email seedEmail) err
 			variant,
 			body_text,
 			content_parts,
-			original_html
+			original_html,
+			review_html
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 		ON CONFLICT (slug) DO UPDATE SET
 			sequence = EXCLUDED.sequence,
 			title = EXCLUDED.title,
@@ -330,6 +339,7 @@ func upsertEmail(ctx context.Context, dbpool *pgxpool.Pool, email seedEmail) err
 			body_text = EXCLUDED.body_text,
 			content_parts = EXCLUDED.content_parts,
 			original_html = EXCLUDED.original_html,
+			review_html = EXCLUDED.review_html,
 			updated_at = now()
 		WHERE emails.sequence IS DISTINCT FROM EXCLUDED.sequence
 			OR emails.title IS DISTINCT FROM EXCLUDED.title
@@ -342,8 +352,9 @@ func upsertEmail(ctx context.Context, dbpool *pgxpool.Pool, email seedEmail) err
 			OR emails.variant IS DISTINCT FROM EXCLUDED.variant
 			OR emails.body_text IS DISTINCT FROM EXCLUDED.body_text
 			OR emails.content_parts IS DISTINCT FROM EXCLUDED.content_parts
-			OR emails.original_html IS DISTINCT FROM EXCLUDED.original_html;
-	`, email.Slug, email.Sequence, email.Title, email.Subject, email.Preheader, email.SendTiming, email.Stage, email.SortOrder, email.Language, email.Variant, email.BodyText, email.ContentParts, email.OriginalHTML)
+			OR emails.original_html IS DISTINCT FROM EXCLUDED.original_html
+			OR emails.review_html IS DISTINCT FROM EXCLUDED.review_html;
+	`, email.Slug, email.Sequence, email.Title, email.Subject, email.Preheader, email.SendTiming, email.Stage, email.SortOrder, email.Language, email.Variant, email.BodyText, email.ContentParts, email.OriginalHTML, email.ReviewHTML)
 
 	return err
 }

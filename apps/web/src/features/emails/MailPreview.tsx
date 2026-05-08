@@ -25,11 +25,6 @@ export function MailPreview({ email, isScanning, viewport }: MailPreviewProps) {
                     Bitrix24 Partners
                   </Text>
                   <Text size="sm">{email.subject ?? email.title}</Text>
-                  {/* {email.subject ? (
-                    <Text size="xs" c="dimmed">
-                      {email.subject}
-                    </Text>
-                  ) : null} */}
                   {email.preheader ? (
                     <Text size="xs" c="dimmed">
                       {email.preheader}
@@ -46,8 +41,8 @@ export function MailPreview({ email, isScanning, viewport }: MailPreviewProps) {
           <iframe
             className={styles.emailPreviewFrame}
             title={email.title}
-            sandbox=""
-            srcDoc={email.original_html}
+            sandbox="allow-same-origin"
+            srcDoc={email.review_html || email.original_html}
           />
         </article>
       </div>

@@ -14,6 +14,7 @@ export type EmailListItem = {
 export type EmailDetail = EmailListItem & {
   slug: string;
   original_html: string;
+  review_html: string | null;
 };
 
 export type EmailVariant = "new" | "old";

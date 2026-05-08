@@ -92,7 +92,8 @@ func getEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 				sort_order,
 				language,
 				variant,
-				original_html
+				original_html,
+				review_html
 			FROM emails
 			WHERE id = $1;
 		`, id).Scan(
@@ -108,6 +109,7 @@ func getEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			&email.Language,
 			&email.Variant,
 			&email.OriginalHTML,
+			&email.ReviewHTML,
 		)
 
 		if err != nil {

@@ -35,6 +35,7 @@ type EmailDetail struct {
 	ContentParts *string   `json:"-"`
 	UpdatedAt    time.Time `json:"-"`
 	OriginalHTML string    `json:"original_html"`
+	ReviewHTML   *string   `json:"review_html"`
 }
 
 type EmailContentParts = emailtext.ContentParts
