@@ -45,6 +45,7 @@ func main() {
 	registerHealthRoute(r, dbpool)
 	registerAuthRoutes(r, dbpool, newLoginCodeEmailSender())
 	registerEmailRoutes(r, dbpool)
+	registerCommentRoutes(r, dbpool)
 	registerAIRoutes(r, dbpool, aiService)
 
 	port := os.Getenv("PORT")

@@ -9,6 +9,8 @@
 - [ ] Добавление админом письма, события, стадии, доски.
 - [ ] Добавить workspaces / команды (например - Bitrix24 Partners, Golova, Bitrix24 Marketing, etc)
 
+- [ ] Добавить docs/openapi.yaml
+
 ## Next product backlog
 - [v] Track AI cache hits and misses
 - [v] Add email-based authorization
