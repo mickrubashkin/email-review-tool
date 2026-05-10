@@ -319,6 +319,23 @@
   min-width: 0;
 }
 
+.headerReviewBlock {
+  width: fit-content;
+  max-width: 100%;
+  border-radius: var(--mantine-radius-xs);
+  cursor: pointer;
+  transition:
+    background 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.headerReviewBlock:hover,
+.headerReviewBlock:focus-visible {
+  outline: none;
+  background: var(--mantine-color-yellow-0);
+  box-shadow: 0 0 0 2px rgba(250, 176, 5, 0.18);
+}
+
 .mailAvatar {
   display: grid;
   flex: 0 0 auto;
@@ -378,6 +395,48 @@
     0 0 0 2px var(--review-highlight-stroke),
     0 0 0 5px var(--review-highlight-ring);
   opacity: 1;
+}
+
+.reviewOverlayBadge {
+  position: absolute;
+  z-index: 3;
+  display: grid;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  place-items: center;
+  border: 2px solid var(--mantine-color-white);
+  border-radius: 999px;
+  color: var(--mantine-color-white);
+  background: var(--review-highlight-stroke);
+  box-shadow:
+    0 0 0 2px var(--review-highlight-ring),
+    0 4px 10px rgba(15, 23, 42, 0.18);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  transition:
+    box-shadow 120ms ease,
+    transform 120ms ease;
+}
+
+.reviewOverlayBadge[data-kind="text"] {
+  transform: translate(4px, -50%);
+}
+
+.reviewOverlayBadge[data-hovered],
+.reviewOverlayBadge[data-active] {
+  box-shadow:
+    0 0 0 3px var(--review-highlight-ring),
+    0 6px 14px rgba(15, 23, 42, 0.24);
+  transform: translate(-50%, -50%) scale(1.08);
+}
+
+.reviewOverlayBadge[data-kind="text"][data-hovered],
+.reviewOverlayBadge[data-kind="text"][data-active] {
+  transform: translate(4px, -50%) scale(1.08);
 }
 
 .emailPreviewWrap[data-viewport="mobile"] .emailPreviewFrame {

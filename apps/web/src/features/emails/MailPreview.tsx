@@ -8,6 +8,8 @@ import {
 } from "@mantine/core";
 
 import {
+  type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
   type SyntheticEvent,
   useCallback,
   useEffect,
@@ -106,7 +108,37 @@ export function MailPreview({
     );
   };
   const trimmedDraft = draftComment.trim();
-  const overlayRects = useReviewOverlayRects({
+  const openHeaderReviewComposer = (
+    event: ReactMouseEvent<HTMLElement> | ReactKeyboardEvent<HTMLElement>,
+    reviewBlock: string,
+    selectedText: string
+  ) => {
+    const trimmedText = selectedText.trim();
+    if (!trimmedText) {
+      return;
+    }
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    setSelectionMenu({
+      reviewBlock,
+      selectedText: trimmedText,
+      startOffset: 0,
+      endOffset: trimmedText.length,
+      x: rect.left + rect.width / 2,
+      y: rect.top,
+    });
+  };
+  const handleHeaderReviewKeyDown = (
+    event: ReactKeyboardEvent<HTMLElement>,
+    reviewBlock: string,
+    selectedText: string
+  ) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      openHeaderReviewComposer(event, reviewBlock, selectedText);
+    }
+  };
+  const overlay = useReviewOverlayRects({
     activeCommentId,
     commentTargets,
     frameLoadVersion,
@@ -200,9 +232,52 @@ export function MailPreview({
                   <Text size="sm" fw={600}>
                     Bitrix24 Partners
                   </Text>
-                  <Text size="sm">{email.subject ?? email.title}</Text>
+                  <Text
+                    className={styles.headerReviewBlock}
+                    data-review-block="subject"
+                    role="button"
+                    size="sm"
+                    tabIndex={0}
+                    onClick={(event) =>
+                      openHeaderReviewComposer(
+                        event,
+                        "subject",
+                        email.subject ?? email.title
+                      )
+                    }
+                    onKeyDown={(event) =>
+                      handleHeaderReviewKeyDown(
+                        event,
+                        "subject",
+                        email.subject ?? email.title
+                      )
+                    }
+                  >
+                    {email.subject ?? email.title}
+                  </Text>
                   {email.preheader ? (
-                    <Text size="xs" c="dimmed">
+                    <Text
+                      className={styles.headerReviewBlock}
+                      c="dimmed"
+                      data-review-block="preheader"
+                      role="button"
+                      size="xs"
+                      tabIndex={0}
+                      onClick={(event) =>
+                        openHeaderReviewComposer(
+                          event,
+                          "preheader",
+                          email.preheader ?? ""
+                        )
+                      }
+                      onKeyDown={(event) =>
+                        handleHeaderReviewKeyDown(
+                          event,
+                          "preheader",
+                          email.preheader ?? ""
+                        )
+                      }
+                    >
                       {email.preheader}
                     </Text>
                   ) : null}
@@ -225,8 +300,9 @@ export function MailPreview({
             />
             <ReviewCommentOverlay
               activeCommentId={activeCommentId}
+              badges={overlay.badges}
               hoveredCommentId={hoveredCommentId}
-              rects={overlayRects}
+              rects={overlay.rects}
             />
           </div>
         </article>
@@ -348,7 +424,7 @@ function getReviewSelection(
 
 function getWholeBlockSelection(block: Element): ReviewTextSelection | null {
   const reviewBlock = block.getAttribute("data-review-block");
-  const selectedText = block.textContent ?? "";
+  const selectedText = getReviewBlockSelectedText(block);
   if (!reviewBlock || !selectedText.trim()) {
     return null;
   }
@@ -380,12 +456,38 @@ function isNonCommentableReviewContainer(block: Element) {
     return true;
   }
 
-  const text = block.textContent?.trim() ?? "";
-  const imageAlt = block.matches("img")
-    ? block.getAttribute("alt")?.trim()
-    : block.querySelector("img[alt]")?.getAttribute("alt")?.trim();
+  const text = getReviewBlockSelectedText(block);
 
-  return !text && !imageAlt;
+  return !text;
+}
+
+function getReviewBlockSelectedText(block: Element) {
+  const text = block.textContent?.trim();
+  if (text) {
+    return text;
+  }
+
+  const image = block.matches("img")
+    ? block
+    : block.querySelector("img");
+  if (!image) {
+    return "";
+  }
+
+  const imageLabel =
+    image.getAttribute("alt")?.trim() ||
+    image.getAttribute("aria-label")?.trim() ||
+    image.getAttribute("title")?.trim();
+  if (imageLabel) {
+    return imageLabel;
+  }
+
+  const imageSource = image.getAttribute("src")?.trim();
+  if (imageSource) {
+    return `Image: ${imageSource.split("/").pop() ?? imageSource}`;
+  }
+
+  return `Image: ${block.getAttribute("data-review-block") ?? "review block"}`;
 }
 
 function getClosestReviewBlock(node: Node) {

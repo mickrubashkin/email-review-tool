@@ -1,13 +1,20 @@
 import { useCallback, useEffect, useState } from "react";
 
 import {
+  buildReviewOverlayBadges,
   buildReviewOverlayRects,
   scrollReviewTargetIntoView,
 } from "./reviewOverlayGeometry";
 import type {
+  ReviewOverlayBadge,
   ReviewCommentTarget,
   ReviewOverlayRect,
 } from "./reviewOverlayTypes";
+
+type ReviewOverlayState = {
+  badges: ReviewOverlayBadge[];
+  rects: ReviewOverlayRect[];
+};
 
 export function useReviewOverlayRects({
   activeCommentId,
@@ -24,22 +31,29 @@ export function useReviewOverlayRects({
   frameWrapRef: React.RefObject<HTMLDivElement | null>;
   viewport: string;
 }) {
-  const [overlayRects, setOverlayRects] = useState<ReviewOverlayRect[]>([]);
+  const [overlayState, setOverlayState] = useState<ReviewOverlayState>({
+    badges: [],
+    rects: [],
+  });
   const updateOverlayRects = useCallback(() => {
     const frame = frameRef.current;
     if (!frame) {
-      setOverlayRects([]);
+      setOverlayState({ badges: [], rects: [] });
       return;
     }
 
-    setOverlayRects(buildReviewOverlayRects(frame, commentTargets));
+    const rects = buildReviewOverlayRects(frame, commentTargets);
+    setOverlayState({
+      badges: buildReviewOverlayBadges(rects),
+      rects,
+    });
   }, [commentTargets, frameRef]);
 
   useEffect(() => {
     const frame = frameRef.current;
     const frameWindow = frame?.contentWindow;
     if (!frame || !frameWindow) {
-      setOverlayRects([]);
+      setOverlayState({ badges: [], rects: [] });
       return;
     }
 
@@ -82,5 +96,5 @@ export function useReviewOverlayRects({
     return () => window.clearTimeout(timeout);
   }, [activeCommentId, commentTargets, frameRef, updateOverlayRects]);
 
-  return overlayRects;
+  return overlayState;
 }

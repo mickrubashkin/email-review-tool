@@ -1,5 +1,6 @@
 import type { ReviewTextSelection } from "./MailPreview";
 import type {
+  ReviewOverlayBadge,
   ReviewCommentColor,
   ReviewCommentTarget,
   ReviewOverlayRect,
@@ -127,10 +128,58 @@ function createOverlayRectFromClientRect(
     height: rect.height,
     kind,
     left: rect.left,
+    reviewBlock: target.reviewBlock,
     status: target.status,
     top: rect.top,
     width: rect.width,
   };
+}
+
+export function buildReviewOverlayBadges(
+  rects: ReviewOverlayRect[]
+): ReviewOverlayBadge[] {
+  const openRects = rects.filter((rect) => rect.status === "open");
+  const rectsByBlock = new Map<string, ReviewOverlayRect[]>();
+
+  openRects.forEach((rect) => {
+    rectsByBlock.set(rect.reviewBlock, [
+      ...(rectsByBlock.get(rect.reviewBlock) ?? []),
+      rect,
+    ]);
+  });
+
+  return Array.from(rectsByBlock.entries()).flatMap(
+    ([reviewBlock, blockRects]) => {
+      const firstRectsByComment = new Map<string, ReviewOverlayRect>();
+
+      blockRects.forEach((rect) => {
+        if (!firstRectsByComment.has(rect.commentId)) {
+          firstRectsByComment.set(rect.commentId, rect);
+        }
+      });
+
+      const commentRects = Array.from(firstRectsByComment.values());
+      const anchorRect =
+        commentRects.find((rect) => rect.kind === "block") ?? commentRects[0];
+      if (!anchorRect) {
+        return [];
+      }
+
+      const isBlockBadge = commentRects.some((rect) => rect.kind === "block");
+      return [
+        {
+          color: anchorRect.color,
+          commentIds: commentRects.map((rect) => rect.commentId),
+          count: commentRects.length,
+          kind: isBlockBadge ? "block" : "text",
+          left: anchorRect.left + anchorRect.width,
+          reviewBlock,
+          status: "open",
+          top: anchorRect.top,
+        },
+      ];
+    }
+  );
 }
 
 function getTargetTextRange(block: Element, target: ReviewTextSelection) {

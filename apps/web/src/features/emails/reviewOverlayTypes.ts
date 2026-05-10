@@ -19,7 +19,19 @@ export type ReviewOverlayRect = {
   height: number;
   kind: "block" | "text";
   left: number;
+  reviewBlock: string;
   status: ReviewCommentTarget["status"];
   top: number;
   width: number;
+};
+
+export type ReviewOverlayBadge = {
+  color: ReviewCommentColor;
+  commentIds: string[];
+  count: number;
+  kind: "block" | "text";
+  left: number;
+  reviewBlock: string;
+  status: ReviewCommentTarget["status"];
+  top: number;
 };
