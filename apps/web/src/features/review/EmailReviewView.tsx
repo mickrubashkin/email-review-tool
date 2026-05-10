@@ -29,7 +29,9 @@ import {
 
 import {
   type CSSProperties,
+  type KeyboardEvent,
   type PointerEvent,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -45,7 +47,11 @@ import {
   resolveComment,
 } from "../emails/api";
 import { copyOriginalHTML, downloadOriginalHTML } from "../emails/exportHtml";
-import { MailPreview, type ReviewTextSelection } from "../emails/MailPreview";
+import {
+  MailPreview,
+  type ReviewCommentTarget,
+  type ReviewTextSelection,
+} from "../emails/MailPreview";
 import {
   buildStageColumns,
   getAvailableVariants,
@@ -73,8 +79,11 @@ export function EmailReviewView({ emailId }: EmailReviewViewProps) {
   const [rightPanelPercent, setRightPanelPercent] = useState(30);
   const [activePanelTab, setActivePanelTab] =
     useState<ReviewPanelTab>("comments");
+  const [activeCommentId, setActiveCommentId] = useState<string | null>(null);
+  const [hoveredCommentId, setHoveredCommentId] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const contentRef = useRef<HTMLElement | null>(null);
+  const activeCommentTimeoutRef = useRef<number | null>(null);
   const isResizingRef = useRef(false);
   const [isResizing, setIsResizing] = useState(false);
   const emailQuery = useQuery({
@@ -128,6 +137,10 @@ export function EmailReviewView({ emailId }: EmailReviewViewProps) {
   const shouldShowAnalysisPanel =
     isCurrentStream && (streamStatus !== "idle" || Boolean(displayedAnalysis));
   const isAnalyzingCurrentEmail = streamStatus === "streaming" && isCurrentStream;
+  const commentTargets = useMemo(
+    () => (commentsQuery.data ?? []).map(commentToTarget),
+    [commentsQuery.data]
+  );
   const createCommentMutation = useMutation({
     mutationFn: ({
       body,
@@ -158,6 +171,15 @@ export function EmailReviewView({ emailId }: EmailReviewViewProps) {
       });
     },
   });
+
+  useEffect(
+    () => () => {
+      if (activeCommentTimeoutRef.current !== null) {
+        window.clearTimeout(activeCommentTimeoutRef.current);
+      }
+    },
+    []
+  );
 
   if (emailQuery.isLoading) {
     return (
@@ -215,6 +237,21 @@ export function EmailReviewView({ emailId }: EmailReviewViewProps) {
     body: string
   ) => {
     createCommentMutation.mutate({ body, selection });
+  };
+  const handleHoverComment = (comment: EmailComment | null) => {
+    setHoveredCommentId(comment?.id ?? null);
+  };
+  const handleSelectComment = (comment: EmailComment) => {
+    setActivePanelTab("comments");
+    setActiveCommentId(comment.id);
+
+    if (activeCommentTimeoutRef.current !== null) {
+      window.clearTimeout(activeCommentTimeoutRef.current);
+    }
+    activeCommentTimeoutRef.current = window.setTimeout(() => {
+      setActiveCommentId(null);
+      activeCommentTimeoutRef.current = null;
+    }, 2400);
   };
   const updatePanelWidth = (clientX: number) => {
     const contentElement = contentRef.current;
@@ -374,9 +411,12 @@ export function EmailReviewView({ emailId }: EmailReviewViewProps) {
       >
         <section className={styles.previewColumn}>
           <MailPreview
+            activeCommentId={activeCommentId}
+            commentTargets={commentTargets}
             createCommentError={createCommentMutation.isError}
             email={email}
             enableReviewSelectionComposer
+            hoveredCommentId={hoveredCommentId}
             isCreatingComment={createCommentMutation.isPending}
             isScanning={isAnalyzingCurrentEmail}
             onCreateReviewComment={handleCreateReviewComment}
@@ -448,7 +488,11 @@ export function EmailReviewView({ emailId }: EmailReviewViewProps) {
                 isError={commentsQuery.isError}
                 isLoading={commentsQuery.isLoading}
                 isResolving={resolveMutation.isPending}
+                activeCommentId={activeCommentId}
+                hoveredCommentId={hoveredCommentId}
+                onHoverComment={handleHoverComment}
                 onResolve={resolveMutation.mutate}
+                onSelectComment={handleSelectComment}
               />
             </Tabs.Panel>
           </Tabs>
@@ -462,18 +506,38 @@ function clampPercent(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
+function commentToTarget(comment: EmailComment): ReviewCommentTarget {
+  return {
+    authorKey: comment.author_email ?? comment.user_id ?? "unknown",
+    id: comment.id,
+    reviewBlock: comment.review_block,
+    selectedText: comment.selected_text,
+    startOffset: comment.start_offset,
+    endOffset: comment.end_offset,
+    status: comment.status,
+  };
+}
+
 function CommentsPanel({
+  activeCommentId,
   comments,
+  hoveredCommentId,
   isError,
   isLoading,
   isResolving,
+  onHoverComment,
   onResolve,
+  onSelectComment,
 }: {
+  activeCommentId: string | null;
   comments: EmailComment[];
+  hoveredCommentId: string | null;
   isError: boolean;
   isLoading: boolean;
   isResolving: boolean;
+  onHoverComment: (comment: EmailComment | null) => void;
   onResolve: (commentId: string) => void;
+  onSelectComment: (comment: EmailComment) => void;
 }) {
   if (isLoading) {
     return (
@@ -500,10 +564,14 @@ function CommentsPanel({
         <Timeline active={comments.length} bulletSize={24} lineWidth={2}>
           {comments.map((comment) => (
             <CommentItem
+              isActive={comment.id === activeCommentId}
+              isHovered={comment.id === hoveredCommentId}
               comment={comment}
               isResolving={isResolving}
               key={comment.id}
+              onHover={onHoverComment}
               onResolve={onResolve}
+              onSelect={onSelectComment}
             />
           ))}
         </Timeline>
@@ -526,14 +594,28 @@ function CommentsPanel({
 
 function CommentItem({
   comment,
+  isActive,
+  isHovered,
   isResolving,
+  onHover,
   onResolve,
+  onSelect,
 }: {
   comment: EmailComment;
+  isActive: boolean;
+  isHovered: boolean;
   isResolving: boolean;
+  onHover: (comment: EmailComment | null) => void;
   onResolve: (commentId: string) => void;
+  onSelect: (comment: EmailComment) => void;
 }) {
   const isResolved = comment.status === "resolved";
+  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      onSelect(comment);
+    }
+  };
 
   return (
     <Timeline.Item
@@ -565,7 +647,18 @@ function CommentItem({
         </Group>
       }
     >
-      <Stack className={styles.commentItem} gap={8}>
+      <Stack
+        className={styles.commentItem}
+        data-active={isActive || undefined}
+        data-hovered={isHovered || undefined}
+        gap={8}
+        role="button"
+        tabIndex={0}
+        onClick={() => onSelect(comment)}
+        onKeyDown={handleKeyDown}
+        onMouseEnter={() => onHover(comment)}
+        onMouseLeave={() => onHover(null)}
+      >
         <Text className={styles.commentQuote} size="sm">
           {comment.selected_text}
         </Text>
@@ -580,7 +673,10 @@ function CommentItem({
               loading={isResolving}
               size="compact-xs"
               variant="subtle"
-              onClick={() => onResolve(comment.id)}
+              onClick={(event) => {
+                event.stopPropagation();
+                onResolve(comment.id);
+              }}
             >
               Resolve
             </Button>

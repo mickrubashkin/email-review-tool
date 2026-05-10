@@ -304,6 +304,7 @@
 }
 
 .mailReadPane {
+  position: relative;
   min-width: 0;
   background: var(--mantine-color-white);
 }
@@ -337,6 +338,46 @@
   height: calc(100dvh - 236px);
   border: 0;
   background: var(--mantine-color-white);
+}
+
+.emailPreviewFrameWrap {
+  position: relative;
+  overflow: hidden;
+}
+
+.reviewOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.reviewOverlayRect {
+  position: absolute;
+  border: 1px solid var(--review-highlight-stroke);
+  border-radius: 3px;
+  background: var(--review-highlight-bg);
+  box-shadow: 0 0 0 2px var(--review-highlight-ring);
+  opacity: 0.82;
+  pointer-events: none;
+  transition:
+    background 120ms ease,
+    box-shadow 120ms ease,
+    opacity 120ms ease;
+}
+
+.reviewOverlayRect[data-kind="text"] {
+  border-radius: 2px;
+}
+
+.reviewOverlayRect[data-hovered],
+.reviewOverlayRect[data-active] {
+  background: var(--review-highlight-strong);
+  box-shadow:
+    0 0 0 2px var(--review-highlight-stroke),
+    0 0 0 5px var(--review-highlight-ring);
+  opacity: 1;
 }
 
 .emailPreviewWrap[data-viewport="mobile"] .emailPreviewFrame {

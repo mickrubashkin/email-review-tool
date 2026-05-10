@@ -193,6 +193,21 @@
   border: 1px solid var(--mantine-color-gray-2);
   border-radius: var(--mantine-radius-sm);
   background: var(--mantine-color-white);
+  cursor: pointer;
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease,
+    background 120ms ease;
+}
+
+.commentItem:hover,
+.commentItem:focus-visible,
+.commentItem[data-hovered],
+.commentItem[data-active] {
+  border-color: var(--mantine-color-yellow-4);
+  outline: none;
+  background: var(--mantine-color-yellow-0);
+  box-shadow: 0 0 0 2px rgba(250, 176, 5, 0.16);
 }
 
 .commentQuote {
