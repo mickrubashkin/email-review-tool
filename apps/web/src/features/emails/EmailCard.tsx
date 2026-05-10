@@ -1,11 +1,16 @@
-import { type MouseEvent, useEffect, useRef, useState } from "react";
+import {
+  type KeyboardEvent,
+  type MouseEvent,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   Card,
   Group,
   Stack,
   Text,
   Tooltip,
-  UnstyledButton,
 } from "@mantine/core";
 
 import type { EmailVariant, EmailVersionGroup } from "./types";
@@ -130,80 +135,90 @@ export function EmailCard({
       onSelectVersion(emailGroup.key, nextEmail.id);
     }
   };
+  const handleCardKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      onOpen(emailGroup.key);
+    }
+  };
 
   return (
-    <UnstyledButton
-      className={styles.emailCardButton}
+    <Card
+      className={`${styles.emailCardButton} ${styles.emailCard}`}
+      withBorder
+      padding="md"
+      radius="md"
+      role="button"
+      tabIndex={0}
       onClick={() => onOpen(emailGroup.key)}
+      onKeyDown={handleCardKeyDown}
     >
-      <Card className={styles.emailCard} withBorder padding="md" radius="md">
-        <Stack className={styles.emailCardContent} gap={0}>
-          <Stack className={styles.emailCardBody} gap={6}>
-            <Group justify="space-between" gap="xs" align="flex-start">
-              <Text
-                className={styles.emailCardTitle}
-                fw={600}
-                size="sm"
-                lineClamp={2}
-              >
-                {formatEmailTitle(selectedEmail.title)}
-              </Text>
-              <Group className={styles.variantSwitch} gap={2}>
-                {(["new", "old"] as const).map((variant) => (
-                  <button
-                    className={styles.variantButton}
-                    data-active={variant === selectedVariant || undefined}
-                    disabled={!availableVariants.includes(variant)}
-                    key={variant}
-                    type="button"
-                    onClick={(event) => handleVariantClick(event, variant)}
-                  >
-                    {variant}
-                  </button>
-                ))}
-              </Group>
-            </Group>
-
-            <Group gap={4}>
-              {variantVersions.map((email) => (
+      <Stack className={styles.emailCardContent} gap={0}>
+        <Stack className={styles.emailCardBody} gap={6}>
+          <Group justify="space-between" gap="xs" align="flex-start">
+            <Text
+              className={styles.emailCardTitle}
+              fw={600}
+              size="sm"
+              lineClamp={2}
+            >
+              {formatEmailTitle(selectedEmail.title)}
+            </Text>
+            <Group className={styles.variantSwitch} gap={2}>
+              {(["new", "old"] as const).map((variant) => (
                 <button
-                  className={styles.versionButton}
-                  data-active={email.id === selectedEmail.id || undefined}
-                  key={email.id}
+                  className={styles.variantButton}
+                  data-active={variant === selectedVariant || undefined}
+                  disabled={!availableVariants.includes(variant)}
+                  key={variant}
                   type="button"
-                  onClick={(event) => handleVersionClick(event, email.id)}
+                  onClick={(event) => handleVariantClick(event, variant)}
                 >
-                  {email.language}
+                  {variant}
                 </button>
               ))}
             </Group>
-
-            {selectedEmail.subject ? (
-              <OverflowTooltipText
-                text={selectedEmail.subject}
-                size="sm"
-                c="dimmed"
-                lineClamp={2}
-              />
-            ) : null}
-
-            {selectedEmail.preheader ? (
-              <OverflowTooltipText
-                text={selectedEmail.preheader}
-                size="xs"
-                c="dimmed"
-                lineClamp={2}
-              />
-            ) : null}
-          </Stack>
-
-          <Group className={styles.emailCardFooter} justify="space-between" wrap="nowrap">
-            <Text size="xs" lineClamp={1}>
-              {selectedEmail.send_timing ?? "No timing"}
-            </Text>
           </Group>
+
+          <Group gap={4}>
+            {variantVersions.map((email) => (
+              <button
+                className={styles.versionButton}
+                data-active={email.id === selectedEmail.id || undefined}
+                key={email.id}
+                type="button"
+                onClick={(event) => handleVersionClick(event, email.id)}
+              >
+                {email.language}
+              </button>
+            ))}
+          </Group>
+
+          {selectedEmail.subject ? (
+            <OverflowTooltipText
+              text={selectedEmail.subject}
+              size="sm"
+              c="dimmed"
+              lineClamp={2}
+            />
+          ) : null}
+
+          {selectedEmail.preheader ? (
+            <OverflowTooltipText
+              text={selectedEmail.preheader}
+              size="xs"
+              c="dimmed"
+              lineClamp={2}
+            />
+          ) : null}
         </Stack>
-      </Card>
-    </UnstyledButton>
+
+        <Group className={styles.emailCardFooter} justify="space-between" wrap="nowrap">
+          <Text size="xs" lineClamp={1}>
+            {selectedEmail.send_timing ?? "No timing"}
+          </Text>
+        </Group>
+      </Stack>
+    </Card>
   );
 }

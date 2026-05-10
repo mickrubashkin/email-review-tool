@@ -2,6 +2,7 @@
   display: block;
   width: 100%;
   text-align: left;
+  cursor: pointer;
 }
 
 .emailCard {
@@ -17,7 +18,7 @@
     transform 120ms ease;
 }
 
-.emailCardButton:hover .emailCard {
+.emailCardButton:hover {
   border-color: rgba(82, 199, 255, 0.9);
   box-shadow: 0 8px 20px rgba(0, 18, 72, 0.24);
   transform: translateY(-1px);

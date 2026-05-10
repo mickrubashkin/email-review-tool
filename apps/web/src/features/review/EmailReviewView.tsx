@@ -2,18 +2,23 @@ import {
   ActionIcon,
   Alert,
   Badge,
+  Button,
   Group,
   Loader,
   Stack,
   Tabs,
   Text,
+  Timeline,
   Title,
   Tooltip,
 } from "@mantine/core";
-import { useQuery } from "@tanstack/react-query";
+
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+
 import {
   ArrowLeft,
   ChevronDown,
+  Check,
   Copy,
   Download,
   MessageSquareText,
@@ -21,13 +26,26 @@ import {
   RefreshCcw,
   Smartphone,
 } from "lucide-react";
-import { type CSSProperties, type PointerEvent, useMemo, useRef, useState } from "react";
+
+import {
+  type CSSProperties,
+  type PointerEvent,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { AISparkleIcon } from "../emails/AISparkleIcon";
 import { AnalysisPanel } from "../emails/AnalysisPanel";
-import { fetchEmailDetail, fetchEmails } from "../emails/api";
+import {
+  createEmailComment,
+  fetchEmailComments,
+  fetchEmailDetail,
+  fetchEmails,
+  resolveComment,
+} from "../emails/api";
 import { copyOriginalHTML, downloadOriginalHTML } from "../emails/exportHtml";
-import { MailPreview } from "../emails/MailPreview";
+import { MailPreview, type ReviewTextSelection } from "../emails/MailPreview";
 import {
   buildStageColumns,
   getAvailableVariants,
@@ -36,7 +54,7 @@ import {
   getVersionsForVariant,
 } from "../emails/stages";
 import { buildStreamPreview } from "../emails/streamPreview";
-import type { EmailVariant } from "../emails/types";
+import type { EmailComment, EmailVariant } from "../emails/types";
 import { useEmailAnalysisStream } from "../emails/useEmailAnalysisStream";
 import styles from "./EmailReviewView.module.css";
 
@@ -55,12 +73,18 @@ export function EmailReviewView({ emailId }: EmailReviewViewProps) {
   const [rightPanelPercent, setRightPanelPercent] = useState(30);
   const [activePanelTab, setActivePanelTab] =
     useState<ReviewPanelTab>("comments");
+  const queryClient = useQueryClient();
   const contentRef = useRef<HTMLElement | null>(null);
   const isResizingRef = useRef(false);
   const [isResizing, setIsResizing] = useState(false);
   const emailQuery = useQuery({
     queryKey: ["emails", emailId, "review"],
     queryFn: () => fetchEmailDetail(emailId),
+    enabled: emailId.trim() !== "",
+  });
+  const commentsQuery = useQuery({
+    queryKey: ["email-comments", emailId],
+    queryFn: () => fetchEmailComments(emailId),
     enabled: emailId.trim() !== "",
   });
   const emailsQuery = useQuery({
@@ -104,6 +128,36 @@ export function EmailReviewView({ emailId }: EmailReviewViewProps) {
   const shouldShowAnalysisPanel =
     isCurrentStream && (streamStatus !== "idle" || Boolean(displayedAnalysis));
   const isAnalyzingCurrentEmail = streamStatus === "streaming" && isCurrentStream;
+  const createCommentMutation = useMutation({
+    mutationFn: ({
+      body,
+      selection,
+    }: {
+      body: string;
+      selection: ReviewTextSelection;
+    }) =>
+      createEmailComment(emailId, {
+        review_block: selection.reviewBlock,
+        selected_text: selection.selectedText,
+        start_offset: selection.startOffset,
+        end_offset: selection.endOffset,
+        body,
+      }),
+    onSuccess: () => {
+      setActivePanelTab("comments");
+      void queryClient.invalidateQueries({
+        queryKey: ["email-comments", emailId],
+      });
+    },
+  });
+  const resolveMutation = useMutation({
+    mutationFn: resolveComment,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ["email-comments", emailId],
+      });
+    },
+  });
 
   if (emailQuery.isLoading) {
     return (
@@ -155,6 +209,12 @@ export function EmailReviewView({ emailId }: EmailReviewViewProps) {
   const handleReanalyze = () => {
     setActivePanelTab("ai");
     reanalyze();
+  };
+  const handleCreateReviewComment = (
+    selection: ReviewTextSelection,
+    body: string
+  ) => {
+    createCommentMutation.mutate({ body, selection });
   };
   const updatePanelWidth = (clientX: number) => {
     const contentElement = contentRef.current;
@@ -314,8 +374,12 @@ export function EmailReviewView({ emailId }: EmailReviewViewProps) {
       >
         <section className={styles.previewColumn}>
           <MailPreview
+            createCommentError={createCommentMutation.isError}
             email={email}
+            enableReviewSelectionComposer
+            isCreatingComment={createCommentMutation.isPending}
             isScanning={isAnalyzingCurrentEmail}
+            onCreateReviewComment={handleCreateReviewComment}
             viewport={viewport}
           />
         </section>
@@ -379,17 +443,13 @@ export function EmailReviewView({ emailId }: EmailReviewViewProps) {
             </Tabs.Panel>
 
             <Tabs.Panel value="comments" className={styles.tabPanel}>
-              <Stack
-                className={styles.emptyState}
-                align="center"
-                justify="center"
-                gap="xs"
-              >
-                <Text fw={600}>No comments yet</Text>
-                <Text c="dimmed" ta="center" size="sm">
-                  Comments will appear here when comment mode is added.
-                </Text>
-              </Stack>
+              <CommentsPanel
+                comments={commentsQuery.data ?? []}
+                isError={commentsQuery.isError}
+                isLoading={commentsQuery.isLoading}
+                isResolving={resolveMutation.isPending}
+                onResolve={resolveMutation.mutate}
+              />
             </Tabs.Panel>
           </Tabs>
         </aside>
@@ -400,6 +460,147 @@ export function EmailReviewView({ emailId }: EmailReviewViewProps) {
 
 function clampPercent(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
+}
+
+function CommentsPanel({
+  comments,
+  isError,
+  isLoading,
+  isResolving,
+  onResolve,
+}: {
+  comments: EmailComment[];
+  isError: boolean;
+  isLoading: boolean;
+  isResolving: boolean;
+  onResolve: (commentId: string) => void;
+}) {
+  if (isLoading) {
+    return (
+      <Stack className={styles.emptyState} align="center" justify="center">
+        <Loader size="sm" />
+        <Text c="dimmed" size="sm">
+          Loading comments
+        </Text>
+      </Stack>
+    );
+  }
+
+  if (isError) {
+    return (
+      <Alert color="red" title="Failed to load comments">
+        Comments are unavailable right now.
+      </Alert>
+    );
+  }
+
+  return (
+    <Stack gap="sm">
+      {comments.length > 0 ? (
+        <Timeline active={comments.length} bulletSize={24} lineWidth={2}>
+          {comments.map((comment) => (
+            <CommentItem
+              comment={comment}
+              isResolving={isResolving}
+              key={comment.id}
+              onResolve={onResolve}
+            />
+          ))}
+        </Timeline>
+      ) : (
+        <Stack
+          className={styles.emptyState}
+          align="center"
+          justify="center"
+          gap="xs"
+        >
+          <Text fw={600}>No comments yet</Text>
+          <Text c="dimmed" ta="center" size="sm">
+            Add the first comment to start reviewing this email.
+          </Text>
+        </Stack>
+      )}
+    </Stack>
+  );
+}
+
+function CommentItem({
+  comment,
+  isResolving,
+  onResolve,
+}: {
+  comment: EmailComment;
+  isResolving: boolean;
+  onResolve: (commentId: string) => void;
+}) {
+  const isResolved = comment.status === "resolved";
+
+  return (
+    <Timeline.Item
+      bullet={
+        isResolved ? (
+          <Check aria-hidden="true" size={13} strokeWidth={2.4} />
+        ) : (
+          <MessageSquareText aria-hidden="true" size={13} strokeWidth={2.2} />
+        )
+      }
+      color={isResolved ? "green" : "yellow"}
+      title={
+        <Group justify="space-between" gap="xs" wrap="nowrap">
+          <Stack gap={2}>
+            <Text fw={700} size="xs">
+              {comment.author_email ?? "Unknown author"}
+            </Text>
+            <Text c="dimmed" size="xs">
+              {comment.review_block}
+            </Text>
+          </Stack>
+          <Badge
+            color={isResolved ? "green" : "yellow"}
+            size="sm"
+            variant="light"
+          >
+            {comment.status}
+          </Badge>
+        </Group>
+      }
+    >
+      <Stack className={styles.commentItem} gap={8}>
+        <Text className={styles.commentQuote} size="sm">
+          {comment.selected_text}
+        </Text>
+        <Text size="sm">{comment.body}</Text>
+
+        <Group justify="space-between" gap="xs">
+          <Text c="dimmed" size="xs">
+            {formatCommentDate(comment.created_at)}
+          </Text>
+          {!isResolved ? (
+            <Button
+              loading={isResolving}
+              size="compact-xs"
+              variant="subtle"
+              onClick={() => onResolve(comment.id)}
+            >
+              Resolve
+            </Button>
+          ) : null}
+        </Group>
+      </Stack>
+    </Timeline.Item>
+  );
+}
+
+function formatCommentDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
 }
 
 function LanguageSelect({

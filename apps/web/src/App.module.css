@@ -20,27 +20,7 @@
 
 .boardPage {
   height: calc(100dvh - var(--app-shell-header-height));
-  background:
-    linear-gradient(135deg, rgba(7, 21, 106, 0.34), rgba(2, 65, 108, 0.18)),
-    url("/images/reviewdesk-bg.webp"),
-    radial-gradient(circle at 86% 6%, rgba(32, 217, 255, 0.58), transparent 26%),
-    radial-gradient(circle at 18% 22%, rgba(70, 92, 255, 0.44), transparent 24%),
-    radial-gradient(circle at 74% 82%, rgba(0, 174, 209, 0.34), transparent 26%),
-    linear-gradient(135deg, #07156a 0%, #112a95 42%, #02416c 100%);
-  background-position:
-    center,
-    center,
-    center,
-    center,
-    center,
-    center;
-  background-size:
-    cover,
-    cover,
-    auto,
-    auto,
-    auto,
-    auto;
+  background: #1e1968 url("/images/bg-vibe.jpg") center / cover no-repeat;
   color: var(--mantine-color-white);
   position: relative;
   overflow: hidden;

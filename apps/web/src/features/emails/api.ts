@@ -7,6 +7,8 @@ import type {
   EmailAnalysis,
   EmailDetail,
   EmailListItem,
+  CreateEmailCommentPayload,
+  EmailComment,
 } from "./types";
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
@@ -68,9 +70,11 @@ export function fetchAuthEvents(
 }
 
 export function logout(): Promise<{ ok: boolean }> {
-  return fetchJson<{ ok: boolean }>("/api/auth/logout", {
-    method: "POST",
-  });
+  return fetchJson<{ ok: boolean }>("/api/auth/logout",
+    {
+      method: "POST",
+    }
+  );
 }
 
 export function fetchEmails(): Promise<EmailListItem[]> {
@@ -78,7 +82,7 @@ export function fetchEmails(): Promise<EmailListItem[]> {
 }
 
 export function fetchEmailDetail(emailId: string): Promise<EmailDetail> {
-  return fetchJson<EmailDetail>(`/api/emails/${emailId}`);
+  return fetchJson<EmailDetail>(`/api/emails/${encodeURIComponent(emailId)}`);
 }
 
 export function fetchAIAnalysisLogs(
@@ -100,9 +104,12 @@ export function fetchAIAnalysisLogs(
 }
 
 export function analyzeEmail(emailId: string): Promise<EmailAnalysis> {
-  return fetchJson<EmailAnalysis>(`/api/emails/${emailId}/ai-analysis`, {
-    method: "POST",
-  });
+  return fetchJson<EmailAnalysis>(
+    `/api/emails/${encodeURIComponent(emailId)}/ai-analysis`,
+    {
+      method: "POST",
+    }
+  );
 }
 
 export function analyzeEmailStream(
@@ -122,7 +129,7 @@ export function analyzeEmailStream(
     searchParams.set("refresh", "true");
   }
   const query = searchParams.toString();
-  const url = `/api/emails/${emailId}/ai-analysis-stream${query ? `?${query}` : ""}`;
+  const url = `/api/emails/${encodeURIComponent(emailId)}/ai-analysis-stream${query ? `?${query}` : ""}`;
 
   const source = new EventSource(url, { withCredentials: true });
 
@@ -158,4 +165,35 @@ export function analyzeEmailStream(
   return () => {
     source.close();
   };
+}
+
+export function fetchEmailComments(emailId: string): Promise<EmailComment[]> {
+  return fetchJson<EmailComment[]>(
+    `/api/emails/${encodeURIComponent(emailId)}/comments`
+  );
+}
+
+export function createEmailComment(
+  emailId: string,
+  payload: CreateEmailCommentPayload
+): Promise<EmailComment> {
+  return fetchJson<EmailComment>(
+    `/api/emails/${encodeURIComponent(emailId)}/comments`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    }
+  );
+}
+
+export function resolveComment(commentId: string): Promise<EmailComment> {
+  return fetchJson<EmailComment>(
+    `/api/comments/${encodeURIComponent(commentId)}/resolve`,
+    {
+      method: "PATCH",
+    }
+  );
 }

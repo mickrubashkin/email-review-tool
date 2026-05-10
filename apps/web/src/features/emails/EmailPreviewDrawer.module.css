@@ -263,6 +263,26 @@
     var(--mantine-color-gray-0);
 }
 
+.selectionMenuAnchor {
+  position: fixed;
+  z-index: 30;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+}
+
+.selectionMenuDropdown {
+  width: 340px !important;
+  max-width: calc(100vw - 32px) !important;
+  padding: 4px;
+}
+
+.selectionMenuQuote {
+  padding-left: var(--mantine-spacing-xs);
+  border-left: 3px solid var(--mantine-color-blue-3);
+  color: var(--mantine-color-gray-7);
+}
+
 .emailPreviewWrap[data-viewport="mobile"] {
   background:
     linear-gradient(135deg, rgba(245, 247, 250, 0.96), rgba(226, 232, 240, 0.96)),

@@ -128,3 +128,29 @@ export type StageColumn = {
   sortOrder: number;
   emailGroups: EmailVersionGroup[];
 };
+
+export type EmailComment = {
+  id: string;
+  email_id: string;
+  user_id: string | null;
+  author_email: string | null;
+  review_block: string;
+  selected_text: string;
+  start_offset: number;
+  end_offset: number;
+  body: string;
+  status: "open" | "resolved";
+  created_at: string;
+  resolved_at: string | null;
+  resolved_by: string | null;
+  resolved_by_email: string | null;
+};
+
+export type CreateEmailCommentPayload = {
+  review_block: string;
+  selected_text: string;
+  start_offset: number;
+  end_offset: number;
+  body: string;
+};
+

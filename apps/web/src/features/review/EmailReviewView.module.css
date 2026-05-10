@@ -188,6 +188,19 @@
   padding: 28px 18px;
 }
 
+.commentItem {
+  padding: var(--mantine-spacing-sm);
+  border: 1px solid var(--mantine-color-gray-2);
+  border-radius: var(--mantine-radius-sm);
+  background: var(--mantine-color-white);
+}
+
+.commentQuote {
+  padding-left: var(--mantine-spacing-xs);
+  border-left: 3px solid var(--mantine-color-blue-3);
+  color: var(--mantine-color-gray-7);
+}
+
 .centerState {
   min-height: 100dvh;
 }

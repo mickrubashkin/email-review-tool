@@ -3,12 +3,7 @@
   display: grid;
   place-items: center;
   padding: var(--mantine-spacing-xl);
-  background:
-    linear-gradient(135deg, rgba(18, 32, 64, 0.5), rgba(12, 78, 95, 0.22)),
-    url("/images/reviewdesk-bg.webp"),
-    linear-gradient(135deg, #122040 0%, #28636d 58%, #edf4ef 100%);
-  background-position: center;
-  background-size: cover;
+  background: #1e1968 url("/images/bg-vibe.jpg") center / cover no-repeat;
 }
 
 .panel {
