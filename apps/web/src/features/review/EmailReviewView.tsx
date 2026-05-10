@@ -49,9 +49,9 @@ import {
 import { copyOriginalHTML, downloadOriginalHTML } from "../emails/exportHtml";
 import {
   MailPreview,
-  type ReviewCommentTarget,
   type ReviewTextSelection,
 } from "../emails/MailPreview";
+import type { ReviewCommentTarget } from "../emails/reviewOverlayTypes";
 import {
   buildStageColumns,
   getAvailableVariants,
