@@ -157,14 +157,14 @@ function EmailBoardApp({
     <AppShell header={{ height: 56 }} padding={0}>
       <AppShell.Header className={styles.appHeader}>
         <Group h="100%" px="md" justify="space-between">
-          <Stack gap={0}>
-            <Group gap="xs">
-              <Title order={4}>ReviewDesk</Title>
-            </Group>
-            <Text size="xs" c="dimmed">
-              Onboarding sequence review
-            </Text>
-          </Stack>
+            <Stack gap={0}>
+              <Group gap="xs">
+                <Title order={4}>ReviewDesk</Title>
+              </Group>
+              <Text size="xs" c="dimmed">
+                Onboarding sequence review 
+              </Text>
+            </Stack>
 
           <Group gap="sm" wrap="nowrap">
             <Text className={styles.headerCount} size="sm" c="dimmed">
