@@ -1,123 +1,59 @@
-# Project Notes
+# ReviewDesk
 
-## Идея
+Internal tool for reviewing HTML email sequences.
 
-Инструмент для обсуждения email-шаблонов прямо по тексту.
+## What it does
+- OTP login with session cookies
+- email board for browsing sequences and versions
+- email review view with text selection, comments, and resolution
+- AI analysis for an email, including streaming updates
+- admin auth events and AI analysis logs
+- download/copy original HTML
 
-Цель — убрать хаос:
-Google Docs + чат + правки → всё в одном месте.
-
----
-
-## MVP цель
-
-Сделать минимально рабочий прототип, где можно:
-
-- загрузить готовое письмо как `email.html`
-- заполнить метаданные письма в веб-интерфейсе
-- открыть письмо в preview
-- выделить текст
-- оставить комментарий
-- обсудить письмо в общем чате
-- видеть обновления в realtime
-- скачать или скопировать оригинальную HTML-верстку для сервиса отправки писем
-
-Без редактирования письма.
-
----
+No email editing.
 
 ## Stack
-
-- Frontend: React (Vite) + Mantine + TanStack Query
-- Backend: Go (Chi)
+- Frontend: React 19 + Vite + Mantine v9 + TanStack Query
+- Backend: Go + Chi
 - DB: PostgreSQL
-- Realtime: WebSocket
+- Streaming: SSE/EventSource for AI analysis
+- Auth: OTP + session cookies
 
----
+## Screens
+- `/` email board
+- `/emails/{id}/review` email review view
+- `/auth-events` admin auth events
+- `/ai-logs` AI analysis logs
 
-## Как письма попадают в сервис
+## Repo layout
+- `apps/web/src/main.tsx` boots Mantine + TanStack Query.
+- `apps/web/src/App.tsx` is the route switcher; it uses `window.location.pathname`.
+- `apps/api/cmd/server` is the HTTP API entrypoint.
+- `apps/api/cmd/seed` seeds from `db/seeds/emails`.
+- `apps/api/cmd/syncmeta` regenerates `db/seeds/emails/meta.json`.
 
-Письмо добавляется через простую форму:
+## Email data
+- Emails are stored as HTML files under `db/seeds/emails/{stage}/{email}/{language[-old]}.html`.
+- `meta.json` lives beside the seed tree.
+- `data-review-block` marks review anchors.
+- Original HTML is preserved for preview/export.
 
-- sequence / цепочка
-- title
-- subject
-- preheader
-- order / stage
-- файл `email.html`
+## Commands
+- `make setup-dev` runs DB up, migrations, then seed.
+- `make dev` starts DB, API, and web in parallel.
+- `make db-migrate` / `make db-seed` / `make db-sync-meta` for data setup.
+- `cd apps/web && npm run dev|lint|build`.
+- `cd apps/api && go test ./...`.
+- `cd apps/api && go run ./cmd/server`.
 
-Картинки и другие assets пока не загружаем — они уже лежат на внутренней CDN.
+## Environment
+- `apps/api/cmd/server/main.go` and `apps/api/cmd/seed/main.go` both load `../../.env`.
+- `DATABASE_URL` is required for API, seed, and migration commands.
+- `goose` must be available on `PATH`.
+- Docker runs migrations, then seed, then the server via `apps/api/entrypoint.sh`.
 
-HTML-файл должен содержать специальные блоки для комментариев:
-
-```html
-<td data-review-block="intro">Hi there, welcome to the partner program.</td>
-```
-
-Сервис сохраняет оригинальный HTML и отдельно парсит review-блоки.
-
----
-
-## Экспорт письма
-
-На первом этапе экспорт простой:
-
-- скачать оригинальный `email.html`
-- скопировать оригинальный HTML
-
-Комментарии, подсветки и UI-элементы не должны попадать в экспорт.
-
----
-
-## Как это должно работать
-
-1. Админ загружает `email.html` и заполняет метаданные
-2. Пользователь открывает письмо
-3. Видит готовый email в preview
-4. Выделяет текст
-5. Добавляет комментарий
-6. Комментарий появляется справа
-7. Текст подсвечивается
-8. Другие пользователи видят это в realtime
-9. Есть общий чат по письму
-10. Готовую верстку можно скачать или скопировать
-
----
-
-## Что важно
-
-- комментарии привязаны к тексту, а не «в целом к письму»
-- комментарии привязаны к `data-review-block` + выделенному диапазону текста
-- UI простой: слева список писем, центр — письмо, справа — обсуждение
-- Mantine используется для базовых UI-компонентов, форм, layout и feedback-состояний
-- backend хранит всё, frontend только отображает
-- сначала сохраняем в БД, потом шлём realtime событие
-- оригинальный HTML должен оставаться чистым для экспорта
-
----
-
-## Что НЕ делаем сейчас
-
-- редактирование письма
-- сложный визуальный флоу
-- drag-and-drop
-- permissions
-- версии
-- онлайн-конструктор писем
-- загрузку assets
-
----
-
-## Основная сложность
-
-- корректно хранить и отображать комментарии к выделенному тексту
-- не ломать привязку при изменениях
-- пока это проще, потому что редактирования письма нет
-
----
-
-## Принцип
-
-Сделать максимально простой, но рабочий end-to-end сценарий.
-
-Не пытаться сразу сделать продукт уровня Notion / Google Docs.
+## Notes
+- Backend is the source of truth.
+- Keep original HTML unchanged.
+- Preview untrusted HTML in isolation and do not execute scripts.
+- There is no WebSocket-based realtime layer in the current code.

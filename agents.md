@@ -1,141 +1,40 @@
-# agents.md
+# AGENTS.md
 
-## Project
+## Context
+ReviewDesk is an internal tool for reviewing HTML email sequences.
 
-Email Review Tool
+## Repo layout
+- `apps/web/src/main.tsx` boots Mantine + TanStack Query.
+- `apps/web/src/App.tsx` is the real route switcher; it uses `window.location.pathname`, not React Router.
+- `apps/api/cmd/server` is the HTTP API entrypoint.
+- `apps/api/cmd/seed` seeds from `db/seeds/emails`.
+- `apps/api/cmd/syncmeta` regenerates `db/seeds/emails/meta.json`.
 
----
+## Commands
+- `make setup-dev` runs DB up, migrations, then seed.
+- `make dev` starts DB, API, and web in parallel.
+- `make db-migrate` / `make db-seed` / `make db-sync-meta` are the repo task commands for data setup.
+- `cd apps/web && npm run dev|lint|build`.
+- `cd apps/api && go test ./...`.
+- `cd apps/api && go run ./cmd/server`.
 
-## MVP
+## Environment / tooling
+- `apps/api/cmd/server/main.go` and `apps/api/cmd/seed/main.go` both load `../../.env`.
+- `DATABASE_URL` is required for API, seed, and migration commands.
+- `goose` must be available on PATH; the Makefile and Docker entrypoint call it directly.
+- Docker starts migrations, then seed, then the server via `apps/api/entrypoint.sh`.
+- The seed tree is `db/seeds/emails/{stage}/{email}/{language[-old]}.html`; `meta.json` lives beside it.
 
-- Upload email (`email.html`)
-- View email
-- Select text
-- Add comment
-- Resolve comment
-- Discussion (chat)
-- Realtime updates
-- Download / copy HTML
+## Product rules
+- Backend is the source of truth; write to DB first, then expose via API.
+- Keep original email HTML unchanged.
+- Comments attach to `data-review-block` + text range.
+- Preview untrusted HTML in isolation and do not execute scripts.
+- AI analysis streaming is SSE/EventSource on `/api/emails/{id}/ai-analysis-stream`, not WebSocket.
+- Auth is OTP + session cookies; `/api/auth/events` is admin-only.
 
-No email editing.
-
----
-
-## Stack
-
-Frontend: React (Vite) + Mantine + TanStack Query
-Backend: Go (Chi)
-DB: PostgreSQL
-Realtime: WebSocket
-
----
-
-## Core rules
-
-- Backend = source of truth
-- Save to DB first, then send realtime events
-- Keep original HTML unchanged
-- Comments attach to `data-review-block` + text range
-
----
-
-## Email Import
-
-- Emails are uploaded as HTML files
-- Metadata is provided via UI (title, subject, etc.)
-- HTML must contain `data-review-block` attributes
-- Original HTML is used for preview and export
-
----
-
-## Review blocks
-
-Only meaningful email sections should have `data-review-block`.
-
-Do not mark every table cell
-Do not add wrappers only for comments
-
----
-
-## Rules
-
-### Do
-
-- Keep it simple
-- Write small functions
-- Follow existing structure
-
-### Don't
-
-- No overengineering
-- No new libraries without need
-- No features outside MVP
-- Do not modify original email HTML
-
----
-
-## Frontend
-
-- Functional components
-- Minimal state
-- Use TanStack Query for API
-- Use Mantine for base UI components, forms, layout, and feedback states
-- No business logic
-- Use Mantine v9
-- When implementing or reviewing Mantine UI, check:
-  https://mantine.dev/llms.txt
-
----
-
-## Backend
-
-- Thin handlers
-- Logic in services
-- Simple SQL (no heavy ORM)
-
----
-
-## Realtime
-
-- Use WebSocket
-- Emit events after DB write
-- Do not store state only in memory
-
----
-
-## Security
-
-Uploaded HTML is untrusted input.
-
-Preview in isolation (iframe)
-Do not execute scripts
-
----
-
-## AI collaboration mode
-
-Use AI as a mentor and reviewer.
-
-Prefer:
-
-- explaining options
-- small examples
-- discussing trade-offs
-- reviewing my code
-
-Avoid:
-
-- generating full solutions without request
-- adding abstractions too early
-
-Default:
-
-- explain → example → I implement → review
-
----
-
-## Principle
-
-Working > perfect
-Simple > flexible
-Understanding > automation
+## Code conventions
+- Keep handlers thin; put logic in helpers/services.
+- Use direct SQL; no heavy ORM.
+- Prefer small, simple changes and existing structure.
+- Do not add new libraries unless necessary.

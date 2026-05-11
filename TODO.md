@@ -1,39 +1,56 @@
 # TODO
 
-## Nice to have
-- [ ] Контроль расхода токенов пользователем, алерт админу (почта? тг-бот?)
-- [ ] Админ может дублировать письмо, создавать событие, добавлять письмо
-- [ ] Добавить в board view ИИ анализ всей цепочки в целом, предложения и обсуждение идей по оптимизации (рендер в drawer, в виде классического чата. возможность сохранять или выгружать артефакты?)
+## Планы фич
+- [editable-email-fields](docs/feature-plans/editable-email-fields.md): создание, редактирование и дублирование писем из HTML-шаблона
 
-- [ ] Добавить возможность переключения между досками, создание новой доски
-- [ ] Добавление админом письма, события, стадии, доски.
-- [ ] Добавить workspaces / команды (например - Bitrix24 Partners, Golova, Bitrix24 Marketing, etc)
+## Активные эпики
+- [ ] Редактор письма на основе шаблона
+  - [ ] Создание письма из шаблона
+  - [ ] Дублирование письма
+  - [ ] Редактирование структурных полей
+  - [ ] Рендер и экспорт финального HTML из сохранённых значений
+  - [ ] Обработка расхождения шаблона и версии письма
 
-- [ ] Добавить docs/openapi.yaml
+- [ ] Улучшение workflow ревью
+  - [ ] Режим комментариев в review view
+  - [ ] Решить: только комментарии или комментарии + чат
+  - [ ] Стабильность привязки комментариев после правок полей
+  - [ ] Пересчёт/сохранение якорей комментариев после изменений шаблона
 
-## Next product backlog
-- [v] Track AI cache hits and misses
-- [v] Add email-based authorization
-- [v] Support allowlist by email domain or exact email address
-- [ ] Define permissions matrix for admin and user roles
-- [v] Add a dedicated email review view
-- [ ] Add comments mode to the email review view
-- [ ] Decide whether review needs comments only or comments + chat
-- [ ] Add chat to the email review view if comments are not enough
-- [ ] Add roles: admin and user
-- [ ] Define email version statuses: draft, in_review, approved, published, archived
-- [ ] Add version status transitions and validation
-- [ ] Allow admins to upload new emails
-- [ ] Allow admins to export/download emails
-- [ ] Allow users to duplicate emails
-- [ ] Allow users to edit email text parts and submit changes for review
-- [ ] Allow admins to approve new email versions
-- [ ] Allow admins to mark approved versions as published
-- [ ] Track owner/responsible user for emails or sequences
-- [ ] Design change history
-- [ ] Track which user proposed changes and when
-- [ ] Track which admin approved and published changes
-- [ ] Add audit log for version creation, review submission, comments, approval, and publish events
-- [ ] Add diff view between email versions
-- [ ] Add notifications for review submitted, comments added, and version published
-- [ ] Decide whether realtime updates are needed for review workflow or if refresh/polling is enough
+- [ ] Права и роли
+  - [ ] Матрица прав admin и user
+  - [v] Роли: admin и user
+  - [ ] Ограничение admin-only экранов и API
+
+- [ ] Жизненный цикл версии
+  - [ ] Статусы: draft / in_review / approved / published / archived
+  - [ ] Переходы между статусами и валидация
+  - [ ] История approval/publish
+  - [ ] Откат к предыдущей версии
+
+## Продуктовый бэклог
+- [ ] Разрешить админам загружать новые письма
+- [ ] Разрешить админам экспортировать/скачивать письма
+- [ ] Отслеживать владельца/ответственного за письмо или цепочку
+- [ ] Журнал событий по версиям
+- [ ] Diff-view между версиями письма
+- [ ] Уведомления о ревью, комментариях и публикации
+- [ ] Поиск и фильтры по цепочкам, статусам, языкам и версиям
+- [ ] Валидация шаблонов: битые `data-review-block` / `data-edit-field`
+- [ ] Импорт письма из шаблона с редактируемыми полями
+
+## Идеи / позже
+- [ ] Контроль расхода токенов и алерты админу (почта? Telegram?)
+- [ ] AI-анализ всей цепочки в board view, с идеями по улучшению и обсуждением
+- [ ] Переключение между досками и создание новых досок
+- [ ] Возможность добавлять письма, события, стадии и доски из админки
+- [ ] Workspaces / команды (например: Bitrix24 Partners, Golova, Bitrix24 Marketing)
+- [ ] Добавить `docs/openapi.yaml`
+
+## Готово
+- [v] Учёт AI cache hits/misses
+- [v] Авторизация по email
+- [v] Allowlist по домену email
+- [v] Отдельный email review view
+- [v] Экран auth events
+- [v] Экран AI analysis logs
