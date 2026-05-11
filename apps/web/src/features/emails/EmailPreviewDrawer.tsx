@@ -4,7 +4,6 @@ import {
   Drawer,
   Group,
   Loader,
-  Paper,
   Stack,
   Text,
   Tooltip,
@@ -19,13 +18,11 @@ import {
   Smartphone,
 } from "lucide-react";
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 
 import { AISparkleIcon } from "./AISparkleIcon";
 import { AnalysisPanel } from "./AnalysisPanel";
 import { copyOriginalHTML, downloadOriginalHTML } from "./exportHtml";
 import { MailPreview } from "./MailPreview";
-import { fetchEmailComments } from "./api";
 import {
   getAvailableVariants,
   getSelectedVariant,
@@ -100,11 +97,7 @@ export function EmailPreviewDrawer({
     ? `${email.title}${email.send_timing ? ` (${formatTimingLabel(email.send_timing)})` : ""}`
     : "";
   const isAnalyzingCurrentEmail = streamStatus === "streaming" && isCurrentStream;
-  const commentsQuery = useQuery({
-    queryKey: ["email-comments", email?.id ?? ""],
-    queryFn: () => fetchEmailComments(email?.id ?? ""),
-    enabled: opened && Boolean(email?.id),
-  });
+
   const handleCopyHTML = async () => {
     if (email) {
       await copyOriginalHTML(email);
@@ -275,37 +268,6 @@ export function EmailPreviewDrawer({
               </aside>
             ) : null}
           </div>
-
-          {commentsQuery.data?.length ? (
-            <Stack gap="xs">
-              <Text fw={700} size="sm">
-                Comments
-              </Text>
-
-              <Stack gap="xs">
-                {commentsQuery.data.map((comment) => (
-                  <Paper className={styles.commentCard} key={comment.id} withBorder>
-                    <Stack gap={4}>
-                      <Group justify="space-between" gap={8} wrap="nowrap">
-                        <Text fw={600} size="sm">
-                          {comment.author_email ?? "Unknown author"}
-                        </Text>
-                        <Text c={comment.status === "open" ? "red" : "dimmed"} size="xs" fw={700} tt="uppercase">
-                          {comment.status}
-                        </Text>
-                      </Group>
-
-                      <Text size="sm">{comment.body}</Text>
-
-                      <Text c="dimmed" size="xs">
-                        {comment.selected_text}
-                      </Text>
-                    </Stack>
-                  </Paper>
-                ))}
-              </Stack>
-            </Stack>
-          ) : null}
         </Stack>
       ) : null}
     </Drawer>
