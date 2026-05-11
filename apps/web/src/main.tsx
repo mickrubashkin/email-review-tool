@@ -6,12 +6,13 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import "@mantine/core/styles.css";
 import "@mantine/notifications/styles.css";
+import "./build-stamp.css";
 
 import App from "./App.tsx";
 import { theme } from "./theme";
 
 const queryClient = new QueryClient();
-const BUILD_STAMP = "2026-05-11-1";
+const BUILD_STAMP = "2026-05-11-2";
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
