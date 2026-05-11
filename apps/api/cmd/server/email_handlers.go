@@ -99,6 +99,12 @@ func getEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 				sort_order,
 				language,
 				variant,
+				(
+					SELECT count(*)::int
+					FROM comments
+					WHERE comments.email_id = emails.id
+						AND comments.status = 'open'
+				) AS open_comment_count,
 				original_html,
 				review_html
 			FROM emails
@@ -115,6 +121,7 @@ func getEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			&email.SortOrder,
 			&email.Language,
 			&email.Variant,
+			&email.OpenCommentCount,
 			&email.OriginalHTML,
 			&email.ReviewHTML,
 		)

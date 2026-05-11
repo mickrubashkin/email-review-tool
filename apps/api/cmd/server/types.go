@@ -21,22 +21,23 @@ type EmailListItem struct {
 }
 
 type EmailDetail struct {
-	ID           string    `json:"id"`
-	Slug         string    `json:"slug"`
-	Sequence     string    `json:"sequence"`
-	Title        string    `json:"title"`
-	Subject      *string   `json:"subject"`
-	Preheader    *string   `json:"preheader"`
-	SendTiming   *string   `json:"send_timing"`
-	Stage        string    `json:"stage"`
-	SortOrder    int       `json:"sort_order"`
-	Language     string    `json:"language"`
-	Variant      string    `json:"variant"`
-	BodyText     *string   `json:"-"`
-	ContentParts *string   `json:"-"`
-	UpdatedAt    time.Time `json:"-"`
-	OriginalHTML string    `json:"original_html"`
-	ReviewHTML   *string   `json:"review_html"`
+	ID               string    `json:"id"`
+	Slug             string    `json:"slug"`
+	Sequence         string    `json:"sequence"`
+	Title            string    `json:"title"`
+	Subject          *string   `json:"subject"`
+	Preheader        *string   `json:"preheader"`
+	SendTiming       *string   `json:"send_timing"`
+	Stage            string    `json:"stage"`
+	SortOrder        int       `json:"sort_order"`
+	Language         string    `json:"language"`
+	Variant          string    `json:"variant"`
+	OpenCommentCount int       `json:"open_comment_count"`
+	BodyText         *string   `json:"-"`
+	ContentParts     *string   `json:"-"`
+	UpdatedAt        time.Time `json:"-"`
+	OriginalHTML     string    `json:"original_html"`
+	ReviewHTML       *string   `json:"review_html"`
 }
 
 type EmailContentParts = emailtext.ContentParts
