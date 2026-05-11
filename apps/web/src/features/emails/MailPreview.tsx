@@ -46,6 +46,8 @@ type MailPreviewProps = {
   hoveredCommentId?: string | null;
   isCreatingComment?: boolean;
   isScanning: boolean;
+  onCommentBadgeClick?: (commentIds: string[]) => void;
+  onCommentBadgeHover?: (commentIds: string[] | null) => void;
   onCreateReviewComment?: (selection: ReviewTextSelection, body: string) => void;
   viewport: PreviewViewport;
 };
@@ -59,11 +61,13 @@ export function MailPreview({
   hoveredCommentId = null,
   isCreatingComment = false,
   isScanning,
+  onCommentBadgeClick,
+  onCommentBadgeHover,
   onCreateReviewComment,
   viewport,
 }: MailPreviewProps) {
   const frameRef = useRef<HTMLIFrameElement | null>(null);
-  const frameWrapRef = useRef<HTMLDivElement | null>(null);
+  const overlayRootRef = useRef<HTMLElement | null>(null);
   const wasCreatingCommentRef = useRef(false);
   const [selectionMenu, setSelectionMenu] = useState<SelectionMenuState | null>(
     null
@@ -143,7 +147,7 @@ export function MailPreview({
     commentTargets,
     frameLoadVersion,
     frameRef,
-    frameWrapRef,
+    overlayRootRef,
     viewport,
   });
 
@@ -223,7 +227,7 @@ export function MailPreview({
       </Popover>
 
       <div className={styles.mailClient}>
-        <article className={styles.mailReadPane}>
+        <article className={styles.mailReadPane} ref={overlayRootRef}>
           <header className={styles.mailHeader}>
             <Group className={styles.mailMetaRow} justify="space-between" gap="sm">
               <Group gap="sm" wrap="nowrap">
@@ -289,7 +293,7 @@ export function MailPreview({
             </Group>
           </header>
 
-          <div className={styles.emailPreviewFrameWrap} ref={frameWrapRef}>
+          <div className={styles.emailPreviewFrameWrap}>
             <iframe
               className={styles.emailPreviewFrame}
               onLoad={handleFrameLoad}
@@ -298,13 +302,15 @@ export function MailPreview({
               sandbox="allow-same-origin"
               srcDoc={email.review_html || email.original_html}
             />
-            <ReviewCommentOverlay
-              activeCommentId={activeCommentId}
-              badges={overlay.badges}
-              hoveredCommentId={hoveredCommentId}
-              rects={overlay.rects}
-            />
           </div>
+          <ReviewCommentOverlay
+            activeCommentId={activeCommentId}
+            badges={overlay.badges}
+            hoveredCommentId={hoveredCommentId}
+            onBadgeClick={onCommentBadgeClick}
+            onBadgeHover={onCommentBadgeHover}
+            rects={overlay.rects}
+          />
         </article>
       </div>
       {isScanning ? (

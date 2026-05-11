@@ -10,6 +10,8 @@ type ReviewCommentOverlayProps = {
   activeCommentId?: string | null;
   badges: ReviewOverlayBadge[];
   hoveredCommentId?: string | null;
+  onBadgeClick?: (commentIds: string[]) => void;
+  onBadgeHover?: (commentIds: string[] | null) => void;
   rects: ReviewOverlayRect[];
 };
 
@@ -17,6 +19,8 @@ export function ReviewCommentOverlay({
   activeCommentId = null,
   badges,
   hoveredCommentId = null,
+  onBadgeClick,
+  onBadgeHover,
   rects,
 }: ReviewCommentOverlayProps) {
   return (
@@ -63,6 +67,7 @@ export function ReviewCommentOverlay({
             data-hovered={isHovered || undefined}
             data-kind={badge.kind}
             key={`${badge.reviewBlock}-${badge.commentIds.join("-")}`}
+            role="button"
             style={
               {
                 "--review-highlight-bg": badge.color.background,
@@ -72,6 +77,16 @@ export function ReviewCommentOverlay({
                 top: badge.top,
               } as CSSProperties
             }
+            tabIndex={0}
+            onClick={() => onBadgeClick?.(badge.commentIds)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onBadgeClick?.(badge.commentIds);
+              }
+            }}
+            onMouseEnter={() => onBadgeHover?.(badge.commentIds)}
+            onMouseLeave={() => onBadgeHover?.(null)}
           >
             {label}
           </div>

@@ -2,7 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 
 import {
   buildReviewOverlayBadges,
+  buildExternalReviewOverlayRects,
   buildReviewOverlayRects,
+  scrollExternalReviewTargetIntoView,
   scrollReviewTargetIntoView,
 } from "./reviewOverlayGeometry";
 import type {
@@ -21,14 +23,14 @@ export function useReviewOverlayRects({
   commentTargets,
   frameLoadVersion,
   frameRef,
-  frameWrapRef,
+  overlayRootRef,
   viewport,
 }: {
   activeCommentId: string | null;
   commentTargets: ReviewCommentTarget[];
   frameLoadVersion: number;
   frameRef: React.RefObject<HTMLIFrameElement | null>;
-  frameWrapRef: React.RefObject<HTMLDivElement | null>;
+  overlayRootRef: React.RefObject<HTMLElement | null>;
   viewport: string;
 }) {
   const [overlayState, setOverlayState] = useState<ReviewOverlayState>({
@@ -37,22 +39,27 @@ export function useReviewOverlayRects({
   });
   const updateOverlayRects = useCallback(() => {
     const frame = frameRef.current;
-    if (!frame) {
+    const overlayRoot = overlayRootRef.current;
+    if (!frame || !overlayRoot) {
       setOverlayState({ badges: [], rects: [] });
       return;
     }
 
-    const rects = buildReviewOverlayRects(frame, commentTargets);
+    const rects = [
+      ...buildReviewOverlayRects(frame, overlayRoot, commentTargets),
+      ...buildExternalReviewOverlayRects(overlayRoot, commentTargets),
+    ];
     setOverlayState({
       badges: buildReviewOverlayBadges(rects),
       rects,
     });
-  }, [commentTargets, frameRef]);
+  }, [commentTargets, frameRef, overlayRootRef]);
 
   useEffect(() => {
     const frame = frameRef.current;
     const frameWindow = frame?.contentWindow;
-    if (!frame || !frameWindow) {
+    const overlayRoot = overlayRootRef.current;
+    if (!frame || !frameWindow || !overlayRoot) {
       setOverlayState({ badges: [], rects: [] });
       return;
     }
@@ -68,9 +75,7 @@ export function useReviewOverlayRects({
     frameWindow.addEventListener("scroll", scheduleOverlayUpdate, true);
     window.addEventListener("resize", scheduleOverlayUpdate);
     resizeObserver.observe(frame);
-    if (frameWrapRef.current) {
-      resizeObserver.observe(frameWrapRef.current);
-    }
+    resizeObserver.observe(overlayRoot);
 
     return () => {
       window.cancelAnimationFrame(animationFrame);
@@ -78,7 +83,7 @@ export function useReviewOverlayRects({
       window.removeEventListener("resize", scheduleOverlayUpdate);
       resizeObserver.disconnect();
     };
-  }, [frameLoadVersion, frameRef, frameWrapRef, updateOverlayRects, viewport]);
+  }, [frameLoadVersion, frameRef, overlayRootRef, updateOverlayRects, viewport]);
 
   useEffect(() => {
     if (!activeCommentId) {
@@ -86,15 +91,19 @@ export function useReviewOverlayRects({
     }
 
     const frame = frameRef.current;
+    const overlayRoot = overlayRootRef.current;
     const target = commentTargets.find((comment) => comment.id === activeCommentId);
-    if (!frame || !target) {
+    if (!frame || !overlayRoot || !target) {
       return;
     }
 
-    scrollReviewTargetIntoView(frame, target);
+    const didScrollFrame = scrollReviewTargetIntoView(frame, target);
+    if (!didScrollFrame) {
+      scrollExternalReviewTargetIntoView(overlayRoot, target);
+    }
     const timeout = window.setTimeout(updateOverlayRects, 120);
     return () => window.clearTimeout(timeout);
-  }, [activeCommentId, commentTargets, frameRef, updateOverlayRects]);
+  }, [activeCommentId, commentTargets, frameRef, overlayRootRef, updateOverlayRects]);
 
   return overlayState;
 }

@@ -374,9 +374,11 @@
   position: absolute;
   border: 1px solid var(--review-highlight-stroke);
   border-radius: 3px;
-  background: var(--review-highlight-bg);
-  box-shadow: 0 0 0 2px var(--review-highlight-ring);
-  opacity: 0.82;
+  background: transparent;
+  box-shadow:
+    inset 0 0 0 1px var(--review-highlight-ring),
+    0 0 0 2px var(--review-highlight-ring);
+  opacity: 0.9;
   pointer-events: none;
   transition:
     background 120ms ease,
@@ -385,7 +387,11 @@
 }
 
 .reviewOverlayRect[data-kind="text"] {
+  border: 0;
   border-radius: 2px;
+  background: var(--review-highlight-bg);
+  box-shadow: none;
+  opacity: 0.95;
 }
 
 .reviewOverlayRect[data-hovered],
@@ -395,6 +401,12 @@
     0 0 0 2px var(--review-highlight-stroke),
     0 0 0 5px var(--review-highlight-ring);
   opacity: 1;
+}
+
+.reviewOverlayRect[data-kind="text"][data-hovered],
+.reviewOverlayRect[data-kind="text"][data-active] {
+  background: var(--review-highlight-strong);
+  box-shadow: 0 0 0 1px var(--review-highlight-ring);
 }
 
 .reviewOverlayBadge {
@@ -415,15 +427,30 @@
   font-size: 11px;
   font-weight: 800;
   line-height: 1;
-  pointer-events: none;
+  cursor: pointer;
+  pointer-events: auto;
   transform: translate(-50%, -50%);
   transition:
     box-shadow 120ms ease,
     transform 120ms ease;
 }
 
+.reviewOverlayBadge:hover,
+.reviewOverlayBadge:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 3px var(--review-highlight-ring),
+    0 6px 14px rgba(15, 23, 42, 0.24);
+  transform: translate(-50%, -50%) scale(1.08);
+}
+
 .reviewOverlayBadge[data-kind="text"] {
   transform: translate(4px, -50%);
+}
+
+.reviewOverlayBadge[data-kind="text"]:hover,
+.reviewOverlayBadge[data-kind="text"]:focus-visible {
+  transform: translate(4px, -50%) scale(1.08);
 }
 
 .reviewOverlayBadge[data-hovered],

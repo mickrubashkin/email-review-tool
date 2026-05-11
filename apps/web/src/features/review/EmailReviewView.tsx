@@ -241,6 +241,9 @@ export function EmailReviewView({ emailId }: EmailReviewViewProps) {
   const handleHoverComment = (comment: EmailComment | null) => {
     setHoveredCommentId(comment?.id ?? null);
   };
+  const handleHoverCommentIds = (commentIds: string[] | null) => {
+    setHoveredCommentId(commentIds?.[0] ?? null);
+  };
   const handleSelectComment = (comment: EmailComment) => {
     setActivePanelTab("comments");
     setActiveCommentId(comment.id);
@@ -252,6 +255,14 @@ export function EmailReviewView({ emailId }: EmailReviewViewProps) {
       setActiveCommentId(null);
       activeCommentTimeoutRef.current = null;
     }, 2400);
+  };
+  const handleSelectCommentIds = (commentIds: string[]) => {
+    const comment = (commentsQuery.data ?? []).find(
+      (commentItem) => commentItem.id === commentIds[0]
+    );
+    if (comment) {
+      handleSelectComment(comment);
+    }
   };
   const updatePanelWidth = (clientX: number) => {
     const contentElement = contentRef.current;
@@ -419,6 +430,8 @@ export function EmailReviewView({ emailId }: EmailReviewViewProps) {
             hoveredCommentId={hoveredCommentId}
             isCreatingComment={createCommentMutation.isPending}
             isScanning={isAnalyzingCurrentEmail}
+            onCommentBadgeClick={handleSelectCommentIds}
+            onCommentBadgeHover={handleHoverCommentIds}
             onCreateReviewComment={handleCreateReviewComment}
             viewport={viewport}
           />
@@ -634,7 +647,7 @@ function CommentItem({
               {comment.author_email ?? "Unknown author"}
             </Text>
             <Text c="dimmed" size="xs">
-              {comment.review_block}
+              {getReviewTargetLabel(comment)}
             </Text>
           </Stack>
           <Badge
@@ -697,6 +710,51 @@ function formatCommentDate(value: string) {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(date);
+}
+
+function getReviewTargetLabel(comment: EmailComment) {
+  const reviewBlock = comment.review_block;
+  if (reviewBlock === "subject") {
+    return "Subject";
+  }
+
+  if (reviewBlock === "preheader") {
+    return "Preheader";
+  }
+
+  if (reviewBlock.startsWith("banner")) {
+    return "Banner";
+  }
+
+  if (reviewBlock.startsWith("headline")) {
+    return "Headline";
+  }
+
+  if (reviewBlock.startsWith("body")) {
+    return isWholeBlockComment(comment) ? "Body block" : "Body text";
+  }
+
+  if (reviewBlock.startsWith("cta") || reviewBlock.startsWith("button")) {
+    return "CTA";
+  }
+
+  if (reviewBlock.startsWith("footer")) {
+    return "Footer";
+  }
+
+  return formatReviewBlockLabel(reviewBlock);
+}
+
+function isWholeBlockComment(comment: EmailComment) {
+  return comment.start_offset === 0 && comment.end_offset >= comment.selected_text.length;
+}
+
+function formatReviewBlockLabel(reviewBlock: string) {
+  return reviewBlock
+    .split(/[-_]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
 
 function LanguageSelect({
