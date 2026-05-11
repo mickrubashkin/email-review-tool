@@ -9,6 +9,7 @@ export type EmailListItem = {
   sort_order: number;
   language: string;
   variant: EmailVariant;
+  open_comment_count: number;
 };
 
 export type EmailDetail = EmailListItem & {
@@ -153,4 +154,3 @@ export type CreateEmailCommentPayload = {
   end_offset: number;
   body: string;
 };
-

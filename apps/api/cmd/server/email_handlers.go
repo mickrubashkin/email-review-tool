@@ -28,7 +28,13 @@ func listEmailsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 				stage,
 				sort_order,
 				language,
-				variant
+				variant,
+				(
+					SELECT count(*)::int
+					FROM comments
+					WHERE comments.email_id = emails.id
+						AND comments.status = 'open'
+					) AS open_comment_count
 			FROM emails
 			ORDER BY sort_order, created_at;
 		`)
@@ -54,6 +60,7 @@ func listEmailsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 				&email.SortOrder,
 				&email.Language,
 				&email.Variant,
+				&email.OpenCommentCount,
 			)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "failed to scan email row: %v\n", err)

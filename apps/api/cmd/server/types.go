@@ -7,16 +7,17 @@ import (
 )
 
 type EmailListItem struct {
-	ID         string  `json:"id"`
-	Sequence   string  `json:"sequence"`
-	Title      string  `json:"title"`
-	Subject    *string `json:"subject"`
-	Preheader  *string `json:"preheader"`
-	SendTiming *string `json:"send_timing"`
-	Stage      string  `json:"stage"`
-	SortOrder  int     `json:"sort_order"`
-	Language   string  `json:"language"`
-	Variant    string  `json:"variant"`
+	ID               string  `json:"id"`
+	Sequence         string  `json:"sequence"`
+	Title            string  `json:"title"`
+	Subject          *string `json:"subject"`
+	Preheader        *string `json:"preheader"`
+	SendTiming       *string `json:"send_timing"`
+	Stage            string  `json:"stage"`
+	SortOrder        int     `json:"sort_order"`
+	Language         string  `json:"language"`
+	Variant          string  `json:"variant"`
+	OpenCommentCount int     `json:"open_comment_count"`
 }
 
 type EmailDetail struct {

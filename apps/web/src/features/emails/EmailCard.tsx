@@ -6,11 +6,14 @@ import {
   useState,
 } from "react";
 import {
+  Badge,
   Card,
   Group,
+  Popover,
   Stack,
   Text,
   Tooltip,
+  ScrollArea,
 } from "@mantine/core";
 
 import type { EmailVariant, EmailVersionGroup } from "./types";
@@ -100,6 +103,7 @@ export function EmailCard({
   onOpen,
   onSelectVersion,
 }: EmailCardProps) {
+  const [commentsPopoverOpened, setCommentsPopoverOpened] = useState(false);
   const selectedEmail =
     emailGroup.versions.find((email) => email.id === selectedEmailId) ??
     getDefaultVersion(emailGroup.versions);
@@ -112,6 +116,13 @@ export function EmailCard({
     selectedVariant
   );
   const availableVariants = getAvailableVariants(emailGroup.versions);
+  const openCommentCount = emailGroup.versions.reduce(
+    (count, email) => count + (email.open_comment_count ?? 0),
+    0
+  );
+  const commentedVersions = emailGroup.versions.filter(
+    (email) => (email.open_comment_count ?? 0) > 0
+  );
 
   const handleVersionClick = (
     event: MouseEvent<HTMLButtonElement>,
@@ -138,24 +149,28 @@ export function EmailCard({
   const handleCardKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
+      setCommentsPopoverOpened(false);
       onOpen(emailGroup.key);
     }
   };
 
   return (
     <Card
-      className={`${styles.emailCardButton} ${styles.emailCard}`}
+      className={`${styles.emailCardButton} ${styles.emailCard} ${openCommentCount > 0 ? styles.emailCardHasOpenComments : ""}`}
       withBorder
       padding="md"
       radius="md"
       role="button"
       tabIndex={0}
-      onClick={() => onOpen(emailGroup.key)}
+      onClick={() => {
+        setCommentsPopoverOpened(false);
+        onOpen(emailGroup.key);
+      }}
       onKeyDown={handleCardKeyDown}
     >
       <Stack className={styles.emailCardContent} gap={0}>
         <Stack className={styles.emailCardBody} gap={6}>
-          <Group justify="space-between" gap="xs" align="flex-start">
+          <Group justify="space-between" gap={8} align="flex-start" wrap="nowrap">
             <Text
               className={styles.emailCardTitle}
               fw={600}
@@ -164,23 +179,97 @@ export function EmailCard({
             >
               {formatEmailTitle(selectedEmail.title)}
             </Text>
-            <Group className={styles.variantSwitch} gap={2}>
-              {(["new", "old"] as const).map((variant) => (
-                <button
-                  className={styles.variantButton}
-                  data-active={variant === selectedVariant || undefined}
-                  disabled={!availableVariants.includes(variant)}
-                  key={variant}
-                  type="button"
-                  onClick={(event) => handleVariantClick(event, variant)}
-                >
-                  {variant}
-                </button>
-              ))}
-            </Group>
+
+            {openCommentCount > 0 ? (
+              <Popover
+                opened={commentsPopoverOpened}
+                onChange={setCommentsPopoverOpened}
+                position="bottom-end"
+                offset={8}
+                shadow="md"
+                width={260}
+                withArrow
+                withinPortal
+              >
+                <Popover.Target>
+                  <button
+                    className={styles.openCommentButton}
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setCommentsPopoverOpened((value) => !value);
+                    }}
+                  >
+                    <Badge
+                      className={styles.openCommentBadge}
+                      color="red"
+                      size="xs"
+                      variant="light"
+                    >
+                      {openCommentCount}
+                    </Badge>
+                  </button>
+                </Popover.Target>
+
+                <Popover.Dropdown className={styles.commentsPopover}>
+                  <Stack gap={4}>
+                    <Text fw={700} size="xs" c="dimmed" tt="uppercase">
+                      Comments in this group
+                    </Text>
+
+                    <ScrollArea h={220} type="auto">
+                      <Stack gap={4}>
+                        {commentedVersions.map((email) => (
+                          <button
+                            className={styles.commentVersionRow}
+                            key={email.id}
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              window.location.href = `/emails/${encodeURIComponent(email.id)}/review`;
+                              setCommentsPopoverOpened(false);
+                            }}
+                          >
+                            <Group justify="space-between" gap={8} wrap="nowrap">
+                              <Stack gap={0} className={styles.commentVersionText}>
+                                <Text size="sm" fw={600} lineClamp={1}>
+                                  {email.language.toUpperCase()} {email.variant}
+                                </Text>
+                                <Text size="xs" c="dimmed" lineClamp={1}>
+                                  {email.subject ?? "No subject"}
+                                </Text>
+                              </Stack>
+
+                              <Badge color="red" size="xs" variant="light">
+                                {email.open_comment_count}
+                              </Badge>
+                            </Group>
+                          </button>
+                        ))}
+                      </Stack>
+                    </ScrollArea>
+                  </Stack>
+                </Popover.Dropdown>
+              </Popover>
+            ) : null}
           </Group>
 
-          <Group gap={4}>
+          <Group className={styles.variantSwitch} gap={2} wrap="nowrap">
+            {(["new", "old"] as const).map((variant) => (
+              <button
+                className={styles.variantButton}
+                data-active={variant === selectedVariant || undefined}
+                disabled={!availableVariants.includes(variant)}
+                key={variant}
+                type="button"
+                onClick={(event) => handleVariantClick(event, variant)}
+              >
+                {variant}
+              </button>
+            ))}
+          </Group>
+
+          <Group gap={3} wrap="wrap">
             {variantVersions.map((email) => (
               <button
                 className={styles.versionButton}

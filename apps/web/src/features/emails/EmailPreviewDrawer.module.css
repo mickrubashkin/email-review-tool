@@ -199,6 +199,11 @@
   overflow: auto;
 }
 
+.commentCard {
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.96);
+}
+
 .streamPulse {
   width: 8px;
   height: 8px;
