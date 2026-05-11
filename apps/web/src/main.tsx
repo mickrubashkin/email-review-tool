@@ -11,6 +11,7 @@ import App from "./App.tsx";
 import { theme } from "./theme";
 
 const queryClient = new QueryClient();
+const BUILD_STAMP = "2026-05-11-1";
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
@@ -22,3 +23,5 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
     </QueryClientProvider>
   </React.StrictMode>
 );
+
+document.documentElement.dataset.reviewdeskBuild = BUILD_STAMP;
