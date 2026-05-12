@@ -12,6 +12,7 @@ const (
 type EditableField struct {
 	Type  string `json:"type"`
 	Value any    `json:"value"`
+	Order int    `json:"order,omitempty"`
 }
 
 type EditableFields map[string]EditableField

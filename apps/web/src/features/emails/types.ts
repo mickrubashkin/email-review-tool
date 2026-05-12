@@ -37,6 +37,7 @@ export type EditableFieldType = "text" | "url" | "image" | "number";
 export type EditableField = {
   type: EditableFieldType;
   value: string | number;
+  order?: number;
 };
 
 export type EditableFields = Record<string, EditableField>;

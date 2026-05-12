@@ -56,7 +56,7 @@
         visibility: hidden;
         width: 0;
       ">
-    Open the Partner App and take your first request
+    <span data-email-preheader>Open the Partner App and take your first request</span>
     &zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;
     &zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;
   </div>
@@ -94,7 +94,8 @@
                       border: 0;
                       outline: none;
                       text-decoration: none;
-                    " />
+                    " data-review-block="hero_banner" data-edit-attr-src="hero_banner_src"
+                  data-edit-attr-alt="hero_banner_alt" />
               </td>
             </tr>
 
@@ -105,7 +106,7 @@
                     font-size: 16px;
                     line-height: 24px;
                     color: #063683;
-                  ">
+                  " data-review-block="intro_body" data-edit-text="intro_body">
                 Dear Partner,<br /><br />
                 Your Partner App is ready — you can now start working with clients.<br><br>
                 Open the Partner App and take your first available request to begin.<br><br>
@@ -125,11 +126,11 @@
                       <!--[if mso]>
                           <v:roundrect
                             xmlns:v="urn:schemas-microsoft-com:vml"
-                            href="https://partners.bitrix24.com/private/#anchor-app"
+                            href="{{ primary_cta_url }}"
                             style="
                               height: 43px;
                               v-text-anchor: middle;
-                              width: 220px;
+                              width: {{ primary_cta_width_px }}px;
                             "
                             arcsize="15%"
                             stroked="f"
@@ -144,7 +145,7 @@
                                 font-weight: 700;
                               "
                             >
-                              Take your first lead
+                              {{ primary_cta_text }}
                             </center>
                           </v:roundrect>
                         <![endif]-->
@@ -165,7 +166,8 @@
                             border-radius: 10px;
                             background-color: #dcfa64;
                             text-align: center;
-                          ">Take your first lead</a>
+                          " data-review-block="primary_cta" data-edit-text="primary_cta_text"
+                        data-edit-attr-href="primary_cta_url" data-edit-style-width-px="primary_cta_width_px">Take your first lead</a>
                       <!--<![endif]-->
                     </td>
                   </tr>
@@ -180,7 +182,7 @@
                     font-size: 16px;
                     line-height: 24px;
                     color: #063683;
-                  ">
+                  " data-review-block="signature">
                 If you're not sure where to start, you can <a href="https://calendly.com/mickrubashkin/30min"
                   target="_blank" style="
                       color: #409eef;
@@ -188,9 +190,9 @@
                       font-weight: 700;
                     ">book a quick call</a> — we'll walk you through your first lead.
                 <br /><br />
-                <strong>Best regards,</strong>
+                <strong data-edit-text="signature_greeting">Best regards,</strong>
                 <br />
-                <strong>Bitrix24 Team</strong><br />
+                <strong data-edit-text="signature_sender">Bitrix24 Team</strong><br />
               </td>
             </tr>
 
@@ -208,7 +210,8 @@
                       border: 0;
                       outline: none;
                       text-decoration: none;
-                    " />
+                    " data-review-block="footer_logo" data-edit-attr-src="footer_logo_src"
+                  data-edit-attr-alt="footer_logo_alt" />
                 <table role="presentation" border="0" cellpadding="0" cellspacing="0"
                   style="margin-top: 12px; border-collapse: collapse">
                   <tr>
@@ -276,7 +279,7 @@
                           line-height: 17px;
                           color: #063683;
                           font-style: italic;
-                        ">
+                        " data-review-block="footer_copyright" data-edit-text="footer_copyright">
                       © 2026 Alaio. All rights reserved.
                     </td>
                   </tr>
@@ -291,14 +294,15 @@
                           font-size: 9px;
                           line-height: 13px;
                           color: #063683;
-                        ">
-                      This is an automatically generated notification for
+                        " data-review-block="footer_legal">
+<span data-edit-text="footer_legal_text">                      This is an automatically generated notification for
                       Bitrix24 partners. You received this email because you
                       signed up for the Bitrix Partner Program. To manage your
                       email preferences, please update them inside any email
-                      you receive.
+                      you receive.</span>
                       <a href="https://www.bitrix24.com/privacy/" target="_blank"
-                        style="color: #063683; text-decoration: underline">Privacy policy</a>
+                        style="color: #063683; text-decoration: underline" data-review-block="privacy_policy_link"
+                        data-edit-text="privacy_policy_link_text" data-edit-attr-href="privacy_policy_link_url">Privacy policy</a>
                     </td>
                   </tr>
                 </table>

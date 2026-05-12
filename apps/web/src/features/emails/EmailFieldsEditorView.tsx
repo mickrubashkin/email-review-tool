@@ -482,16 +482,51 @@ function buildFieldGroups(fields: EditableFields): FieldGroup[] {
   const groups = new Map<string, [string, EditableField][]>();
 
   Object.entries(fields)
-    .sort(([firstKey], [secondKey]) => firstKey.localeCompare(secondKey))
+    .sort(compareFieldEntries)
     .forEach(([key, field]) => {
       const groupKey = getFieldGroupKey(key);
-      groups.set(groupKey, [...(groups.get(groupKey) ?? []), [key, field]]);
+      const groupFields = [...(groups.get(groupKey) ?? []), [key, field]] as [
+        string,
+        EditableField,
+      ][];
+      groups.set(groupKey, groupFields.sort(compareFieldEntries));
     });
 
   return Array.from(groups.entries()).map(([key, groupFields]) => ({
     key,
     fields: groupFields,
-  }));
+  })).sort((firstGroup, secondGroup) => {
+    const firstOrder = getGroupOrder(firstGroup);
+    const secondOrder = getGroupOrder(secondGroup);
+    if (firstOrder !== secondOrder) {
+      return firstOrder - secondOrder;
+    }
+
+    return firstGroup.key.localeCompare(secondGroup.key);
+  });
+}
+
+function compareFieldEntries(
+  [firstKey, firstField]: [string, EditableField],
+  [secondKey, secondField]: [string, EditableField]
+) {
+  const firstOrder = getFieldOrder(firstField);
+  const secondOrder = getFieldOrder(secondField);
+  if (firstOrder !== secondOrder) {
+    return firstOrder - secondOrder;
+  }
+
+  return firstKey.localeCompare(secondKey);
+}
+
+function getGroupOrder(group: FieldGroup) {
+  return Math.min(...group.fields.map(([, field]) => getFieldOrder(field)));
+}
+
+function getFieldOrder(field: EditableField) {
+  return typeof field.order === "number" && field.order > 0
+    ? field.order
+    : Number.MAX_SAFE_INTEGER;
 }
 
 function getFieldGroupKey(key: string) {

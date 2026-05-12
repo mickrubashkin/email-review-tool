@@ -14,18 +14,25 @@ func ExtractEditableFields(templateHTML string) (EditableFields, error) {
 		return nil, err
 	}
 
-	fields := EditableFields{}
-	if err := extractNodeFields(root, fields); err != nil {
+	extractor := editableFieldsExtractor{
+		fields: EditableFields{},
+	}
+	if err := extractor.extractNodeFields(root); err != nil {
 		return nil, err
 	}
 
-	return fields, nil
+	return extractor.fields, nil
 }
 
-func extractNodeFields(node *html.Node, fields EditableFields) error {
+type editableFieldsExtractor struct {
+	fields EditableFields
+	order  int
+}
+
+func (extractor *editableFieldsExtractor) extractNodeFields(node *html.Node) error {
 	if node.Type == html.ElementNode {
 		if key, ok := attrValue(node, "data-edit-text"); ok {
-			if err := setField(fields, key, EditableField{
+			if err := extractor.setField(key, EditableField{
 				Type:  FieldTypeText,
 				Value: textContentWithBreaks(node),
 			}); err != nil {
@@ -34,19 +41,19 @@ func extractNodeFields(node *html.Node, fields EditableFields) error {
 		}
 
 		if key, ok := attrValue(node, "data-edit-attr-href"); ok {
-			if err := setStringAttrField(fields, key, FieldTypeURL, node, "href"); err != nil {
+			if err := extractor.setStringAttrField(key, FieldTypeURL, node, "href"); err != nil {
 				return err
 			}
 		}
 
 		if key, ok := attrValue(node, "data-edit-attr-src"); ok {
-			if err := setStringAttrField(fields, key, FieldTypeImage, node, "src"); err != nil {
+			if err := extractor.setStringAttrField(key, FieldTypeImage, node, "src"); err != nil {
 				return err
 			}
 		}
 
 		if key, ok := attrValue(node, "data-edit-attr-alt"); ok {
-			if err := setStringAttrField(fields, key, FieldTypeText, node, "alt"); err != nil {
+			if err := extractor.setStringAttrField(key, FieldTypeText, node, "alt"); err != nil {
 				return err
 			}
 		}
@@ -56,7 +63,7 @@ func extractNodeFields(node *html.Node, fields EditableFields) error {
 			if err != nil {
 				return fmt.Errorf("%s: %w", key, err)
 			}
-			if err := setField(fields, key, EditableField{
+			if err := extractor.setField(key, EditableField{
 				Type:  FieldTypeNumber,
 				Value: width,
 			}); err != nil {
@@ -66,7 +73,7 @@ func extractNodeFields(node *html.Node, fields EditableFields) error {
 	}
 
 	for child := node.FirstChild; child != nil; child = child.NextSibling {
-		if err := extractNodeFields(child, fields); err != nil {
+		if err := extractor.extractNodeFields(child); err != nil {
 			return err
 		}
 	}
@@ -74,30 +81,35 @@ func extractNodeFields(node *html.Node, fields EditableFields) error {
 	return nil
 }
 
-func setStringAttrField(fields EditableFields, key string, fieldType string, node *html.Node, attr string) error {
+func (extractor *editableFieldsExtractor) setStringAttrField(key string, fieldType string, node *html.Node, attr string) error {
 	value, ok := attrValue(node, attr)
 	if !ok {
 		value = ""
 	}
 
-	return setField(fields, key, EditableField{
+	return extractor.setField(key, EditableField{
 		Type:  fieldType,
 		Value: value,
 	})
 }
 
-func setField(fields EditableFields, key string, field EditableField) error {
+func (extractor *editableFieldsExtractor) setField(key string, field EditableField) error {
 	key = strings.TrimSpace(key)
 	if key == "" {
 		return fmt.Errorf("editable field key is empty")
 	}
 
-	existing, ok := fields[key]
+	existing, ok := extractor.fields[key]
 	if ok && (existing.Type != field.Type || fmt.Sprintf("%v", existing.Value) != fmt.Sprintf("%v", field.Value)) {
 		return fmt.Errorf("editable field %q has conflicting values", key)
 	}
+	if ok {
+		return nil
+	}
 
-	fields[key] = field
+	extractor.order++
+	field.Order = extractor.order
+	extractor.fields[key] = field
 	return nil
 }
 
