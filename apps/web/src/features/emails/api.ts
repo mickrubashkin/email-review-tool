@@ -10,6 +10,8 @@ import type {
   CreateEmailCommentPayload,
   DuplicateEmailPayload,
   EmailComment,
+  UserAdminItem,
+  UserRole,
 } from "./types";
 
 export class ApiError extends Error {
@@ -31,6 +33,10 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   if (!response.ok) {
     const message = await response.text();
     throw new ApiError(response.status, message || `Request failed: ${response.status}`);
+  }
+
+  if (response.status === 204) {
+    return undefined as T;
   }
 
   return response.json() as Promise<T>;
@@ -109,6 +115,32 @@ export function duplicateEmail(
         "Content-Type": "application/json",
       },
       body: JSON.stringify(payload),
+    }
+  );
+}
+
+export function archiveEmail(emailId: string): Promise<void> {
+  return fetchJson<void>(`/api/emails/${encodeURIComponent(emailId)}/archive`, {
+    method: "PATCH",
+  });
+}
+
+export function fetchAdminUsers(): Promise<UserAdminItem[]> {
+  return fetchJson<UserAdminItem[]>("/api/admin/users");
+}
+
+export function updateAdminUserRole(
+  userId: string,
+  role: UserRole
+): Promise<UserAdminItem> {
+  return fetchJson<UserAdminItem>(
+    `/api/admin/users/${encodeURIComponent(userId)}/role`,
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ role }),
     }
   );
 }

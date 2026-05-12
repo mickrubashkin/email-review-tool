@@ -62,9 +62,46 @@ func TestListEmailsIncludesOpenCommentCount(t *testing.T) {
 	t.Fatalf("seed email %s not returned by list emails", emailID)
 }
 
+func TestListEmailsExcludesArchivedEmails(t *testing.T) {
+	dbpool := testDBPool(t)
+	emailID := createTestEmail(t, dbpool)
+
+	_, err := dbpool.Exec(context.Background(), `
+		UPDATE emails
+		SET archived_at = now()
+		WHERE id = $1;
+	`, emailID)
+	if err != nil {
+		t.Fatalf("failed to archive test email: %v", err)
+	}
+
+	router := chi.NewRouter()
+	registerEmailRoutes(router, dbpool)
+
+	request := httptest.NewRequest(http.MethodGet, "/api/emails", nil)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected GET status 200, got %d: %s", response.Code, response.Body.String())
+	}
+
+	var emails []EmailListItem
+	if err := json.NewDecoder(response.Body).Decode(&emails); err != nil {
+		t.Fatalf("failed to decode emails: %v", err)
+	}
+
+	for _, email := range emails {
+		if email.ID == emailID {
+			t.Fatalf("archived email %s should not be returned by list emails", emailID)
+		}
+	}
+}
+
 func TestUpdateEmailEditableFields(t *testing.T) {
 	dbpool := testDBPool(t)
 	emailID := createTestEmail(t, dbpool)
+	user := createTestUserWithRole(t, dbpool, "admin")
 	setTestEmailTemplate(t, dbpool, emailID, `
 		<html>
 			<body>
@@ -95,6 +132,7 @@ func TestUpdateEmailEditableFields(t *testing.T) {
 		"/api/emails/"+emailID+"/editable-fields",
 		bytes.NewReader(requestBody),
 	)
+	request = withAuthUser(request, user)
 	response := httptest.NewRecorder()
 	router.ServeHTTP(response, request)
 
@@ -111,6 +149,7 @@ func TestUpdateEmailEditableFields(t *testing.T) {
 func TestUpdateEmailEditableFieldsRejectsNullFields(t *testing.T) {
 	dbpool := testDBPool(t)
 	emailID := createTestEmail(t, dbpool)
+	user := createTestUserWithRole(t, dbpool, "admin")
 
 	router := chi.NewRouter()
 	registerEmailRoutes(router, dbpool)
@@ -120,6 +159,7 @@ func TestUpdateEmailEditableFieldsRejectsNullFields(t *testing.T) {
 		"/api/emails/"+emailID+"/editable-fields",
 		bytes.NewReader([]byte(`{ "editable_fields": null }`)),
 	)
+	request = withAuthUser(request, user)
 	response := httptest.NewRecorder()
 	router.ServeHTTP(response, request)
 
@@ -131,6 +171,7 @@ func TestUpdateEmailEditableFieldsRejectsNullFields(t *testing.T) {
 func TestUpdateEmailEditableFieldsRejectsUnsafeURL(t *testing.T) {
 	dbpool := testDBPool(t)
 	emailID := createTestEmail(t, dbpool)
+	user := createTestUserWithRole(t, dbpool, "admin")
 	setTestEmailTemplate(t, dbpool, emailID, `
 		<html>
 			<body>
@@ -153,6 +194,7 @@ func TestUpdateEmailEditableFieldsRejectsUnsafeURL(t *testing.T) {
 		"/api/emails/"+emailID+"/editable-fields",
 		bytes.NewReader(requestBody),
 	)
+	request = withAuthUser(request, user)
 	response := httptest.NewRecorder()
 	router.ServeHTTP(response, request)
 
@@ -168,6 +210,7 @@ func TestUpdateEmailEditableFieldsRejectsUnsafeURL(t *testing.T) {
 
 func TestUpdateEmailEditableFieldsNotFound(t *testing.T) {
 	dbpool := testDBPool(t)
+	user := createTestUserWithRole(t, dbpool, "admin")
 
 	router := chi.NewRouter()
 	registerEmailRoutes(router, dbpool)
@@ -177,6 +220,7 @@ func TestUpdateEmailEditableFieldsNotFound(t *testing.T) {
 		"/api/emails/00000000-0000-0000-0000-000000000000/editable-fields",
 		bytes.NewReader([]byte(`{ "editable_fields": {} }`)),
 	)
+	request = withAuthUser(request, user)
 	response := httptest.NewRecorder()
 	router.ServeHTTP(response, request)
 
@@ -188,6 +232,7 @@ func TestUpdateEmailEditableFieldsNotFound(t *testing.T) {
 func TestDuplicateEmail(t *testing.T) {
 	dbpool := testDBPool(t)
 	emailID := createTestEmail(t, dbpool)
+	user := createTestUserWithRole(t, dbpool, "admin")
 	setTestEmailForDuplicate(t, dbpool, emailID)
 
 	_, err := dbpool.Exec(context.Background(), `
@@ -221,6 +266,7 @@ func TestDuplicateEmail(t *testing.T) {
 		"/api/emails/"+emailID+"/duplicate",
 		bytes.NewReader(requestBody),
 	)
+	request = withAuthUser(request, user)
 	response := httptest.NewRecorder()
 	router.ServeHTTP(response, request)
 
@@ -275,6 +321,7 @@ func TestDuplicateEmail(t *testing.T) {
 func TestDuplicateEmailConflict(t *testing.T) {
 	dbpool := testDBPool(t)
 	emailID := createTestEmail(t, dbpool)
+	user := createTestUserWithRole(t, dbpool, "admin")
 	setTestEmailForDuplicate(t, dbpool, emailID)
 	conflictingID := createTestEmailWithSlug(t, dbpool, "comment-test-email-es")
 
@@ -286,6 +333,7 @@ func TestDuplicateEmailConflict(t *testing.T) {
 		"/api/emails/"+emailID+"/duplicate",
 		bytes.NewReader([]byte(`{ "language": "es", "variant": "new" }`)),
 	)
+	request = withAuthUser(request, user)
 	response := httptest.NewRecorder()
 	router.ServeHTTP(response, request)
 
@@ -307,6 +355,7 @@ func TestDuplicateEmailConflict(t *testing.T) {
 
 func TestDuplicateEmailNotFound(t *testing.T) {
 	dbpool := testDBPool(t)
+	user := createTestUserWithRole(t, dbpool, "admin")
 
 	router := chi.NewRouter()
 	registerEmailRoutes(router, dbpool)
@@ -316,6 +365,7 @@ func TestDuplicateEmailNotFound(t *testing.T) {
 		"/api/emails/00000000-0000-0000-0000-000000000000/duplicate",
 		bytes.NewReader([]byte(`{ "language": "es" }`)),
 	)
+	request = withAuthUser(request, user)
 	response := httptest.NewRecorder()
 	router.ServeHTTP(response, request)
 
@@ -327,6 +377,7 @@ func TestDuplicateEmailNotFound(t *testing.T) {
 func TestDuplicateEmailRejectsMissingLanguage(t *testing.T) {
 	dbpool := testDBPool(t)
 	emailID := createTestEmail(t, dbpool)
+	user := createTestUserWithRole(t, dbpool, "admin")
 
 	router := chi.NewRouter()
 	registerEmailRoutes(router, dbpool)
@@ -336,6 +387,7 @@ func TestDuplicateEmailRejectsMissingLanguage(t *testing.T) {
 		"/api/emails/"+emailID+"/duplicate",
 		bytes.NewReader([]byte(`{ "variant": "new" }`)),
 	)
+	request = withAuthUser(request, user)
 	response := httptest.NewRecorder()
 	router.ServeHTTP(response, request)
 
@@ -347,6 +399,7 @@ func TestDuplicateEmailRejectsMissingLanguage(t *testing.T) {
 func TestDuplicateEmailRejectsInvalidVariant(t *testing.T) {
 	dbpool := testDBPool(t)
 	emailID := createTestEmail(t, dbpool)
+	user := createTestUserWithRole(t, dbpool, "admin")
 
 	router := chi.NewRouter()
 	registerEmailRoutes(router, dbpool)
@@ -356,11 +409,92 @@ func TestDuplicateEmailRejectsInvalidVariant(t *testing.T) {
 		"/api/emails/"+emailID+"/duplicate",
 		bytes.NewReader([]byte(`{ "language": "es", "variant": "draft" }`)),
 	)
+	request = withAuthUser(request, user)
 	response := httptest.NewRecorder()
 	router.ServeHTTP(response, request)
 
 	if response.Code != http.StatusBadRequest {
 		t.Fatalf("expected POST status 400, got %d: %s", response.Code, response.Body.String())
+	}
+}
+
+func TestDuplicateEmailRejectsReviewer(t *testing.T) {
+	dbpool := testDBPool(t)
+	emailID := createTestEmail(t, dbpool)
+	user := createTestUserWithRole(t, dbpool, "reviewer")
+
+	router := chi.NewRouter()
+	registerEmailRoutes(router, dbpool)
+
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/api/emails/"+emailID+"/duplicate",
+		bytes.NewReader([]byte(`{ "language": "es" }`)),
+	)
+	request = withAuthUser(request, user)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("expected POST status 403, got %d: %s", response.Code, response.Body.String())
+	}
+}
+
+func TestArchiveEmail(t *testing.T) {
+	dbpool := testDBPool(t)
+	emailID := createTestEmail(t, dbpool)
+	user := createTestUserWithRole(t, dbpool, "admin")
+
+	router := chi.NewRouter()
+	registerEmailRoutes(router, dbpool)
+
+	request := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/emails/"+emailID+"/archive",
+		nil,
+	)
+	request = withAuthUser(request, user)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusNoContent {
+		t.Fatalf("expected PATCH status 204, got %d: %s", response.Code, response.Body.String())
+	}
+
+	var archivedBy string
+	err := dbpool.QueryRow(context.Background(), `
+		SELECT archived_by
+		FROM emails
+		WHERE id = $1
+			AND archived_at IS NOT NULL;
+	`, emailID).Scan(&archivedBy)
+	if err != nil {
+		t.Fatalf("expected email to be archived: %v", err)
+	}
+	if archivedBy != user.ID {
+		t.Fatalf("expected archived_by %s, got %s", user.ID, archivedBy)
+	}
+}
+
+func TestArchiveEmailRejectsReviewer(t *testing.T) {
+	dbpool := testDBPool(t)
+	emailID := createTestEmail(t, dbpool)
+	user := createTestUserWithRole(t, dbpool, "reviewer")
+
+	router := chi.NewRouter()
+	registerEmailRoutes(router, dbpool)
+
+	request := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/emails/"+emailID+"/archive",
+		nil,
+	)
+	request = withAuthUser(request, user)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("expected PATCH status 403, got %d: %s", response.Code, response.Body.String())
 	}
 }
 
@@ -448,6 +582,33 @@ func createTestEmailWithSlug(t *testing.T, dbpool *pgxpool.Pool, slug string) st
 	})
 
 	return emailID
+}
+
+func createTestUserWithRole(t *testing.T, dbpool *pgxpool.Pool, role string) AuthUser {
+	t.Helper()
+
+	var user AuthUser
+	err := dbpool.QueryRow(context.Background(), `
+		INSERT INTO users (email, role)
+		VALUES ($1, $2)
+		ON CONFLICT (email) DO UPDATE SET
+			role = EXCLUDED.role,
+			updated_at = now()
+		RETURNING id, email, role;
+	`, "email-handler-"+role+"@example.com", role).Scan(&user.ID, &user.Email, &user.Role)
+	if err != nil {
+		t.Fatalf("failed to create %s test user: %v", role, err)
+	}
+
+	t.Cleanup(func() {
+		_, _ = dbpool.Exec(context.Background(), `DELETE FROM users WHERE id = $1;`, user.ID)
+	})
+
+	return user
+}
+
+func withAuthUser(request *http.Request, user AuthUser) *http.Request {
+	return request.WithContext(context.WithValue(request.Context(), authUserContextKey, user))
 }
 
 func loadTestEmailEditableFields(t *testing.T, dbpool *pgxpool.Pool, emailID string) map[string]struct {

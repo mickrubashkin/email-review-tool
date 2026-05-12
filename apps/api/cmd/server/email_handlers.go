@@ -20,6 +20,7 @@ func registerEmailRoutes(r chi.Router, dbpool *pgxpool.Pool) {
 	r.Get("/api/emails/{id}", getEmailHandler(dbpool))
 	r.Patch("/api/emails/{id}/editable-fields", updateEmailEditableFieldsHandler(dbpool))
 	r.Post("/api/emails/{id}/duplicate", duplicateEmailHandler(dbpool))
+	r.Patch("/api/emails/{id}/archive", archiveEmailHandler(dbpool))
 }
 
 func listEmailsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
@@ -43,6 +44,7 @@ func listEmailsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 						AND comments.status = 'open'
 					) AS open_comment_count
 			FROM emails
+			WHERE archived_at IS NULL
 			ORDER BY sort_order, created_at;
 		`)
 		if err != nil {
@@ -161,6 +163,10 @@ type updateEmailEditableFieldsRequest struct {
 func updateEmailEditableFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := chi.URLParam(r, "id")
+		if !isRequestAdmin(r) {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
 
 		var request updateEmailEditableFieldsRequest
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
@@ -176,7 +182,8 @@ func updateEmailEditableFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 		err := dbpool.QueryRow(r.Context(), `
 			SELECT template_html
 			FROM emails
-			WHERE id = $1;
+			WHERE id = $1
+				AND archived_at IS NULL;
 		`, id).Scan(&templateHTML)
 		if err != nil {
 			http.Error(w, "email not found", http.StatusNotFound)
@@ -199,7 +206,8 @@ func updateEmailEditableFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			UPDATE emails
 			SET editable_fields = $2::jsonb,
 				updated_at = now()
-			WHERE id = $1;
+			WHERE id = $1
+				AND archived_at IS NULL;
 		`, id, fieldsJSON)
 		if err != nil {
 			http.Error(w, "failed to update editable fields", http.StatusInternalServerError)
@@ -225,6 +233,10 @@ type duplicateEmailRequest struct {
 func duplicateEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := chi.URLParam(r, "id")
+		if !isRequestAdmin(r) {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
 
 		var request duplicateEmailRequest
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
@@ -319,6 +331,45 @@ func duplicateEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 	}
 }
 
+func archiveEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := chi.URLParam(r, "id")
+		user, ok := authUserFromContext(r)
+		if !ok {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		if !isAdminUser(user) {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+
+		result, err := dbpool.Exec(r.Context(), `
+			UPDATE emails
+			SET archived_at = now(),
+				archived_by = $2,
+				updated_at = now()
+			WHERE id = $1
+				AND archived_at IS NULL;
+		`, id, user.ID)
+		if err != nil {
+			http.Error(w, "failed to archive email", http.StatusInternalServerError)
+			return
+		}
+		if result.RowsAffected() == 0 {
+			http.Error(w, "email not found", http.StatusNotFound)
+			return
+		}
+
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+func isRequestAdmin(r *http.Request) bool {
+	user, ok := authUserFromContext(r)
+	return ok && isAdminUser(user)
+}
+
 type emailDuplicateSource struct {
 	Slug            string
 	Sequence        string
@@ -361,7 +412,8 @@ func loadEmailForDuplicate(r *http.Request, dbpool *pgxpool.Pool, id string) (em
 			template_version,
 			editable_fields
 		FROM emails
-		WHERE id = $1;
+		WHERE id = $1
+			AND archived_at IS NULL;
 	`, id).Scan(
 		&source.Slug,
 		&source.Sequence,

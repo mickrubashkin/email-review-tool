@@ -13,11 +13,14 @@ import {
 } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { notifications } from "@mantine/notifications";
 
 import { AIAnalysisLogsView } from "./features/ai-logs/AIAnalysisLogsView";
+import { AdminUsersView } from "./features/admin-users/AdminUsersView";
 import { AuthEventsView } from "./features/auth-events/AuthEventsView";
 import { LoginView } from "./features/auth/LoginView";
 import {
+  archiveEmail,
   duplicateEmail,
   fetchCurrentUser,
   fetchEmailDetail,
@@ -77,6 +80,10 @@ function AuthenticatedApp() {
 
   if (window.location.pathname === "/auth-events") {
     return <AuthEventsView />;
+  }
+
+  if (window.location.pathname === "/admin/users") {
+    return <AdminUsersView />;
   }
 
   const reviewEmailId = getReviewEmailId(window.location.pathname);
@@ -142,6 +149,25 @@ function EmailBoardApp({
       void queryClient.invalidateQueries({ queryKey: ["emails"] });
     },
   });
+  const archiveEmailMutation = useMutation({
+    mutationFn: archiveEmail,
+    onSuccess: () => {
+      setSelectedEmailId(null);
+      void queryClient.invalidateQueries({ queryKey: ["emails"] });
+      notifications.show({
+        color: "green",
+        message: "Email was removed from the active board.",
+        title: "Email archived",
+      });
+    },
+    onError: () => {
+      notifications.show({
+        color: "red",
+        message: "Try again or check that you have admin access.",
+        title: "Archive failed",
+      });
+    },
+  });
 
   const columns = useMemo(
     () => buildStageColumns(emailsQuery.data ?? []),
@@ -203,6 +229,16 @@ function EmailBoardApp({
                 {currentUser.role}
               </Badge>
             </Group>
+            {currentUser.role === "super_admin" ? (
+              <Button
+                component="a"
+                href="/admin/users"
+                size="xs"
+                variant="white"
+              >
+                Users
+              </Button>
+            ) : null}
             <Button
               color="gray"
               loading={isLoggingOut}
@@ -247,12 +283,14 @@ function EmailBoardApp({
         duplicateEmailError={duplicateEmailMutation.error}
         email={selectedEmail}
         emailGroup={selectedEmailGroup}
+        isArchivingEmail={archiveEmailMutation.isPending}
         isDuplicatingEmail={duplicateEmailMutation.isPending}
         isError={emailDetailQuery.isError}
         isLoading={emailDetailQuery.isLoading}
         isMobile={isMobile}
         opened={selectedEmailId !== null}
         onClose={() => setSelectedEmailId(null)}
+        onArchiveEmail={(emailId) => archiveEmailMutation.mutateAsync(emailId)}
         onDuplicateEmail={(emailId, payload) =>
           duplicateEmailMutation.mutateAsync({ emailId, payload })
         }

@@ -112,6 +112,14 @@ type AuthUser struct {
 	Role  string `json:"role"`
 }
 
+type UserAdminItem struct {
+	ID        string    `json:"id"`
+	Email     string    `json:"email"`
+	Role      string    `json:"role"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
 type AuthEventItem struct {
 	ID        string    `json:"id"`
 	UserID    *string   `json:"user_id"`

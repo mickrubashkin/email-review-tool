@@ -1,11 +1,15 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/go-chi/chi/v5"
 )
 
 type recordingEmailSender struct {
@@ -80,5 +84,90 @@ func TestIsValidOTPCodeFormat(t *testing.T) {
 		if isValidOTPCodeFormat(code) {
 			t.Fatalf("expected %q to be invalid", code)
 		}
+	}
+}
+
+func TestListAdminUsersRequiresSuperAdmin(t *testing.T) {
+	dbpool := testDBPool(t)
+	user := createTestUserWithRole(t, dbpool, "admin")
+
+	router := chi.NewRouter()
+	registerAuthRoutes(router, dbpool, &recordingEmailSender{})
+
+	request := httptest.NewRequest(http.MethodGet, "/api/admin/users", nil)
+	request = withAuthUser(request, user)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("expected GET status 403, got %d: %s", response.Code, response.Body.String())
+	}
+}
+
+func TestSuperAdminCanListAndUpdateUsers(t *testing.T) {
+	dbpool := testDBPool(t)
+	superAdmin := createTestUserWithRole(t, dbpool, "super_admin")
+	reviewer := createTestUserWithRole(t, dbpool, "reviewer")
+
+	router := chi.NewRouter()
+	registerAuthRoutes(router, dbpool, &recordingEmailSender{})
+
+	listRequest := httptest.NewRequest(http.MethodGet, "/api/admin/users", nil)
+	listRequest = withAuthUser(listRequest, superAdmin)
+	listResponse := httptest.NewRecorder()
+	router.ServeHTTP(listResponse, listRequest)
+
+	if listResponse.Code != http.StatusOK {
+		t.Fatalf("expected GET status 200, got %d: %s", listResponse.Code, listResponse.Body.String())
+	}
+
+	var users []UserAdminItem
+	if err := json.NewDecoder(listResponse.Body).Decode(&users); err != nil {
+		t.Fatalf("failed to decode users: %v", err)
+	}
+	if len(users) == 0 {
+		t.Fatal("expected users list to include test users")
+	}
+
+	updateRequest := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/admin/users/"+reviewer.ID+"/role",
+		bytes.NewReader([]byte(`{ "role": "admin" }`)),
+	)
+	updateRequest = withAuthUser(updateRequest, superAdmin)
+	updateResponse := httptest.NewRecorder()
+	router.ServeHTTP(updateResponse, updateRequest)
+
+	if updateResponse.Code != http.StatusOK {
+		t.Fatalf("expected PATCH status 200, got %d: %s", updateResponse.Code, updateResponse.Body.String())
+	}
+
+	var updated UserAdminItem
+	if err := json.NewDecoder(updateResponse.Body).Decode(&updated); err != nil {
+		t.Fatalf("failed to decode updated user: %v", err)
+	}
+	if updated.ID != reviewer.ID || updated.Role != "admin" {
+		t.Fatalf("expected reviewer to become admin, got %#v", updated)
+	}
+}
+
+func TestSuperAdminCannotDemoteSelf(t *testing.T) {
+	dbpool := testDBPool(t)
+	superAdmin := createTestUserWithRole(t, dbpool, "super_admin")
+
+	router := chi.NewRouter()
+	registerAuthRoutes(router, dbpool, &recordingEmailSender{})
+
+	request := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/admin/users/"+superAdmin.ID+"/role",
+		bytes.NewReader([]byte(`{ "role": "admin" }`)),
+	)
+	request = withAuthUser(request, superAdmin)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("expected PATCH status 400, got %d: %s", response.Code, response.Body.String())
 	}
 }

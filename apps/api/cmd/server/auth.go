@@ -41,6 +41,8 @@ func registerAuthRoutes(r chi.Router, dbpool *pgxpool.Pool, emailSender EmailSen
 	r.Get("/api/auth/events", listAuthEventsHandler(dbpool))
 	r.Get("/api/auth/me", meHandler(dbpool))
 	r.Post("/api/auth/logout", logoutHandler(dbpool))
+	r.Get("/api/admin/users", listAdminUsersHandler(dbpool))
+	r.Patch("/api/admin/users/{id}/role", updateAdminUserRoleHandler(dbpool))
 }
 
 func authMiddleware(dbpool *pgxpool.Pool) func(http.Handler) http.Handler {
@@ -208,7 +210,7 @@ func listAuthEventsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
-		if user.Role != "admin" {
+		if !isAdminUser(user) {
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
 		}
@@ -293,8 +295,8 @@ func createSessionCookie(ctx context.Context, dbpool *pgxpool.Pool, w http.Respo
 
 func upsertAuthUser(ctx context.Context, dbpool *pgxpool.Pool, email string) (AuthUser, error) {
 	role := "reviewer"
-	if email == normalizeEmail(os.Getenv("AUTH_BOOTSTRAP_ADMIN_EMAIL")) {
-		role = "admin"
+	if email == bootstrapSuperAdminEmail() {
+		role = "super_admin"
 	}
 
 	var user AuthUser
@@ -303,7 +305,7 @@ func upsertAuthUser(ctx context.Context, dbpool *pgxpool.Pool, email string) (Au
 		VALUES ($1, $2)
 		ON CONFLICT (email) DO UPDATE SET
 			role = CASE
-				WHEN users.role = 'reviewer' AND EXCLUDED.role = 'admin' THEN 'admin'
+				WHEN users.role <> 'super_admin' AND EXCLUDED.role = 'super_admin' THEN 'super_admin'
 				ELSE users.role
 			END,
 			updated_at = now()
@@ -311,6 +313,124 @@ func upsertAuthUser(ctx context.Context, dbpool *pgxpool.Pool, email string) (Au
 	`, email, role).Scan(&user.ID, &user.Email, &user.Role)
 
 	return user, err
+}
+
+type updateUserRoleRequest struct {
+	Role string `json:"role"`
+}
+
+func listAdminUsersHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := authUserFromContext(r)
+		if !ok {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		if !isSuperAdminUser(user) {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+
+		rows, err := dbpool.Query(r.Context(), `
+			SELECT id, email, role, created_at, updated_at
+			FROM users
+			ORDER BY email;
+		`)
+		if err != nil {
+			http.Error(w, "failed to load users", http.StatusInternalServerError)
+			return
+		}
+		defer rows.Close()
+
+		users := []UserAdminItem{}
+		for rows.Next() {
+			var item UserAdminItem
+			if err := rows.Scan(&item.ID, &item.Email, &item.Role, &item.CreatedAt, &item.UpdatedAt); err != nil {
+				http.Error(w, "failed to read users", http.StatusInternalServerError)
+				return
+			}
+			users = append(users, item)
+		}
+		if err := rows.Err(); err != nil {
+			http.Error(w, "failed to read users", http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(users)
+	}
+}
+
+func updateAdminUserRoleHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := authUserFromContext(r)
+		if !ok {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		if !isSuperAdminUser(user) {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+
+		targetUserID := chi.URLParam(r, "id")
+		var request updateUserRoleRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+
+		role := strings.ToLower(strings.TrimSpace(request.Role))
+		if !isValidUserRole(role) {
+			http.Error(w, "invalid role", http.StatusBadRequest)
+			return
+		}
+		if targetUserID == user.ID && role != "super_admin" {
+			http.Error(w, "cannot change your own super admin role", http.StatusBadRequest)
+			return
+		}
+
+		var updatedUser UserAdminItem
+		err := dbpool.QueryRow(r.Context(), `
+			UPDATE users
+			SET role = $2,
+				updated_at = now()
+			WHERE id = $1
+			RETURNING id, email, role, created_at, updated_at;
+		`, targetUserID, role).Scan(
+			&updatedUser.ID,
+			&updatedUser.Email,
+			&updatedUser.Role,
+			&updatedUser.CreatedAt,
+			&updatedUser.UpdatedAt,
+		)
+		if err != nil {
+			http.Error(w, "user not found", http.StatusNotFound)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(updatedUser)
+	}
+}
+
+func isAdminUser(user AuthUser) bool {
+	return user.Role == "admin" || user.Role == "super_admin"
+}
+
+func isSuperAdminUser(user AuthUser) bool {
+	return user.Role == "super_admin"
+}
+
+func isValidUserRole(role string) bool {
+	return role == "super_admin" || role == "admin" || role == "reviewer"
+}
+
+func bootstrapSuperAdminEmail() string {
+	if email := normalizeEmail(os.Getenv("AUTH_BOOTSTRAP_SUPER_ADMIN_EMAIL")); email != "" {
+		return email
+	}
+	return normalizeEmail(os.Getenv("AUTH_BOOTSTRAP_ADMIN_EMAIL"))
 }
 
 func saveOTPCode(ctx context.Context, dbpool *pgxpool.Pool, email string, code string) error {

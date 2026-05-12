@@ -107,7 +107,17 @@ export type AIAnalysisLogFilters = {
 
 export type AuthUser = {
   email: string;
-  role: "admin" | "reviewer";
+  role: UserRole;
+};
+
+export type UserRole = "super_admin" | "admin" | "reviewer";
+
+export type UserAdminItem = {
+  id: string;
+  email: string;
+  role: UserRole;
+  created_at: string;
+  updated_at: string;
 };
 
 export type AuthEventItem = {

@@ -13,6 +13,7 @@ import {
   Tooltip,
 } from "@mantine/core";
 import {
+  Archive,
   ChevronDown,
   Copy,
   CopyPlus,
@@ -54,11 +55,13 @@ type EmailPreviewDrawerProps = {
   duplicateEmailError: Error | null;
   email: EmailDetail | undefined;
   emailGroup: EmailVersionGroup | undefined;
+  isArchivingEmail: boolean;
   isDuplicatingEmail: boolean;
   isError: boolean;
   isLoading: boolean;
   isMobile: boolean | undefined;
   onClose: () => void;
+  onArchiveEmail: (emailId: string) => Promise<void>;
   onDuplicateEmail: (
     emailId: string,
     payload: DuplicateEmailPayload
@@ -74,11 +77,13 @@ export function EmailPreviewDrawer({
   duplicateEmailError,
   email,
   emailGroup,
+  isArchivingEmail,
   isDuplicatingEmail,
   isError,
   isLoading,
   isMobile,
   onClose,
+  onArchiveEmail,
   onDuplicateEmail,
   onResetDuplicateEmail,
   onSelectVersion,
@@ -87,6 +92,7 @@ export function EmailPreviewDrawer({
 }: EmailPreviewDrawerProps) {
   const [previewMode, setPreviewMode] = useState<PreviewMode>("desktop");
   const [duplicateModalOpened, setDuplicateModalOpened] = useState(false);
+  const [archiveModalOpened, setArchiveModalOpened] = useState(false);
   const {
     analyze,
     reanalyze,
@@ -119,7 +125,8 @@ export function EmailPreviewDrawer({
     ? `${email.title}${email.send_timing ? ` (${formatTimingLabel(email.send_timing)})` : ""}`
     : "";
   const isAnalyzingCurrentEmail = streamStatus === "streaming" && isCurrentStream;
-  const canDuplicateEmail = currentUserRole === "admin";
+  const canManageEmail =
+    currentUserRole === "admin" || currentUserRole === "super_admin";
 
   const handleCopyHTML = async () => {
     if (email) {
@@ -177,7 +184,7 @@ export function EmailPreviewDrawer({
                 />
               ) : null}
 
-              {canDuplicateEmail ? (
+              {canManageEmail ? (
                 <Tooltip label="Duplicate email">
                   <ActionIcon
                     aria-label="Duplicate email"
@@ -191,6 +198,22 @@ export function EmailPreviewDrawer({
                     variant="light"
                   >
                     <CopyPlus aria-hidden="true" size={16} strokeWidth={2.2} />
+                  </ActionIcon>
+                </Tooltip>
+              ) : null}
+
+              {canManageEmail ? (
+                <Tooltip label="Archive email">
+                  <ActionIcon
+                    aria-label="Archive email"
+                    className={styles.archiveAction}
+                    loading={isArchivingEmail}
+                    onClick={() => setArchiveModalOpened(true)}
+                    radius="md"
+                    size="lg"
+                    variant="light"
+                  >
+                    <Archive aria-hidden="true" size={16} strokeWidth={2.2} />
                   </ActionIcon>
                 </Tooltip>
               ) : null}
@@ -284,6 +307,17 @@ export function EmailPreviewDrawer({
           }}
         />
       ) : null}
+
+      <ArchiveEmailModal
+        email={email}
+        isSubmitting={isArchivingEmail}
+        opened={archiveModalOpened}
+        onClose={() => setArchiveModalOpened(false)}
+        onSubmit={async (emailId) => {
+          await onArchiveEmail(emailId);
+          setArchiveModalOpened(false);
+        }}
+      />
 
       {isLoading ? (
         <Stack align="center" justify="center" h={320}>
@@ -458,6 +492,61 @@ function PreviewArea({
 }) {
   return (
     <MailPreview email={email} isScanning={isScanning} viewport={previewMode} />
+  );
+}
+
+function ArchiveEmailModal({
+  email,
+  isSubmitting,
+  onClose,
+  onSubmit,
+  opened,
+}: {
+  email: EmailDetail | undefined;
+  isSubmitting: boolean;
+  onClose: () => void;
+  onSubmit: (emailId: string) => Promise<void>;
+  opened: boolean;
+}) {
+  const handleArchive = async () => {
+    if (!email) {
+      return;
+    }
+
+    try {
+      await onSubmit(email.id);
+    } catch {
+      // The parent mutation shows the notification; keep the modal open.
+    }
+  };
+
+  return (
+    <Modal centered opened={opened} title="Archive email" onClose={onClose}>
+      <Stack gap="sm">
+        <Text size="sm">
+          Archive {email ? `"${email.title}"` : "this email"}? It will be hidden
+          from the active board, but comments and history will stay in the database.
+        </Text>
+        <Group justify="flex-end" mt="xs">
+          <Button
+            disabled={isSubmitting}
+            type="button"
+            variant="default"
+            onClick={onClose}
+          >
+            Cancel
+          </Button>
+          <Button
+            color="red"
+            disabled={!email}
+            loading={isSubmitting}
+            onClick={handleArchive}
+          >
+            Archive email
+          </Button>
+        </Group>
+      </Stack>
+    </Modal>
   );
 }
 
