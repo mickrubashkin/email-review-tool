@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
@@ -120,6 +121,9 @@ func TestUpdateEmailEditableFields(t *testing.T) {
 	registerEmailRoutes(router, dbpool)
 
 	requestBody := []byte(`{
+		"title": "Updated Email",
+		"subject": "Updated subject",
+		"preheader": "Updated preheader",
 		"editable_fields": {
 			"primary_cta_text": { "type": "text", "value": "Start now" },
 			"primary_cta_url": { "type": "url", "value": "https://example.com/start" },
@@ -144,6 +148,27 @@ func TestUpdateEmailEditableFields(t *testing.T) {
 	assertEditableField(t, fields, "primary_cta_text", "text", "Start now")
 	assertEditableField(t, fields, "primary_cta_url", "url", "https://example.com/start")
 	assertEditableField(t, fields, "primary_cta_width_px", "number", float64(220))
+
+	var title string
+	var subject *string
+	var preheader *string
+	err := dbpool.QueryRow(context.Background(), `
+		SELECT title, subject, preheader
+		FROM emails
+		WHERE id = $1;
+	`, emailID).Scan(&title, &subject, &preheader)
+	if err != nil {
+		t.Fatalf("failed to load updated metadata: %v", err)
+	}
+	if title != "Updated Email" {
+		t.Fatalf("expected updated title, got %q", title)
+	}
+	if subject == nil || *subject != "Updated subject" {
+		t.Fatalf("expected updated subject, got %#v", subject)
+	}
+	if preheader == nil || *preheader != "Updated preheader" {
+		t.Fatalf("expected updated preheader, got %#v", preheader)
+	}
 }
 
 func TestUpdateEmailEditableFieldsRejectsNullFields(t *testing.T) {
@@ -226,6 +251,126 @@ func TestUpdateEmailEditableFieldsNotFound(t *testing.T) {
 
 	if response.Code != http.StatusNotFound {
 		t.Fatalf("expected PATCH status 404, got %d: %s", response.Code, response.Body.String())
+	}
+}
+
+func TestUpdateEmailEditableFieldsRejectsReviewer(t *testing.T) {
+	dbpool := testDBPool(t)
+	emailID := createTestEmail(t, dbpool)
+	user := createTestUserWithRole(t, dbpool, "reviewer")
+
+	router := chi.NewRouter()
+	registerEmailRoutes(router, dbpool)
+
+	request := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/emails/"+emailID+"/editable-fields",
+		bytes.NewReader([]byte(`{ "editable_fields": {} }`)),
+	)
+	request = withAuthUser(request, user)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("expected PATCH status 403, got %d: %s", response.Code, response.Body.String())
+	}
+}
+
+func TestUpdateEmailEditableFieldsRejectsArchivedEmail(t *testing.T) {
+	dbpool := testDBPool(t)
+	emailID := createTestEmail(t, dbpool)
+	user := createTestUserWithRole(t, dbpool, "admin")
+
+	_, err := dbpool.Exec(context.Background(), `
+		UPDATE emails
+		SET archived_at = now()
+		WHERE id = $1;
+	`, emailID)
+	if err != nil {
+		t.Fatalf("failed to archive test email: %v", err)
+	}
+
+	router := chi.NewRouter()
+	registerEmailRoutes(router, dbpool)
+
+	request := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/emails/"+emailID+"/editable-fields",
+		bytes.NewReader([]byte(`{ "editable_fields": {} }`)),
+	)
+	request = withAuthUser(request, user)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusNotFound {
+		t.Fatalf("expected PATCH status 404, got %d: %s", response.Code, response.Body.String())
+	}
+}
+
+func TestGetRenderedEmail(t *testing.T) {
+	dbpool := testDBPool(t)
+	emailID := createTestEmail(t, dbpool)
+
+	_, err := dbpool.Exec(context.Background(), `
+		UPDATE emails
+		SET
+			preheader = 'Rendered preheader',
+			template_html = '<html><body><span data-email-preheader></span><a href="https://example.com/old" data-edit-text="primary_cta_text" data-edit-attr-href="primary_cta_url">Old CTA</a></body></html>',
+			editable_fields = '{"primary_cta_text":{"type":"text","value":"Start now"},"primary_cta_url":{"type":"url","value":"https://example.com/start"}}'::jsonb
+		WHERE id = $1;
+	`, emailID)
+	if err != nil {
+		t.Fatalf("failed to prepare rendered test email: %v", err)
+	}
+
+	router := chi.NewRouter()
+	registerEmailRoutes(router, dbpool)
+
+	request := httptest.NewRequest(http.MethodGet, "/api/emails/"+emailID+"/rendered", nil)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected GET status 200, got %d: %s", response.Code, response.Body.String())
+	}
+
+	var rendered renderedEmailResponse
+	if err := json.NewDecoder(response.Body).Decode(&rendered); err != nil {
+		t.Fatalf("failed to decode rendered email: %v", err)
+	}
+	if !strings.Contains(rendered.HTML, "Rendered preheader") {
+		t.Fatalf("expected rendered preheader, got %s", rendered.HTML)
+	}
+	if !strings.Contains(rendered.HTML, "Start now") {
+		t.Fatalf("expected rendered CTA text, got %s", rendered.HTML)
+	}
+	if !strings.Contains(rendered.HTML, `href="https://example.com/start"`) {
+		t.Fatalf("expected rendered CTA URL, got %s", rendered.HTML)
+	}
+}
+
+func TestGetRenderedEmailRejectsArchivedEmail(t *testing.T) {
+	dbpool := testDBPool(t)
+	emailID := createTestEmail(t, dbpool)
+
+	_, err := dbpool.Exec(context.Background(), `
+		UPDATE emails
+		SET archived_at = now()
+		WHERE id = $1;
+	`, emailID)
+	if err != nil {
+		t.Fatalf("failed to archive test email: %v", err)
+	}
+
+	router := chi.NewRouter()
+	registerEmailRoutes(router, dbpool)
+
+	request := httptest.NewRequest(http.MethodGet, "/api/emails/"+emailID+"/rendered", nil)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusNotFound {
+		t.Fatalf("expected GET status 404, got %d: %s", response.Code, response.Body.String())
 	}
 }
 

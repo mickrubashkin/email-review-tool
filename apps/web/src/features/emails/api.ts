@@ -12,6 +12,8 @@ import type {
   EmailComment,
   UserAdminItem,
   UserRole,
+  RenderedEmail,
+  UpdateEditableFieldsPayload,
 } from "./types";
 
 export class ApiError extends Error {
@@ -101,6 +103,28 @@ export function fetchEmails(): Promise<EmailListItem[]> {
 
 export function fetchEmailDetail(emailId: string): Promise<EmailDetail> {
   return fetchJson<EmailDetail>(`/api/emails/${encodeURIComponent(emailId)}`);
+}
+
+export function fetchRenderedEmail(emailId: string): Promise<RenderedEmail> {
+  return fetchJson<RenderedEmail>(
+    `/api/emails/${encodeURIComponent(emailId)}/rendered`
+  );
+}
+
+export function updateEmailEditableFields(
+  emailId: string,
+  payload: UpdateEditableFieldsPayload
+): Promise<void> {
+  return fetchJson<void>(
+    `/api/emails/${encodeURIComponent(emailId)}/editable-fields`,
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    }
+  );
 }
 
 export function duplicateEmail(

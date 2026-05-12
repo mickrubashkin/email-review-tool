@@ -20,6 +20,7 @@ import {
   Download,
   ExternalLink,
   Monitor,
+  Pencil,
   RefreshCcw,
   Smartphone,
 } from "lucide-react";
@@ -198,6 +199,22 @@ export function EmailPreviewDrawer({
                     variant="light"
                   >
                     <CopyPlus aria-hidden="true" size={16} strokeWidth={2.2} />
+                  </ActionIcon>
+                </Tooltip>
+              ) : null}
+
+              {canManageEmail ? (
+                <Tooltip label="Edit fields">
+                  <ActionIcon
+                    aria-label="Edit fields"
+                    className={styles.exportAction}
+                    component="a"
+                    href={`/emails/${encodeURIComponent(email.id)}/edit`}
+                    radius="md"
+                    size="lg"
+                    variant="light"
+                  >
+                    <Pencil aria-hidden="true" size={16} strokeWidth={2.2} />
                   </ActionIcon>
                 </Tooltip>
               ) : null}

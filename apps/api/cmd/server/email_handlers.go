@@ -18,6 +18,7 @@ import (
 func registerEmailRoutes(r chi.Router, dbpool *pgxpool.Pool) {
 	r.Get("/api/emails", listEmailsHandler(dbpool))
 	r.Get("/api/emails/{id}", getEmailHandler(dbpool))
+	r.Get("/api/emails/{id}/rendered", getRenderedEmailHandler(dbpool))
 	r.Patch("/api/emails/{id}/editable-fields", updateEmailEditableFieldsHandler(dbpool))
 	r.Post("/api/emails/{id}/duplicate", duplicateEmailHandler(dbpool))
 	r.Patch("/api/emails/{id}/archive", archiveEmailHandler(dbpool))
@@ -157,7 +158,52 @@ func getEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 }
 
 type updateEmailEditableFieldsRequest struct {
+	Title          *string                  `json:"title"`
+	Subject        *string                  `json:"subject"`
+	Preheader      *string                  `json:"preheader"`
 	EditableFields emailedit.EditableFields `json:"editable_fields"`
+}
+
+type renderedEmailResponse struct {
+	HTML string `json:"html"`
+}
+
+func getRenderedEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := chi.URLParam(r, "id")
+
+		var templateHTML string
+		var preheader *string
+		var editableFieldsJSON []byte
+		err := dbpool.QueryRow(r.Context(), `
+			SELECT template_html, preheader, editable_fields
+			FROM emails
+			WHERE id = $1
+				AND archived_at IS NULL;
+		`, id).Scan(&templateHTML, &preheader, &editableFieldsJSON)
+		if err != nil {
+			http.Error(w, "email not found", http.StatusNotFound)
+			return
+		}
+
+		var editableFields emailedit.EditableFields
+		if err := json.Unmarshal(editableFieldsJSON, &editableFields); err != nil {
+			http.Error(w, "invalid editable fields", http.StatusInternalServerError)
+			return
+		}
+
+		html, err := emailedit.RenderEditableHTMLWithMetadata(templateHTML, editableFields, emailedit.RenderMetadata{
+			Preheader: stringFromPointer(preheader),
+		})
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "failed to render email %s: %v\n", id, err)
+			http.Error(w, "failed to render email", http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(renderedEmailResponse{HTML: html})
+	}
 }
 
 func updateEmailEditableFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
@@ -179,18 +225,43 @@ func updateEmailEditableFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 		}
 
 		var templateHTML string
+		var currentTitle string
+		var currentSubject *string
+		var currentPreheader *string
+		var bodyText *string
+		var originalHTML string
 		err := dbpool.QueryRow(r.Context(), `
-			SELECT template_html
+			SELECT template_html, title, subject, preheader, body_text, original_html
 			FROM emails
 			WHERE id = $1
 				AND archived_at IS NULL;
-		`, id).Scan(&templateHTML)
+		`, id).Scan(&templateHTML, &currentTitle, &currentSubject, &currentPreheader, &bodyText, &originalHTML)
 		if err != nil {
 			http.Error(w, "email not found", http.StatusNotFound)
 			return
 		}
 
-		if _, err := emailedit.RenderEditableHTML(templateHTML, request.EditableFields); err != nil {
+		title := currentTitle
+		if request.Title != nil {
+			title = strings.TrimSpace(*request.Title)
+		}
+		if title == "" {
+			http.Error(w, "title is required", http.StatusBadRequest)
+			return
+		}
+
+		subject := currentSubject
+		if request.Subject != nil {
+			subject = request.Subject
+		}
+		preheader := currentPreheader
+		if request.Preheader != nil {
+			preheader = request.Preheader
+		}
+
+		if _, err := emailedit.RenderEditableHTMLWithMetadata(templateHTML, request.EditableFields, emailedit.RenderMetadata{
+			Preheader: stringFromPointer(preheader),
+		}); err != nil {
 			fmt.Fprintf(os.Stderr, "invalid editable fields for email %s: %v\n", id, err)
 			http.Error(w, "invalid editable fields", http.StatusBadRequest)
 			return
@@ -201,14 +272,29 @@ func updateEmailEditableFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			http.Error(w, "invalid editable fields", http.StatusBadRequest)
 			return
 		}
+		contentParts := emailtext.ExtractContentParts(
+			originalHTML,
+			stringFromPointer(subject),
+			stringFromPointer(preheader),
+			stringFromPointer(bodyText),
+		)
+		contentPartsJSON, err := json.Marshal(contentParts)
+		if err != nil {
+			http.Error(w, "failed to update editable fields", http.StatusInternalServerError)
+			return
+		}
 
 		result, err := dbpool.Exec(r.Context(), `
 			UPDATE emails
-			SET editable_fields = $2::jsonb,
+			SET title = $2,
+				subject = $3,
+				preheader = $4,
+				editable_fields = $5::jsonb,
+				content_parts = $6::jsonb,
 				updated_at = now()
 			WHERE id = $1
 				AND archived_at IS NULL;
-		`, id, fieldsJSON)
+		`, id, title, subject, preheader, fieldsJSON, contentPartsJSON)
 		if err != nil {
 			http.Error(w, "failed to update editable fields", http.StatusInternalServerError)
 			return

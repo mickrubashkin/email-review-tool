@@ -3,31 +3,59 @@ import { notifications } from "@mantine/notifications";
 import type { EmailDetail } from "./types";
 
 export async function copyOriginalHTML(email: EmailDetail) {
+  return copyHTML(email.original_html, {
+    failureMessage: "Browser blocked clipboard access. Try downloading the HTML instead.",
+    successMessage: "Original HTML copied to clipboard",
+  });
+}
+
+export async function copyRenderedHTML(html: string) {
+  return copyHTML(html, {
+    failureMessage: "Browser blocked clipboard access. Try downloading the HTML instead.",
+    successMessage: "Rendered HTML copied to clipboard",
+  });
+}
+
+export function downloadOriginalHTML(email: EmailDetail) {
+  downloadHTML(email.original_html, buildHTMLFileName(email), "Downloaded");
+}
+
+export function downloadRenderedHTML(email: EmailDetail, html: string) {
+  downloadHTML(html, buildHTMLFileName(email, "rendered"), "Rendered HTML downloaded");
+}
+
+async function copyHTML(
+  html: string,
+  messages: {
+    failureMessage: string;
+    successMessage: string;
+  }
+) {
   try {
-    await navigator.clipboard.writeText(email.original_html);
+    await navigator.clipboard.writeText(html);
     notifications.show({
       color: "green",
-      message: "Original HTML copied to clipboard",
+      message: messages.successMessage,
       title: "Copied",
     });
   } catch {
     notifications.show({
       color: "red",
-      message: "Browser blocked clipboard access. Try downloading the HTML instead.",
+      message: messages.failureMessage,
       title: "Copy failed",
     });
   }
 }
 
-export function downloadOriginalHTML(email: EmailDetail) {
-  const blob = new Blob([email.original_html], {
+function downloadHTML(html: string, fileName: string, title: string) {
+  const blob = new Blob([html], {
     type: "text/html;charset=utf-8",
   });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
 
   link.href = url;
-  link.download = buildHTMLFileName(email);
+  link.download = fileName;
   document.body.appendChild(link);
   link.click();
   link.remove();
@@ -36,11 +64,11 @@ export function downloadOriginalHTML(email: EmailDetail) {
   notifications.show({
     color: "green",
     message: `${link.download} is ready`,
-    title: "Downloaded",
+    title,
   });
 }
 
-function buildHTMLFileName(email: EmailDetail) {
+function buildHTMLFileName(email: EmailDetail, suffix?: string) {
   const baseName = email.slug || email.title || "email";
   const sanitizedBaseName = baseName
     .toLowerCase()
@@ -49,6 +77,7 @@ function buildHTMLFileName(email: EmailDetail) {
     .replace(/[^a-z0-9_-]+/g, "-")
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "");
+  const name = sanitizedBaseName || "email";
 
-  return `${sanitizedBaseName || "email"}.html`;
+  return `${suffix ? `${name}-${suffix}` : name}.html`;
 }

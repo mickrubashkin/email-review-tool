@@ -19,7 +19,7 @@ export type EmailDetail = EmailListItem & {
   template_html: string;
   template_hash: string | null;
   template_version: string | null;
-  editable_fields: Record<string, unknown>;
+  editable_fields: EditableFields;
 };
 
 export type EmailVariant = "new" | "old";
@@ -30,6 +30,26 @@ export type DuplicateEmailPayload = {
   title?: string;
   subject?: string;
   preheader?: string;
+};
+
+export type EditableFieldType = "text" | "url" | "image" | "number";
+
+export type EditableField = {
+  type: EditableFieldType;
+  value: string | number;
+};
+
+export type EditableFields = Record<string, EditableField>;
+
+export type UpdateEditableFieldsPayload = {
+  title: string;
+  subject: string;
+  preheader: string;
+  editable_fields: EditableFields;
+};
+
+export type RenderedEmail = {
+  html: string;
 };
 
 export type EmailAnalysis = {

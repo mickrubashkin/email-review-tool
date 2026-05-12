@@ -28,6 +28,7 @@ import {
   logout,
 } from "./features/emails/api";
 import { EmailBoard } from "./features/emails/EmailBoard";
+import { EmailFieldsEditorView } from "./features/emails/EmailFieldsEditorView";
 import { EmailPreviewDrawer } from "./features/emails/EmailPreviewDrawer";
 import {
   buildStageColumns,
@@ -86,6 +87,16 @@ function AuthenticatedApp() {
     return <AdminUsersView />;
   }
 
+  const editEmailId = getEditEmailId(window.location.pathname);
+  if (editEmailId) {
+    return (
+      <EmailFieldsEditorView
+        currentUserRole={currentUserQuery.data.role}
+        emailId={editEmailId}
+      />
+    );
+  }
+
   const reviewEmailId = getReviewEmailId(window.location.pathname);
   if (reviewEmailId) {
     return <EmailReviewView emailId={reviewEmailId} />;
@@ -102,6 +113,11 @@ function AuthenticatedApp() {
 
 function getReviewEmailId(pathname: string) {
   const match = pathname.match(/^\/emails\/([^/]+)\/review\/?$/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+function getEditEmailId(pathname: string) {
+  const match = pathname.match(/^\/emails\/([^/]+)\/edit\/?$/);
   return match ? decodeURIComponent(match[1]) : null;
 }
 
