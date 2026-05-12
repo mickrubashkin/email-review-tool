@@ -16,9 +16,21 @@ export type EmailDetail = EmailListItem & {
   slug: string;
   original_html: string;
   review_html: string | null;
+  template_html: string;
+  template_hash: string | null;
+  template_version: string | null;
+  editable_fields: Record<string, unknown>;
 };
 
 export type EmailVariant = "new" | "old";
+
+export type DuplicateEmailPayload = {
+  language: string;
+  variant?: EmailVariant;
+  title?: string;
+  subject?: string;
+  preheader?: string;
+};
 
 export type EmailAnalysis = {
   summary: string;

@@ -155,7 +155,9 @@ func createTestEmail(t *testing.T, dbpool *pgxpool.Pool) string {
 			language,
 			variant,
 			original_html,
-			review_html
+			review_html,
+			template_html,
+			editable_fields
 		)
 		VALUES (
 			'comment-test-email',
@@ -165,7 +167,9 @@ func createTestEmail(t *testing.T, dbpool *pgxpool.Pool) string {
 			'en',
 			'new',
 			'<html><body>selected text</body></html>',
-			'<html><body><p data-review-block="body-001">selected text</p></body></html>'
+			'<html><body><p data-review-block="body-001">selected text</p></body></html>',
+			'<html><body><p data-review-block="body-001">selected text</p></body></html>',
+			'{}'::jsonb
 		)
 		ON CONFLICT (slug) DO UPDATE SET updated_at = now()
 		RETURNING id;

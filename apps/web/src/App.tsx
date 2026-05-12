@@ -18,6 +18,7 @@ import { AIAnalysisLogsView } from "./features/ai-logs/AIAnalysisLogsView";
 import { AuthEventsView } from "./features/auth-events/AuthEventsView";
 import { LoginView } from "./features/auth/LoginView";
 import {
+  duplicateEmail,
   fetchCurrentUser,
   fetchEmailDetail,
   fetchEmails,
@@ -29,7 +30,12 @@ import {
   buildStageColumns,
   getDefaultVersion,
 } from "./features/emails/stages";
-import type { AuthUser } from "./features/emails/types";
+import type {
+  AuthUser,
+  DuplicateEmailPayload,
+  EmailDetail,
+  EmailListItem,
+} from "./features/emails/types";
 import { EmailReviewView } from "./features/review/EmailReviewView";
 import styles from "./App.module.css";
 
@@ -101,6 +107,7 @@ function EmailBoardApp({
   isLoggingOut: boolean;
   onLogout: () => void;
 }) {
+  const queryClient = useQueryClient();
   const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
   const [selectedVersionByGroup, setSelectedVersionByGroup] = useState<
     Record<string, string>
@@ -116,6 +123,24 @@ function EmailBoardApp({
     queryKey: ["emails", selectedEmailId],
     queryFn: () => fetchEmailDetail(selectedEmailId ?? ""),
     enabled: selectedEmailId !== null,
+  });
+  const duplicateEmailMutation = useMutation({
+    mutationFn: ({
+      emailId,
+      payload,
+    }: {
+      emailId: string;
+      payload: DuplicateEmailPayload;
+    }) => duplicateEmail(emailId, payload),
+    onSuccess: (createdEmail) => {
+      queryClient.setQueryData(["emails", createdEmail.id], createdEmail);
+      setSelectedVersionByGroup((current) => ({
+        ...current,
+        [getEmailGroupKey(createdEmail)]: createdEmail.id,
+      }));
+      setSelectedEmailId(createdEmail.id);
+      void queryClient.invalidateQueries({ queryKey: ["emails"] });
+    },
   });
 
   const columns = useMemo(
@@ -218,13 +243,20 @@ function EmailBoardApp({
       </AppShell.Main>
 
       <EmailPreviewDrawer
+        currentUserRole={currentUser.role}
+        duplicateEmailError={duplicateEmailMutation.error}
         email={selectedEmail}
         emailGroup={selectedEmailGroup}
+        isDuplicatingEmail={duplicateEmailMutation.isPending}
         isError={emailDetailQuery.isError}
         isLoading={emailDetailQuery.isLoading}
         isMobile={isMobile}
         opened={selectedEmailId !== null}
         onClose={() => setSelectedEmailId(null)}
+        onDuplicateEmail={(emailId, payload) =>
+          duplicateEmailMutation.mutateAsync({ emailId, payload })
+        }
+        onResetDuplicateEmail={() => duplicateEmailMutation.reset()}
         onSelectVersion={(groupKey, emailId) => {
           handleSelectVersion(groupKey, emailId);
           setSelectedEmailId(emailId);
@@ -233,4 +265,8 @@ function EmailBoardApp({
       />
     </AppShell>
   );
+}
+
+function getEmailGroupKey(email: EmailListItem | EmailDetail) {
+  return [email.sequence, email.stage || "uncategorized", email.sort_order].join("/");
 }

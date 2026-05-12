@@ -8,8 +8,19 @@ import type {
   EmailDetail,
   EmailListItem,
   CreateEmailCommentPayload,
+  DuplicateEmailPayload,
   EmailComment,
 } from "./types";
+
+export class ApiError extends Error {
+  status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
@@ -18,7 +29,8 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   });
 
   if (!response.ok) {
-    throw new Error(`Request failed: ${response.status}`);
+    const message = await response.text();
+    throw new ApiError(response.status, message || `Request failed: ${response.status}`);
   }
 
   return response.json() as Promise<T>;
@@ -83,6 +95,22 @@ export function fetchEmails(): Promise<EmailListItem[]> {
 
 export function fetchEmailDetail(emailId: string): Promise<EmailDetail> {
   return fetchJson<EmailDetail>(`/api/emails/${encodeURIComponent(emailId)}`);
+}
+
+export function duplicateEmail(
+  emailId: string,
+  payload: DuplicateEmailPayload
+): Promise<EmailDetail> {
+  return fetchJson<EmailDetail>(
+    `/api/emails/${encodeURIComponent(emailId)}/duplicate`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    }
+  );
 }
 
 export function fetchAIAnalysisLogs(

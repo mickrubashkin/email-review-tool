@@ -56,7 +56,7 @@
         visibility: hidden;
         width: 0;
       ">
-    Access your account using the login details below.
+    <span data-email-preheader>Access your account using the login details below.</span>
     &zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;
     &zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;
   </div>
@@ -94,7 +94,8 @@
                       border: 0;
                       outline: none;
                       text-decoration: none;
-                    " />
+                    " data-review-block="hero_banner" data-edit-attr-src="hero_banner_src"
+                  data-edit-attr-alt="hero_banner_alt" />
               </td>
             </tr>
 
@@ -105,7 +106,7 @@
                     font-size: 16px;
                     line-height: 24px;
                     color: #063683;
-                  ">
+                  " data-review-block="intro_body" data-edit-text="intro_body">
                 Hi there,<br /><br />
                 Your application to join the Bitrix24 Partner Program has been
                 received.<br /><br />
@@ -131,8 +132,8 @@
                           font-size: 16px;
                           line-height: 24px;
                           color: #063683;
-                        ">
-                      <strong>Login:</strong>
+                        " data-review-block="credentials_block">
+                      <strong data-edit-text="login_label">Login:</strong>
                       <span style="
                             color: #c126d4;
                             font-family: monospace;
@@ -142,7 +143,7 @@
                           ">#HTML_LOGIN#</span>
                       <br />
 
-                      <strong>Password:</strong>
+                      <strong data-edit-text="password_label">Password:</strong>
                       <span style="
                             color: #c126d4;
                             font-family: monospace;
@@ -156,15 +157,19 @@
                             font-size: 12px;
                             line-height: 16px;
                             font-style: italic;
-                          ">(For security reasons, we recommend changing your
+                          " data-review-block="password_security_note_link"
+                        data-edit-text="password_security_note_text"
+                        data-edit-attr-href="password_security_note_url">(For security reasons, we recommend changing
+                        your
                         password after the first login)</a>
                       <br /><br />
-                      <strong>Login here:</strong>
+                      <strong data-edit-text="login_here_text">Login here:</strong>
                       <a href="https://partners.bitrix24.com/private/index.php" target="_blank" style="
                             color: #409eef;
                             text-decoration: underline;
                             font-weight: 700;
-                          ">partners.bitrix24.com/private/</a><br />
+                          " data-review-block="partner_login_link" data-edit-text="partner_login_link_text"
+                        data-edit-attr-href="partner_login_link_url">partners.bitrix24.com/private/</a><br />
                     </td>
                   </tr>
                 </table>
@@ -178,7 +183,7 @@
                     font-size: 16px;
                     line-height: 24px;
                     color: #063683;
-                  ">
+                  " data-review-block="next_steps_body" data-edit-text="next_steps_body">
                 To continue, log in to your partner account and upload the
                 required documents.<br />
                 This helps us verify your application faster and approve your
@@ -200,11 +205,11 @@
                       <!--[if mso]>
                           <v:roundrect
                             xmlns:v="urn:schemas-microsoft-com:vml"
-                            href="https://partners.bitrix24.com/private/verify"
+                            href="{{ primary_cta_url }}"
                             style="
                               height: 43px;
                               v-text-anchor: middle;
-                              width: 200px;
+                              width: {{ primary_cta_width_px }}px;
                             "
                             arcsize="15%"
                             stroked="f"
@@ -219,7 +224,7 @@
                                 font-weight: 700;
                               "
                             >
-                              Upload documents
+                              {{ primary_cta_text }}
                             </center>
                           </v:roundrect>
                         <![endif]-->
@@ -240,7 +245,8 @@
                             border-radius: 10px;
                             background-color: #dcfa64;
                             text-align: center;
-                          ">Upload documents</a>
+                          " data-review-block="primary_cta" data-edit-text="primary_cta_text"
+                        data-edit-attr-href="primary_cta_url" data-edit-style-width-px="primary_cta_width_px">Upload documents</a>
                       <!--<![endif]-->
                     </td>
                   </tr>
@@ -255,10 +261,10 @@
                     font-size: 16px;
                     line-height: 24px;
                     color: #063683;
-                  ">
-                <strong>Best regards,</strong>
+                  " data-review-block="signature">
+                <strong data-edit-text="signature_greeting">Best regards,</strong>
                 <br />
-                <strong>Bitrix24 Team</strong>
+                <strong data-edit-text="signature_sender">Bitrix24 Team</strong>
               </td>
             </tr>
 
@@ -276,7 +282,8 @@
                       border: 0;
                       outline: none;
                       text-decoration: none;
-                    " />
+                    " data-review-block="footer_logo" data-edit-attr-src="footer_logo_src"
+                  data-edit-attr-alt="footer_logo_alt" />
                 <table role="presentation" border="0" cellpadding="0" cellspacing="0"
                   style="margin-top: 12px; border-collapse: collapse">
                   <tr>
@@ -344,7 +351,7 @@
                           line-height: 17px;
                           color: #063683;
                           font-style: italic;
-                        ">
+                        " data-review-block="footer_copyright" data-edit-text="footer_copyright">
                       © 2026 Alaio. All rights reserved.
                     </td>
                   </tr>
@@ -359,14 +366,16 @@
                           font-size: 9px;
                           line-height: 13px;
                           color: #063683;
-                        ">
-                      This is an automatically generated notification for
-                      Bitrix24 partners. You received this email because you
-                      signed up for the Bitrix Partner Program. To manage your
-                      email preferences, please update them inside any email
-                      you receive.
+                        " data-review-block="footer_legal">
+                      <span data-edit-text="footer_legal_text">This is an automatically generated notification for
+                        Bitrix24 partners. You received this email because you
+                        signed up for the Bitrix Partner Program. To manage your
+                        email preferences, please update them inside any email
+                        you receive.</span>
                       <a href="https://www.bitrix24.com/privacy/" target="_blank"
-                        style="color: #063683; text-decoration: underline">Privacy policy</a>
+                        style="color: #063683; text-decoration: underline" data-review-block="privacy_policy_link"
+                        data-edit-text="privacy_policy_link_text" data-edit-attr-href="privacy_policy_link_url">Privacy
+                        policy</a>
                     </td>
                   </tr>
                 </table>

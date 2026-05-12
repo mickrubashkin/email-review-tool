@@ -34,6 +34,8 @@
   - `data-edit-attr-src="hero_banner_src"`;
   - `data-edit-attr-alt="hero_banner_alt"`.
 - CTA описывается как логическое поле, потому что в email-вёрстке кнопка может состоять из обычного `<a>`, table markup и Outlook/VML fallback.
+- CTA width можно задавать отдельным числовым полем через `data-edit-style-width-px="primary_cta_width_px"`.
+- Для Outlook/VML fallback внутри conditional comments используются controlled template markers: `{{ primary_cta_text }}`, `{{ primary_cta_url }}`, `{{ primary_cta_width_px }}`.
 - Review anchors остаются через `data-review-block`.
 - Не размечаем каждую таблицу, строку или ячейку только ради редактирования.
 
@@ -64,6 +66,25 @@
 >
 ```
 
+Пример CTA с Outlook/VML fallback:
+```html
+<!--[if mso]>
+  <v:roundrect href="{{ primary_cta_url }}" style="height:43px;width:{{ primary_cta_width_px }}px;">
+    <center>{{ primary_cta_text }}</center>
+  </v:roundrect>
+<![endif]-->
+
+<a
+  href="https://example.com/onboarding"
+  data-edit-text="primary_cta_text"
+  data-edit-attr-href="primary_cta_url"
+  data-edit-style-width-px="primary_cta_width_px"
+  style="width: 196px;"
+>
+  Start onboarding
+</a>
+```
+
 ## Модель данных
 Рекомендуемый MVP-формат:
 - `emails.template_html`
@@ -85,7 +106,8 @@
   "cta_primary": {
     "type": "cta",
     "text": "Start onboarding",
-    "url": "https://example.com/onboarding"
+    "url": "https://example.com/onboarding",
+    "width_px": 196
   }
 }
 ```

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io/fs"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
+	"github.com/mickrubashkin/email-review-tool/apps/api/internal/emailedit"
 	"github.com/mickrubashkin/email-review-tool/apps/api/internal/emailreview"
 	"github.com/mickrubashkin/email-review-tool/apps/api/internal/emailtext"
 )
@@ -22,20 +24,23 @@ const (
 )
 
 type seedEmail struct {
-	Slug         string
-	Sequence     string
-	Title        string
-	Subject      *string
-	Preheader    *string
-	SendTiming   *string
-	Stage        string
-	SortOrder    int
-	Language     string
-	Variant      string
-	BodyText     string
-	ContentParts EmailContentParts
-	OriginalHTML string
-	ReviewHTML   string
+	Slug           string
+	Sequence       string
+	Title          string
+	Subject        *string
+	Preheader      *string
+	SendTiming     *string
+	Stage          string
+	SortOrder      int
+	Language       string
+	Variant        string
+	BodyText       string
+	ContentParts   EmailContentParts
+	OriginalHTML   string
+	ReviewHTML     string
+	TemplateHTML   string
+	TemplateHash   string
+	EditableFields []byte
 }
 
 type seedEmailMeta struct {
@@ -206,25 +211,42 @@ func parseSeedEmail(root string, path string, metaByKey map[string]seedEmailMeta
 	if err != nil {
 		return seedEmail{}, fmt.Errorf("failed to add review blocks to %s: %w", relativePath, err)
 	}
+	templateHTML := reviewHTML
+	editableFields, err := emailedit.ExtractEditableFields(templateHTML)
+	if err != nil {
+		return seedEmail{}, fmt.Errorf("failed to extract editable fields from %s: %w", relativePath, err)
+	}
+	if _, err := emailedit.RenderEditableHTMLWithMetadata(templateHTML, editableFields, emailedit.RenderMetadata{
+		Preheader: stringFromPointer(emailMeta.Preheader),
+	}); err != nil {
+		return seedEmail{}, fmt.Errorf("failed to validate editable fields render for %s: %w", relativePath, err)
+	}
+	editableFieldsJSON, err := editableFields.JSON()
+	if err != nil {
+		return seedEmail{}, fmt.Errorf("failed to encode editable fields for %s: %w", relativePath, err)
+	}
 
 	bodyText := emailtext.HTMLToText(originalHTML)
 	contentParts := extractEmailContentParts(originalHTML, emailMeta, bodyText)
 
 	return seedEmail{
-		Slug:         seedEmailSlug(stage, emailName, language, variant),
-		Sequence:     sequence,
-		Title:        title,
-		Subject:      emailMeta.Subject,
-		Preheader:    emailMeta.Preheader,
-		SendTiming:   emailMeta.SendTiming,
-		Stage:        stage,
-		SortOrder:    stageOrder*100 + emailOrder,
-		Language:     language,
-		Variant:      variant,
-		BodyText:     bodyText,
-		ContentParts: contentParts,
-		OriginalHTML: originalHTML,
-		ReviewHTML:   reviewHTML,
+		Slug:           seedEmailSlug(stage, emailName, language, variant),
+		Sequence:       sequence,
+		Title:          title,
+		Subject:        emailMeta.Subject,
+		Preheader:      emailMeta.Preheader,
+		SendTiming:     emailMeta.SendTiming,
+		Stage:          stage,
+		SortOrder:      stageOrder*100 + emailOrder,
+		Language:       language,
+		Variant:        variant,
+		BodyText:       bodyText,
+		ContentParts:   contentParts,
+		OriginalHTML:   originalHTML,
+		ReviewHTML:     reviewHTML,
+		TemplateHTML:   templateHTML,
+		TemplateHash:   templateHash(templateHTML),
+		EditableFields: editableFieldsJSON,
 	}, nil
 }
 
@@ -323,9 +345,12 @@ func upsertEmail(ctx context.Context, dbpool *pgxpool.Pool, email seedEmail) err
 			body_text,
 			content_parts,
 			original_html,
-			review_html
+			review_html,
+			template_html,
+			template_hash,
+			editable_fields
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17::jsonb)
 		ON CONFLICT (slug) DO UPDATE SET
 			sequence = EXCLUDED.sequence,
 			title = EXCLUDED.title,
@@ -340,6 +365,9 @@ func upsertEmail(ctx context.Context, dbpool *pgxpool.Pool, email seedEmail) err
 			content_parts = EXCLUDED.content_parts,
 			original_html = EXCLUDED.original_html,
 			review_html = EXCLUDED.review_html,
+			template_html = EXCLUDED.template_html,
+			template_hash = EXCLUDED.template_hash,
+			editable_fields = EXCLUDED.editable_fields,
 			updated_at = now()
 		WHERE emails.sequence IS DISTINCT FROM EXCLUDED.sequence
 			OR emails.title IS DISTINCT FROM EXCLUDED.title
@@ -353,8 +381,11 @@ func upsertEmail(ctx context.Context, dbpool *pgxpool.Pool, email seedEmail) err
 			OR emails.body_text IS DISTINCT FROM EXCLUDED.body_text
 			OR emails.content_parts IS DISTINCT FROM EXCLUDED.content_parts
 			OR emails.original_html IS DISTINCT FROM EXCLUDED.original_html
-			OR emails.review_html IS DISTINCT FROM EXCLUDED.review_html;
-	`, email.Slug, email.Sequence, email.Title, email.Subject, email.Preheader, email.SendTiming, email.Stage, email.SortOrder, email.Language, email.Variant, email.BodyText, email.ContentParts, email.OriginalHTML, email.ReviewHTML)
+			OR emails.review_html IS DISTINCT FROM EXCLUDED.review_html
+			OR emails.template_html IS DISTINCT FROM EXCLUDED.template_html
+			OR emails.template_hash IS DISTINCT FROM EXCLUDED.template_hash
+			OR emails.editable_fields IS DISTINCT FROM EXCLUDED.editable_fields;
+	`, email.Slug, email.Sequence, email.Title, email.Subject, email.Preheader, email.SendTiming, email.Stage, email.SortOrder, email.Language, email.Variant, email.BodyText, email.ContentParts, email.OriginalHTML, email.ReviewHTML, email.TemplateHTML, email.TemplateHash, email.EditableFields)
 
 	return err
 }
@@ -389,4 +420,9 @@ func stringFromPointer(value *string) string {
 	}
 
 	return *value
+}
+
+func templateHash(templateHTML string) string {
+	hash := sha256.Sum256([]byte(templateHTML))
+	return fmt.Sprintf("%x", hash)
 }

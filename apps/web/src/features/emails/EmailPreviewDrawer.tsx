@@ -1,26 +1,32 @@
 import {
   ActionIcon,
   Alert,
+  Button,
   Drawer,
   Group,
   Loader,
+  Modal,
+  Select,
   Stack,
   Text,
+  TextInput,
   Tooltip,
 } from "@mantine/core";
 import {
   ChevronDown,
   Copy,
+  CopyPlus,
   Download,
   ExternalLink,
   Monitor,
   RefreshCcw,
   Smartphone,
 } from "lucide-react";
-import { useState } from "react";
+import { type FormEvent, useState } from "react";
 
 import { AISparkleIcon } from "./AISparkleIcon";
 import { AnalysisPanel } from "./AnalysisPanel";
+import { ApiError } from "./api";
 import { copyOriginalHTML, downloadOriginalHTML } from "./exportHtml";
 import { MailPreview } from "./MailPreview";
 import {
@@ -31,6 +37,8 @@ import {
 } from "./stages";
 import { buildStreamPreview } from "./streamPreview";
 import type {
+  AuthUser,
+  DuplicateEmailPayload,
   EmailDetail,
   EmailListItem,
   EmailVariant,
@@ -42,29 +50,43 @@ import styles from "./EmailPreviewDrawer.module.css";
 type PreviewMode = "desktop" | "mobile";
 
 type EmailPreviewDrawerProps = {
+  currentUserRole: AuthUser["role"];
+  duplicateEmailError: Error | null;
   email: EmailDetail | undefined;
   emailGroup: EmailVersionGroup | undefined;
+  isDuplicatingEmail: boolean;
   isError: boolean;
   isLoading: boolean;
   isMobile: boolean | undefined;
   onClose: () => void;
+  onDuplicateEmail: (
+    emailId: string,
+    payload: DuplicateEmailPayload
+  ) => Promise<EmailDetail>;
+  onResetDuplicateEmail: () => void;
   onSelectVersion: (groupKey: string, emailId: string) => void;
   opened: boolean;
   selectedEmailId: string | null;
 };
 
 export function EmailPreviewDrawer({
+  currentUserRole,
+  duplicateEmailError,
   email,
   emailGroup,
+  isDuplicatingEmail,
   isError,
   isLoading,
   isMobile,
   onClose,
+  onDuplicateEmail,
+  onResetDuplicateEmail,
   onSelectVersion,
   opened,
   selectedEmailId,
 }: EmailPreviewDrawerProps) {
   const [previewMode, setPreviewMode] = useState<PreviewMode>("desktop");
+  const [duplicateModalOpened, setDuplicateModalOpened] = useState(false);
   const {
     analyze,
     reanalyze,
@@ -97,6 +119,7 @@ export function EmailPreviewDrawer({
     ? `${email.title}${email.send_timing ? ` (${formatTimingLabel(email.send_timing)})` : ""}`
     : "";
   const isAnalyzingCurrentEmail = streamStatus === "streaming" && isCurrentStream;
+  const canDuplicateEmail = currentUserRole === "admin";
 
   const handleCopyHTML = async () => {
     if (email) {
@@ -152,6 +175,24 @@ export function EmailPreviewDrawer({
                   activePreviewMode={activePreviewMode}
                   onChange={setPreviewMode}
                 />
+              ) : null}
+
+              {canDuplicateEmail ? (
+                <Tooltip label="Duplicate email">
+                  <ActionIcon
+                    aria-label="Duplicate email"
+                    className={styles.exportAction}
+                    onClick={() => {
+                      onResetDuplicateEmail();
+                      setDuplicateModalOpened(true);
+                    }}
+                    radius="md"
+                    size="lg"
+                    variant="light"
+                  >
+                    <CopyPlus aria-hidden="true" size={16} strokeWidth={2.2} />
+                  </ActionIcon>
+                </Tooltip>
               ) : null}
 
               <Tooltip label="Open review page">
@@ -227,6 +268,23 @@ export function EmailPreviewDrawer({
       }
       padding="md"
     >
+      {duplicateModalOpened ? (
+        <DuplicateEmailModal
+          email={email}
+          error={duplicateEmailError}
+          isSubmitting={isDuplicatingEmail}
+          onClose={() => {
+            onResetDuplicateEmail();
+            setDuplicateModalOpened(false);
+          }}
+          onResetError={onResetDuplicateEmail}
+          onSubmit={async (emailId, payload) => {
+            await onDuplicateEmail(emailId, payload);
+            setDuplicateModalOpened(false);
+          }}
+        />
+      ) : null}
+
       {isLoading ? (
         <Stack align="center" justify="center" h={320}>
           <Loader />
@@ -401,6 +459,172 @@ function PreviewArea({
   return (
     <MailPreview email={email} isScanning={isScanning} viewport={previewMode} />
   );
+}
+
+function DuplicateEmailModal({
+  email,
+  error,
+  isSubmitting,
+  onClose,
+  onResetError,
+  onSubmit,
+}: {
+  email: EmailDetail | undefined;
+  error: Error | null;
+  isSubmitting: boolean;
+  onClose: () => void;
+  onResetError: () => void;
+  onSubmit: (emailId: string, payload: DuplicateEmailPayload) => Promise<void>;
+}) {
+  const [language, setLanguage] = useState("");
+  const [variant, setVariant] = useState<EmailVariant>(email?.variant ?? "new");
+  const [title, setTitle] = useState(email?.title ?? "");
+  const [subject, setSubject] = useState(email?.subject ?? "");
+  const [preheader, setPreheader] = useState(email?.preheader ?? "");
+  const [languageError, setLanguageError] = useState<string | null>(null);
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!email) {
+      return;
+    }
+
+    const normalizedLanguage = language.trim().toLowerCase();
+    if (!normalizedLanguage) {
+      setLanguageError("Language is required");
+      return;
+    }
+
+    setLanguageError(null);
+    try {
+      await onSubmit(email.id, {
+        language: normalizedLanguage,
+        variant,
+        ...buildOptionalTextPayload("title", title, email.title),
+        ...buildOptionalTextPayload("subject", subject, email.subject),
+        ...buildOptionalTextPayload("preheader", preheader, email.preheader),
+      });
+    } catch {
+      // React Query stores the error; keep the modal open and show it inline.
+    }
+  };
+
+  const isConflict = error instanceof ApiError && error.status === 409;
+
+  return (
+    <Modal
+      centered
+      opened
+      title="Duplicate email"
+      onClose={onClose}
+    >
+      <form onSubmit={handleSubmit}>
+        <Stack gap="sm">
+          {error ? (
+            <Alert color="red" title="Could not duplicate email">
+              {isConflict
+                ? "This language and variant already exist for the selected email."
+                : "Try again or check that the API server is reachable."}
+            </Alert>
+          ) : null}
+
+          <TextInput
+            data-autofocus
+            disabled={isSubmitting}
+            error={languageError}
+            label="Language"
+            placeholder="es"
+            value={language}
+            onChange={(event) => {
+              onResetError();
+              setLanguage(event.currentTarget.value);
+              if (languageError) {
+                setLanguageError(null);
+              }
+            }}
+          />
+
+          <Select
+            allowDeselect={false}
+            data={[
+              { label: "New", value: "new" },
+              { label: "Old", value: "old" },
+            ]}
+            disabled={isSubmitting}
+            label="Variant"
+            value={variant}
+            onChange={(value) => {
+              onResetError();
+              setVariant((value as EmailVariant) ?? "new");
+            }}
+          />
+
+          <TextInput
+            disabled={isSubmitting}
+            label="Title"
+            value={title}
+            onChange={(event) => {
+              onResetError();
+              setTitle(event.currentTarget.value);
+            }}
+          />
+
+          <TextInput
+            disabled={isSubmitting}
+            label="Subject"
+            value={subject}
+            onChange={(event) => {
+              onResetError();
+              setSubject(event.currentTarget.value);
+            }}
+          />
+
+          <TextInput
+            disabled={isSubmitting}
+            label="Preheader"
+            value={preheader}
+            onChange={(event) => {
+              onResetError();
+              setPreheader(event.currentTarget.value);
+            }}
+          />
+
+          <Group justify="flex-end" mt="xs">
+            <Button
+              disabled={isSubmitting}
+              type="button"
+              variant="default"
+              onClick={onClose}
+            >
+              Cancel
+            </Button>
+            <Button loading={isSubmitting} type="submit">
+              Create duplicate
+            </Button>
+          </Group>
+        </Stack>
+      </form>
+    </Modal>
+  );
+}
+
+function buildOptionalTextPayload<Key extends "title" | "subject" | "preheader">(
+  key: Key,
+  value: string,
+  originalValue: string | null
+): Partial<Record<Key, string>> {
+  if (value === "" && originalValue === null) {
+    return {};
+  }
+
+  if (key === "title" && value.trim() === "") {
+    return {};
+  }
+
+  return {
+    [key]: key === "title" ? value.trim() : value,
+  } as Partial<Record<Key, string>>;
 }
 
 function formatTimingLabel(value: string) {
