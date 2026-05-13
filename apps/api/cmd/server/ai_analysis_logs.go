@@ -16,10 +16,19 @@ type AIAnalysisLogFilters struct {
 	Limit       int
 }
 
-func insertAIAnalysisLog(ctx context.Context, dbpool *pgxpool.Pool, emailID string, metrics AIAnalysisMetrics) error {
+func insertAIAnalysisLog(ctx context.Context, dbpool *pgxpool.Pool, emailID string, user *AuthUser, metrics AIAnalysisMetrics) error {
+	var userID *string
+	var userEmail *string
+	if user != nil {
+		userID = &user.ID
+		userEmail = &user.Email
+	}
+
 	_, err := dbpool.Exec(ctx, `
 		INSERT INTO ai_analysis_logs (
 			email_id,
+			user_id,
+			user_email,
 			model,
 			status,
 			latency_ms,
@@ -29,9 +38,11 @@ func insertAIAnalysisLog(ctx context.Context, dbpool *pgxpool.Pool, emailID stri
 			cached_tokens,
 			error_message
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11);
 	`,
 		emailID,
+		userID,
+		userEmail,
 		metrics.Model,
 		metrics.Status,
 		metrics.LatencyMS,
@@ -88,6 +99,8 @@ func listAIAnalysisLogs(ctx context.Context, dbpool *pgxpool.Pool, filters AIAna
 			e.slug,
 			e.language,
 			e.variant,
+			l.user_id,
+			l.user_email,
 			l.model,
 			l.status,
 			CASE
@@ -128,6 +141,8 @@ func listAIAnalysisLogs(ctx context.Context, dbpool *pgxpool.Pool, filters AIAna
 			&log.EmailSlug,
 			&log.Language,
 			&log.Variant,
+			&log.UserID,
+			&log.UserEmail,
 			&log.Model,
 			&log.Status,
 			&log.CacheStatus,

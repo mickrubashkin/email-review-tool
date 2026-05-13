@@ -60,9 +60,25 @@ func authMiddleware(dbpool *pgxpool.Pool) func(http.Handler) http.Handler {
 				http.Error(w, "unauthorized", http.StatusUnauthorized)
 				return
 			}
+			touchUserLastSeen(r.Context(), dbpool, user)
 
 			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), authUserContextKey, user)))
 		})
+	}
+}
+
+func touchUserLastSeen(ctx context.Context, dbpool *pgxpool.Pool, user AuthUser) {
+	_, err := dbpool.Exec(ctx, `
+		UPDATE users
+		SET last_seen_at = now()
+		WHERE id = $1
+			AND (
+				last_seen_at IS NULL
+				OR last_seen_at < now() - interval '10 minutes'
+			);
+	`, user.ID)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to update last_seen_at for user %s: %v\n", user.Email, err)
 	}
 }
 
@@ -175,6 +191,7 @@ func meHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
+		touchUserLastSeen(r.Context(), dbpool, user)
 
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(user)
@@ -332,7 +349,7 @@ func listAdminUsersHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 		}
 
 		rows, err := dbpool.Query(r.Context(), `
-			SELECT id, email, role, created_at, updated_at
+			SELECT id, email, role, created_at, updated_at, last_seen_at
 			FROM users
 			ORDER BY email;
 		`)
@@ -345,7 +362,7 @@ func listAdminUsersHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 		users := []UserAdminItem{}
 		for rows.Next() {
 			var item UserAdminItem
-			if err := rows.Scan(&item.ID, &item.Email, &item.Role, &item.CreatedAt, &item.UpdatedAt); err != nil {
+			if err := rows.Scan(&item.ID, &item.Email, &item.Role, &item.CreatedAt, &item.UpdatedAt, &item.LastSeenAt); err != nil {
 				http.Error(w, "failed to read users", http.StatusInternalServerError)
 				return
 			}
@@ -396,13 +413,14 @@ func updateAdminUserRoleHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			SET role = $2,
 				updated_at = now()
 			WHERE id = $1
-			RETURNING id, email, role, created_at, updated_at;
+			RETURNING id, email, role, created_at, updated_at, last_seen_at;
 		`, targetUserID, role).Scan(
 			&updatedUser.ID,
 			&updatedUser.Email,
 			&updatedUser.Role,
 			&updatedUser.CreatedAt,
 			&updatedUser.UpdatedAt,
+			&updatedUser.LastSeenAt,
 		)
 		if err != nil {
 			http.Error(w, "user not found", http.StatusNotFound)

@@ -102,6 +102,7 @@ export function AdminUsersView() {
                 <Table.Tr>
                   <Table.Th>Email</Table.Th>
                   <Table.Th>Role</Table.Th>
+                  <Table.Th>Last seen</Table.Th>
                   <Table.Th>Created</Table.Th>
                   <Table.Th>Updated</Table.Th>
                   <Table.Th>Change role</Table.Th>
@@ -116,6 +117,7 @@ export function AdminUsersView() {
                         {formatRole(user.role)}
                       </Badge>
                     </Table.Td>
+                    <Table.Td>{formatOptionalDateTime(user.last_seen_at)}</Table.Td>
                     <Table.Td>{formatDateTime(user.created_at)}</Table.Td>
                     <Table.Td>{formatDateTime(user.updated_at)}</Table.Td>
                     <Table.Td>
@@ -156,6 +158,10 @@ function formatDateTime(value: string) {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
+}
+
+function formatOptionalDateTime(value: string | null) {
+  return value ? formatDateTime(value) : "Never";
 }
 
 function formatRole(role: UserRole) {

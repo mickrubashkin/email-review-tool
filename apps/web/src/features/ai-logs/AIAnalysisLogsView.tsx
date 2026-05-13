@@ -181,6 +181,7 @@ export function AIAnalysisLogsView() {
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>Created</Table.Th>
+                  <Table.Th>User</Table.Th>
                   <Table.Th>Email</Table.Th>
                   <Table.Th>Status</Table.Th>
                   <Table.Th>Cache</Table.Th>
@@ -195,6 +196,11 @@ export function AIAnalysisLogsView() {
                 {logs.map((log) => (
                   <Table.Tr key={log.id}>
                     <Table.Td>{formatDateTime(log.created_at)}</Table.Td>
+                    <Table.Td>
+                      <Text size="sm">
+                        {log.user_email ?? "Unknown user"}
+                      </Text>
+                    </Table.Td>
                     <Table.Td className={styles.emailCell}>
                       <Stack gap={2}>
                         <Text fw={600} size="sm" lineClamp={1}>

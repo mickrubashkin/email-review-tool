@@ -94,6 +94,8 @@ type AIAnalysisLogItem struct {
 	EmailSlug    *string   `json:"email_slug"`
 	Language     *string   `json:"language"`
 	Variant      *string   `json:"variant"`
+	UserID       *string   `json:"user_id"`
+	UserEmail    *string   `json:"user_email"`
 	Model        string    `json:"model"`
 	Status       string    `json:"status"`
 	CacheStatus  string    `json:"cache_status"`
@@ -113,11 +115,12 @@ type AuthUser struct {
 }
 
 type UserAdminItem struct {
-	ID        string    `json:"id"`
-	Email     string    `json:"email"`
-	Role      string    `json:"role"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID         string     `json:"id"`
+	Email      string     `json:"email"`
+	Role       string     `json:"role"`
+	CreatedAt  time.Time  `json:"created_at"`
+	UpdatedAt  time.Time  `json:"updated_at"`
+	LastSeenAt *time.Time `json:"last_seen_at"`
 }
 
 type AuthEventItem struct {

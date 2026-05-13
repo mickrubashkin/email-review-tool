@@ -217,7 +217,12 @@ func cachedAnalysisOrLogError(r *http.Request, dbpool *pgxpool.Pool, email Email
 }
 
 func logAIAnalysisResult(r *http.Request, dbpool *pgxpool.Pool, emailID string, metrics AIAnalysisMetrics, analysisErr error) {
-	if logErr := insertAIAnalysisLog(r.Context(), dbpool, emailID, metrics); logErr != nil {
+	var user *AuthUser
+	if authUser, ok := authUserFromContext(r); ok {
+		user = &authUser
+	}
+
+	if logErr := insertAIAnalysisLog(r.Context(), dbpool, emailID, user, metrics); logErr != nil {
 		status := "success"
 		if analysisErr != nil {
 			status = "error"

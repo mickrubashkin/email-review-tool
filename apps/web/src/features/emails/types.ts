@@ -106,6 +106,8 @@ export type AIAnalysisLogItem = {
   email_slug: string | null;
   language: string | null;
   variant: string | null;
+  user_id: string | null;
+  user_email: string | null;
   model: string;
   status: string;
   cache_status: "hit" | "miss" | "unknown";
@@ -139,6 +141,7 @@ export type UserAdminItem = {
   role: UserRole;
   created_at: string;
   updated_at: string;
+  last_seen_at: string | null;
 };
 
 export type AuthEventItem = {
