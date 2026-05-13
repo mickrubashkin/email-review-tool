@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"reflect"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -22,6 +23,7 @@ func registerEmailRoutes(r chi.Router, dbpool *pgxpool.Pool) {
 	r.Patch("/api/emails/{id}/editable-fields", updateEmailEditableFieldsHandler(dbpool))
 	r.Post("/api/emails/{id}/duplicate", duplicateEmailHandler(dbpool))
 	r.Patch("/api/emails/{id}/archive", archiveEmailHandler(dbpool))
+	r.Get("/api/admin/email-events", listEmailEventsHandler(dbpool))
 }
 
 func listEmailsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
@@ -209,7 +211,12 @@ func getRenderedEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 func updateEmailEditableFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := chi.URLParam(r, "id")
-		if !isRequestAdmin(r) {
+		user, ok := authUserFromContext(r)
+		if !ok {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		if !isAdminUser(user) {
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
 		}
@@ -230,12 +237,14 @@ func updateEmailEditableFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 		var currentPreheader *string
 		var bodyText *string
 		var originalHTML string
+		var currentEditableFieldsJSON []byte
+		var slug string
 		err := dbpool.QueryRow(r.Context(), `
-			SELECT template_html, title, subject, preheader, body_text, original_html
+			SELECT slug, template_html, title, subject, preheader, body_text, original_html, editable_fields
 			FROM emails
 			WHERE id = $1
 				AND archived_at IS NULL;
-		`, id).Scan(&templateHTML, &currentTitle, &currentSubject, &currentPreheader, &bodyText, &originalHTML)
+		`, id).Scan(&slug, &templateHTML, &currentTitle, &currentSubject, &currentPreheader, &bodyText, &originalHTML, &currentEditableFieldsJSON)
 		if err != nil {
 			http.Error(w, "email not found", http.StatusNotFound)
 			return
@@ -284,7 +293,29 @@ func updateEmailEditableFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			return
 		}
 
-		result, err := dbpool.Exec(r.Context(), `
+		changes, err := buildEmailUpdateChanges(
+			currentTitle,
+			currentSubject,
+			currentPreheader,
+			currentEditableFieldsJSON,
+			title,
+			subject,
+			preheader,
+			request.EditableFields,
+		)
+		if err != nil {
+			http.Error(w, "failed to update editable fields", http.StatusInternalServerError)
+			return
+		}
+
+		tx, err := dbpool.Begin(r.Context())
+		if err != nil {
+			http.Error(w, "failed to update editable fields", http.StatusInternalServerError)
+			return
+		}
+		defer tx.Rollback(r.Context())
+
+		result, err := tx.Exec(r.Context(), `
 			UPDATE emails
 			SET title = $2,
 				subject = $3,
@@ -303,6 +334,23 @@ func updateEmailEditableFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			http.Error(w, "email not found", http.StatusNotFound)
 			return
 		}
+		if err := insertEmailEvent(r.Context(), tx, emailEvent{
+			ActorUserID: user.ID,
+			ActorEmail:  user.Email,
+			Action:      emailEventUpdated,
+			EmailID:     &id,
+			EmailSlug:   &slug,
+			EmailTitle:  &title,
+			Changes:     changes,
+		}); err != nil {
+			fmt.Fprintf(os.Stderr, "failed to insert email update event for %s: %v\n", id, err)
+			http.Error(w, "failed to record email event", http.StatusInternalServerError)
+			return
+		}
+		if err := tx.Commit(r.Context()); err != nil {
+			http.Error(w, "failed to update editable fields", http.StatusInternalServerError)
+			return
+		}
 
 		w.WriteHeader(http.StatusNoContent)
 	}
@@ -319,7 +367,12 @@ type duplicateEmailRequest struct {
 func duplicateEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := chi.URLParam(r, "id")
-		if !isRequestAdmin(r) {
+		user, ok := authUserFromContext(r)
+		if !ok {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		if !isAdminUser(user) {
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
 		}
@@ -382,7 +435,14 @@ func duplicateEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			return
 		}
 
-		created, err := insertDuplicatedEmail(r, dbpool, duplicateEmailInsert{
+		tx, err := dbpool.Begin(r.Context())
+		if err != nil {
+			http.Error(w, "failed to duplicate email", http.StatusInternalServerError)
+			return
+		}
+		defer tx.Rollback(r.Context())
+
+		created, err := insertDuplicatedEmail(r, tx, duplicateEmailInsert{
 			Slug:            slug,
 			Sequence:        source.Sequence,
 			Title:           title,
@@ -411,6 +471,29 @@ func duplicateEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			http.Error(w, "failed to duplicate email", http.StatusInternalServerError)
 			return
 		}
+		if err := insertEmailEvent(r.Context(), tx, emailEvent{
+			ActorUserID: user.ID,
+			ActorEmail:  user.Email,
+			Action:      emailEventDuplicated,
+			EmailID:     &created.ID,
+			EmailSlug:   &created.Slug,
+			EmailTitle:  &created.Title,
+			Metadata: map[string]any{
+				"source_email_id":  id,
+				"source_slug":      source.Slug,
+				"created_email_id": created.ID,
+				"language":         created.Language,
+				"variant":          created.Variant,
+			},
+		}); err != nil {
+			fmt.Fprintf(os.Stderr, "failed to insert email duplicate event for %s: %v\n", created.ID, err)
+			http.Error(w, "failed to record email event", http.StatusInternalServerError)
+			return
+		}
+		if err := tx.Commit(r.Context()); err != nil {
+			http.Error(w, "failed to duplicate email", http.StatusInternalServerError)
+			return
+		}
 
 		w.WriteHeader(http.StatusCreated)
 		_ = json.NewEncoder(w).Encode(created)
@@ -430,7 +513,33 @@ func archiveEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			return
 		}
 
-		result, err := dbpool.Exec(r.Context(), `
+		var snapshot emailArchiveSnapshot
+		err := dbpool.QueryRow(r.Context(), `
+			SELECT id, slug, title, language, variant, stage
+			FROM emails
+			WHERE id = $1
+				AND archived_at IS NULL;
+		`, id).Scan(
+			&snapshot.ID,
+			&snapshot.Slug,
+			&snapshot.Title,
+			&snapshot.Language,
+			&snapshot.Variant,
+			&snapshot.Stage,
+		)
+		if err != nil {
+			http.Error(w, "email not found", http.StatusNotFound)
+			return
+		}
+
+		tx, err := dbpool.Begin(r.Context())
+		if err != nil {
+			http.Error(w, "failed to archive email", http.StatusInternalServerError)
+			return
+		}
+		defer tx.Rollback(r.Context())
+
+		result, err := tx.Exec(r.Context(), `
 			UPDATE emails
 			SET archived_at = now(),
 				archived_by = $2,
@@ -446,8 +555,62 @@ func archiveEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			http.Error(w, "email not found", http.StatusNotFound)
 			return
 		}
+		if err := insertEmailEvent(r.Context(), tx, emailEvent{
+			ActorUserID: user.ID,
+			ActorEmail:  user.Email,
+			Action:      emailEventArchived,
+			EmailID:     &snapshot.ID,
+			EmailSlug:   &snapshot.Slug,
+			EmailTitle:  &snapshot.Title,
+			Metadata: map[string]any{
+				"slug":     snapshot.Slug,
+				"title":    snapshot.Title,
+				"language": snapshot.Language,
+				"variant":  snapshot.Variant,
+				"stage":    snapshot.Stage,
+			},
+		}); err != nil {
+			fmt.Fprintf(os.Stderr, "failed to insert email archive event for %s: %v\n", id, err)
+			http.Error(w, "failed to record email event", http.StatusInternalServerError)
+			return
+		}
+		if err := tx.Commit(r.Context()); err != nil {
+			http.Error(w, "failed to archive email", http.StatusInternalServerError)
+			return
+		}
 
 		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+func listEmailEventsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := authUserFromContext(r)
+		if !ok {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		if !isSuperAdminUser(user) {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+
+		filters := emailEventFilters{
+			ActorEmail: strings.TrimSpace(r.URL.Query().Get("actor_email")),
+			Action:     strings.TrimSpace(r.URL.Query().Get("action")),
+			Email:      strings.TrimSpace(r.URL.Query().Get("email")),
+			Limit:      parseAuthEventsLimit(r.URL.Query().Get("limit")),
+		}
+
+		events, err := listEmailEvents(r.Context(), dbpool, filters)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "failed to list email events: %v\n", err)
+			http.Error(w, "failed to load email events", http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(events)
 	}
 }
 
@@ -474,6 +637,15 @@ type emailDuplicateSource struct {
 	TemplateHash    *string
 	TemplateVersion *string
 	EditableFields  []byte
+}
+
+type emailArchiveSnapshot struct {
+	ID       string
+	Slug     string
+	Title    string
+	Language string
+	Variant  string
+	Stage    string
 }
 
 func loadEmailForDuplicate(r *http.Request, dbpool *pgxpool.Pool, id string) (emailDuplicateSource, error) {
@@ -544,11 +716,11 @@ type duplicateEmailInsert struct {
 	EditableFields  []byte
 }
 
-func insertDuplicatedEmail(r *http.Request, dbpool *pgxpool.Pool, email duplicateEmailInsert) (EmailDetail, error) {
+func insertDuplicatedEmail(r *http.Request, db emailEventExecutor, email duplicateEmailInsert) (EmailDetail, error) {
 	var created EmailDetail
 	var editableFields []byte
 
-	err := dbpool.QueryRow(r.Context(), `
+	err := db.QueryRow(r.Context(), `
 		INSERT INTO emails (
 			slug,
 			sequence,
@@ -615,6 +787,73 @@ func insertDuplicatedEmail(r *http.Request, dbpool *pgxpool.Pool, email duplicat
 
 	created.EditableFields = json.RawMessage(editableFields)
 	return created, nil
+}
+
+func buildEmailUpdateChanges(
+	currentTitle string,
+	currentSubject *string,
+	currentPreheader *string,
+	currentEditableFieldsJSON []byte,
+	nextTitle string,
+	nextSubject *string,
+	nextPreheader *string,
+	nextEditableFields emailedit.EditableFields,
+) (map[string]any, error) {
+	changes := map[string]any{}
+	addStringChange(changes, "title", &currentTitle, &nextTitle)
+	addStringChange(changes, "subject", currentSubject, nextSubject)
+	addStringChange(changes, "preheader", currentPreheader, nextPreheader)
+
+	currentFields := emailedit.EditableFields{}
+	if len(currentEditableFieldsJSON) > 0 {
+		if err := json.Unmarshal(currentEditableFieldsJSON, &currentFields); err != nil {
+			return nil, err
+		}
+	}
+
+	fieldChanges := map[string]any{}
+	seen := map[string]bool{}
+	for key, currentField := range currentFields {
+		nextField, ok := nextEditableFields[key]
+		seen[key] = true
+		if !ok {
+			fieldChanges[key] = map[string]any{
+				"before": currentField,
+				"after":  nil,
+			}
+			continue
+		}
+		if !reflect.DeepEqual(currentField, nextField) {
+			fieldChanges[key] = map[string]any{
+				"before": currentField,
+				"after":  nextField,
+			}
+		}
+	}
+	for key, nextField := range nextEditableFields {
+		if seen[key] {
+			continue
+		}
+		fieldChanges[key] = map[string]any{
+			"before": nil,
+			"after":  nextField,
+		}
+	}
+	if len(fieldChanges) > 0 {
+		changes["editable_fields"] = fieldChanges
+	}
+
+	return changes, nil
+}
+
+func addStringChange(changes map[string]any, key string, before *string, after *string) {
+	if stringFromPointer(before) == stringFromPointer(after) {
+		return
+	}
+	changes[key] = map[string]any{
+		"before": before,
+		"after":  after,
+	}
 }
 
 func duplicateEmailSlug(sourceSlug string, sourceLanguage string, targetLanguage string, targetVariant string) string {

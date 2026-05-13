@@ -169,6 +169,37 @@ func TestUpdateEmailEditableFields(t *testing.T) {
 	if preheader == nil || *preheader != "Updated preheader" {
 		t.Fatalf("expected updated preheader, got %#v", preheader)
 	}
+
+	var actorEmail string
+	var changesJSON []byte
+	err = dbpool.QueryRow(context.Background(), `
+		SELECT actor_email, changes
+		FROM email_events
+		WHERE email_id = $1
+			AND action = 'email_updated'
+		ORDER BY created_at DESC
+		LIMIT 1;
+	`, emailID).Scan(&actorEmail, &changesJSON)
+	if err != nil {
+		t.Fatalf("failed to load email update event: %v", err)
+	}
+	if actorEmail != user.Email {
+		t.Fatalf("expected update event actor %s, got %s", user.Email, actorEmail)
+	}
+	var changes map[string]any
+	if err := json.Unmarshal(changesJSON, &changes); err != nil {
+		t.Fatalf("failed to decode update event changes: %v", err)
+	}
+	if _, ok := changes["title"]; !ok {
+		t.Fatalf("expected title change, got %#v", changes)
+	}
+	editableFieldChanges, ok := changes["editable_fields"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected editable_fields changes, got %#v", changes)
+	}
+	if _, ok := editableFieldChanges["primary_cta_text"]; !ok {
+		t.Fatalf("expected primary_cta_text change, got %#v", editableFieldChanges)
+	}
 }
 
 func TestUpdateEmailEditableFieldsRejectsNullFields(t *testing.T) {
@@ -461,6 +492,36 @@ func TestDuplicateEmail(t *testing.T) {
 	if commentCount != 0 {
 		t.Fatalf("expected duplicated email to have no comments, got %d", commentCount)
 	}
+
+	var actorEmail string
+	var metadataJSON []byte
+	err = dbpool.QueryRow(context.Background(), `
+		SELECT actor_email, metadata
+		FROM email_events
+		WHERE email_id = $1
+			AND action = 'email_duplicated'
+		ORDER BY created_at DESC
+		LIMIT 1;
+	`, created.ID).Scan(&actorEmail, &metadataJSON)
+	if err != nil {
+		t.Fatalf("failed to load duplicate event: %v", err)
+	}
+	if actorEmail != user.Email {
+		t.Fatalf("expected duplicate event actor %s, got %s", user.Email, actorEmail)
+	}
+	var metadata map[string]any
+	if err := json.Unmarshal(metadataJSON, &metadata); err != nil {
+		t.Fatalf("failed to decode duplicate event metadata: %v", err)
+	}
+	if metadata["source_email_id"] != emailID {
+		t.Fatalf("expected source_email_id %s, got %#v", emailID, metadata["source_email_id"])
+	}
+	if metadata["created_email_id"] != created.ID {
+		t.Fatalf("expected created_email_id %s, got %#v", created.ID, metadata["created_email_id"])
+	}
+	if metadata["language"] != "es" {
+		t.Fatalf("expected duplicate event language es, got %#v", metadata["language"])
+	}
 }
 
 func TestDuplicateEmailConflict(t *testing.T) {
@@ -618,6 +679,94 @@ func TestArchiveEmail(t *testing.T) {
 	}
 	if archivedBy != user.ID {
 		t.Fatalf("expected archived_by %s, got %s", user.ID, archivedBy)
+	}
+
+	var actorEmail string
+	var metadataJSON []byte
+	err = dbpool.QueryRow(context.Background(), `
+		SELECT actor_email, metadata
+		FROM email_events
+		WHERE email_id = $1
+			AND action = 'email_archived'
+		ORDER BY created_at DESC
+		LIMIT 1;
+	`, emailID).Scan(&actorEmail, &metadataJSON)
+	if err != nil {
+		t.Fatalf("failed to load archive event: %v", err)
+	}
+	if actorEmail != user.Email {
+		t.Fatalf("expected archive event actor %s, got %s", user.Email, actorEmail)
+	}
+	var metadata map[string]any
+	if err := json.Unmarshal(metadataJSON, &metadata); err != nil {
+		t.Fatalf("failed to decode archive event metadata: %v", err)
+	}
+	if metadata["title"] != "Comment Test Email" {
+		t.Fatalf("expected archive event title Comment Test Email, got %#v", metadata["title"])
+	}
+	if metadata["slug"] != "comment-test-email" {
+		t.Fatalf("expected archive event slug comment-test-email, got %#v", metadata["slug"])
+	}
+}
+
+func TestListEmailEventsRequiresSuperAdmin(t *testing.T) {
+	dbpool := testDBPool(t)
+	emailID := createTestEmail(t, dbpool)
+	admin := createTestUserWithRole(t, dbpool, "admin")
+	superAdmin := createTestUserWithRole(t, dbpool, "super_admin")
+
+	_, err := dbpool.Exec(context.Background(), `
+		INSERT INTO email_events (
+			actor_user_id,
+			actor_email,
+			action,
+			email_id,
+			email_slug,
+			email_title,
+			metadata,
+			changes
+		)
+		VALUES ($1, $2, 'email_updated', $3, 'comment-test-email', 'Test Email', '{}'::jsonb, '{"title":{"before":"Old","after":"New"}}'::jsonb);
+	`, admin.ID, admin.Email, emailID)
+	if err != nil {
+		t.Fatalf("failed to insert email event: %v", err)
+	}
+
+	router := chi.NewRouter()
+	registerEmailRoutes(router, dbpool)
+
+	adminRequest := httptest.NewRequest(http.MethodGet, "/api/admin/email-events", nil)
+	adminRequest = withAuthUser(adminRequest, admin)
+	adminResponse := httptest.NewRecorder()
+	router.ServeHTTP(adminResponse, adminRequest)
+	if adminResponse.Code != http.StatusForbidden {
+		t.Fatalf("expected admin GET status 403, got %d: %s", adminResponse.Code, adminResponse.Body.String())
+	}
+
+	superRequest := httptest.NewRequest(
+		http.MethodGet,
+		"/api/admin/email-events?action=email_updated&actor_email=email-handler-admin&email=Test&limit=50",
+		nil,
+	)
+	superRequest = withAuthUser(superRequest, superAdmin)
+	superResponse := httptest.NewRecorder()
+	router.ServeHTTP(superResponse, superRequest)
+	if superResponse.Code != http.StatusOK {
+		t.Fatalf("expected super admin GET status 200, got %d: %s", superResponse.Code, superResponse.Body.String())
+	}
+
+	var events []EmailEventItem
+	if err := json.NewDecoder(superResponse.Body).Decode(&events); err != nil {
+		t.Fatalf("failed to decode email events: %v", err)
+	}
+	if len(events) == 0 {
+		t.Fatal("expected at least one email event")
+	}
+	if events[0].Action != "email_updated" {
+		t.Fatalf("expected email_updated event, got %q", events[0].Action)
+	}
+	if events[0].ActorEmail != admin.Email {
+		t.Fatalf("expected event actor %s, got %s", admin.Email, events[0].ActorEmail)
 	}
 }
 

@@ -159,6 +159,32 @@ export type AuthEventFilters = {
   limit?: string;
 };
 
+export type EmailEventAction =
+  | "email_duplicated"
+  | "email_created"
+  | "email_archived"
+  | "email_updated";
+
+export type EmailEventItem = {
+  id: string;
+  actor_user_id: string | null;
+  actor_email: string;
+  action: EmailEventAction;
+  email_id: string | null;
+  email_slug: string | null;
+  email_title: string | null;
+  metadata: Record<string, unknown>;
+  changes: Record<string, unknown>;
+  created_at: string;
+};
+
+export type EmailEventFilters = {
+  actor_email?: string;
+  action?: string;
+  email?: string;
+  limit?: string;
+};
+
 export type EmailVersionGroup = {
   key: string;
   stage: string;

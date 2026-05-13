@@ -6,6 +6,8 @@ import type {
   AuthUser,
   EmailAnalysis,
   EmailDetail,
+  EmailEventFilters,
+  EmailEventItem,
   EmailListItem,
   CreateEmailCommentPayload,
   DuplicateEmailPayload,
@@ -86,6 +88,24 @@ export function fetchAuthEvents(
   const query = params.toString();
   return fetchJson<AuthEventItem[]>(
     `/api/auth/events${query ? `?${query}` : ""}`
+  );
+}
+
+export function fetchEmailEvents(
+  filters: EmailEventFilters
+): Promise<EmailEventItem[]> {
+  const params = new URLSearchParams();
+
+  Object.entries(filters).forEach(([key, value]) => {
+    const trimmedValue = value?.trim();
+    if (trimmedValue) {
+      params.set(key, trimmedValue);
+    }
+  });
+
+  const query = params.toString();
+  return fetchJson<EmailEventItem[]>(
+    `/api/admin/email-events${query ? `?${query}` : ""}`
   );
 }
 

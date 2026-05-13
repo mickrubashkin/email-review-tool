@@ -131,6 +131,19 @@ type AuthEventItem struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+type EmailEventItem struct {
+	ID          string          `json:"id"`
+	ActorUserID *string         `json:"actor_user_id"`
+	ActorEmail  string          `json:"actor_email"`
+	Action      string          `json:"action"`
+	EmailID     *string         `json:"email_id"`
+	EmailSlug   *string         `json:"email_slug"`
+	EmailTitle  *string         `json:"email_title"`
+	Metadata    json.RawMessage `json:"metadata"`
+	Changes     json.RawMessage `json:"changes"`
+	CreatedAt   time.Time       `json:"created_at"`
+}
+
 type EmailComment struct {
 	ID              string     `json:"id"`
 	EmailID         string     `json:"email_id"`

@@ -19,6 +19,7 @@ import { AIAnalysisLogsView } from "./features/ai-logs/AIAnalysisLogsView";
 import { AdminUsersView } from "./features/admin-users/AdminUsersView";
 import { AuthEventsView } from "./features/auth-events/AuthEventsView";
 import { LoginView } from "./features/auth/LoginView";
+import { EmailEventsView } from "./features/email-events/EmailEventsView";
 import {
   archiveEmail,
   duplicateEmail,
@@ -85,6 +86,10 @@ function AuthenticatedApp() {
 
   if (window.location.pathname === "/admin/users") {
     return <AdminUsersView />;
+  }
+
+  if (window.location.pathname === "/admin/email-events") {
+    return <EmailEventsView />;
   }
 
   const editEmailId = getEditEmailId(window.location.pathname);
@@ -246,14 +251,24 @@ function EmailBoardApp({
               </Badge>
             </Group>
             {currentUser.role === "super_admin" ? (
-              <Button
-                component="a"
-                href="/admin/users"
-                size="xs"
-                variant="white"
-              >
-                Users
-              </Button>
+              <>
+                <Button
+                  component="a"
+                  href="/admin/email-events"
+                  size="xs"
+                  variant="white"
+                >
+                  Email events
+                </Button>
+                <Button
+                  component="a"
+                  href="/admin/users"
+                  size="xs"
+                  variant="white"
+                >
+                  Users
+                </Button>
+              </>
             ) : null}
             <Button
               color="gray"
