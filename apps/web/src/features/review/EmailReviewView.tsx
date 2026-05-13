@@ -5,6 +5,7 @@ import {
   Button,
   Group,
   Loader,
+  SegmentedControl,
   Stack,
   Tabs,
   Text,
@@ -70,6 +71,7 @@ type EmailReviewViewProps = {
 
 type ReviewViewport = "desktop" | "mobile";
 type ReviewPanelTab = "ai" | "comments";
+type CommentStatusFilter = "open" | "all";
 
 const minRightPanelPercent = 24;
 const maxRightPanelPercent = 48;
@@ -80,6 +82,8 @@ export function EmailReviewView({ emailId }: EmailReviewViewProps) {
   const [activePanelTab, setActivePanelTab] =
     useState<ReviewPanelTab>("comments");
   const [activeCommentId, setActiveCommentId] = useState<string | null>(null);
+  const [commentStatusFilter, setCommentStatusFilter] =
+    useState<CommentStatusFilter>("open");
   const [hoveredCommentId, setHoveredCommentId] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const contentRef = useRef<HTMLElement | null>(null);
@@ -137,9 +141,23 @@ export function EmailReviewView({ emailId }: EmailReviewViewProps) {
   const shouldShowAnalysisPanel =
     isCurrentStream && (streamStatus !== "idle" || Boolean(displayedAnalysis));
   const isAnalyzingCurrentEmail = streamStatus === "streaming" && isCurrentStream;
-  const commentTargets = useMemo(
-    () => (commentsQuery.data ?? []).map(commentToTarget),
+  const comments = useMemo(
+    () => commentsQuery.data ?? [],
     [commentsQuery.data]
+  );
+  const openCommentCount = comments.filter(
+    (comment) => comment.status === "open"
+  ).length;
+  const filteredComments = useMemo(
+    () =>
+      commentStatusFilter === "open"
+        ? comments.filter((comment) => comment.status === "open")
+        : comments,
+    [commentStatusFilter, comments]
+  );
+  const commentTargets = useMemo(
+    () => filteredComments.map(commentToTarget),
+    [filteredComments]
   );
   const createCommentMutation = useMutation({
     mutationFn: ({
@@ -467,7 +485,9 @@ export function EmailReviewView({ emailId }: EmailReviewViewProps) {
                   />
                 }
               >
-                Comments
+                {openCommentCount > 0
+                  ? `Comments ${openCommentCount}`
+                  : "Comments"}
               </Tabs.Tab>
             </Tabs.List>
 
@@ -497,12 +517,15 @@ export function EmailReviewView({ emailId }: EmailReviewViewProps) {
 
             <Tabs.Panel value="comments" className={styles.tabPanel}>
               <CommentsPanel
-                comments={commentsQuery.data ?? []}
+                activeCommentId={activeCommentId}
+                comments={comments}
+                filteredComments={filteredComments}
+                filter={commentStatusFilter}
+                hoveredCommentId={hoveredCommentId}
                 isError={commentsQuery.isError}
                 isLoading={commentsQuery.isLoading}
                 isResolving={resolveMutation.isPending}
-                activeCommentId={activeCommentId}
-                hoveredCommentId={hoveredCommentId}
+                onFilterChange={setCommentStatusFilter}
                 onHoverComment={handleHoverComment}
                 onResolve={resolveMutation.mutate}
                 onSelectComment={handleSelectComment}
@@ -534,20 +557,26 @@ function commentToTarget(comment: EmailComment): ReviewCommentTarget {
 function CommentsPanel({
   activeCommentId,
   comments,
+  filteredComments,
+  filter,
   hoveredCommentId,
   isError,
   isLoading,
   isResolving,
+  onFilterChange,
   onHoverComment,
   onResolve,
   onSelectComment,
 }: {
   activeCommentId: string | null;
   comments: EmailComment[];
+  filteredComments: EmailComment[];
+  filter: CommentStatusFilter;
   hoveredCommentId: string | null;
   isError: boolean;
   isLoading: boolean;
   isResolving: boolean;
+  onFilterChange: (filter: CommentStatusFilter) => void;
   onHoverComment: (comment: EmailComment | null) => void;
   onResolve: (commentId: string) => void;
   onSelectComment: (comment: EmailComment) => void;
@@ -571,11 +600,44 @@ function CommentsPanel({
     );
   }
 
+  const openCount = comments.filter((comment) => comment.status === "open").length;
+  const resolvedCount = comments.filter(
+    (comment) => comment.status === "resolved"
+  ).length;
+
   return (
     <Stack gap="sm">
       {comments.length > 0 ? (
-        <Timeline active={comments.length} bulletSize={24} lineWidth={2}>
-          {comments.map((comment) => (
+        <Group className={styles.commentFilterBar} justify="space-between" gap="xs">
+          <Group gap={6} wrap="nowrap">
+            <Badge color="yellow" size="sm" variant="light">
+              Open {openCount}
+            </Badge>
+            <Badge color="green" size="sm" variant="light">
+              Resolved {resolvedCount}
+            </Badge>
+            <Badge color="gray" size="sm" variant="light">
+              All {comments.length}
+            </Badge>
+          </Group>
+
+          <SegmentedControl
+            aria-label="Comment status filter"
+            className={styles.commentFilterControl}
+            data={[
+              { label: "Open", value: "open" },
+              { label: "All", value: "all" },
+            ]}
+            size="xs"
+            value={filter}
+            onChange={(value) => onFilterChange(value as CommentStatusFilter)}
+          />
+        </Group>
+      ) : null}
+
+      {filteredComments.length > 0 ? (
+        <Timeline active={filteredComments.length} bulletSize={24} lineWidth={2}>
+          {filteredComments.map((comment) => (
             <CommentItem
               isActive={comment.id === activeCommentId}
               isHovered={comment.id === hoveredCommentId}
@@ -588,6 +650,18 @@ function CommentsPanel({
             />
           ))}
         </Timeline>
+      ) : comments.length > 0 ? (
+        <Stack
+          className={styles.emptyState}
+          align="center"
+          justify="center"
+          gap="xs"
+        >
+          <Text fw={600}>No open comments</Text>
+          <Text c="dimmed" ta="center" size="sm">
+            Resolved comments are hidden. Switch to All to review them.
+          </Text>
+        </Stack>
       ) : (
         <Stack
           className={styles.emptyState}

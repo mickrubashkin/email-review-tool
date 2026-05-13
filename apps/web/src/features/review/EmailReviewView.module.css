@@ -188,6 +188,14 @@
   padding: 28px 18px;
 }
 
+.commentFilterBar {
+  align-items: center;
+}
+
+.commentFilterControl {
+  flex-shrink: 0;
+}
+
 .commentItem {
   padding: var(--mantine-spacing-sm);
   border: 1px solid var(--mantine-color-gray-2);
