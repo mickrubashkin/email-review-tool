@@ -141,6 +141,7 @@ function EmailBoardApp({
     Record<string, string>
   >({});
   const isMobile = useMediaQuery("(max-width: 48em)");
+  const isAdmin = currentUser.role === "admin" || currentUser.role === "super_admin";
 
   const emailsQuery = useQuery({
     queryKey: ["emails"],
@@ -250,6 +251,26 @@ function EmailBoardApp({
                 {currentUser.role}
               </Badge>
             </Group>
+            {isAdmin ? (
+              <>
+                <Button
+                  component="a"
+                  href="/auth-events"
+                  size="xs"
+                  variant="white"
+                >
+                  Auth events
+                </Button>
+                <Button
+                  component="a"
+                  href="/ai-logs"
+                  size="xs"
+                  variant="white"
+                >
+                  AI logs
+                </Button>
+              </>
+            ) : null}
             {currentUser.role === "super_admin" ? (
               <>
                 <Button
