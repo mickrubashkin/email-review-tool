@@ -12,7 +12,7 @@ import App from "./App.tsx";
 import { theme } from "./theme";
 
 const queryClient = new QueryClient();
-const BUILD_STAMP = "2026-05-11-3";
+const BUILD_STAMP = "2026-05-13-1";
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>

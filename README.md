@@ -6,11 +6,11 @@ Internal tool for reviewing HTML email sequences.
 - OTP login with session cookies
 - email board for browsing sequences and versions
 - email review view with text selection, comments, and resolution
+- admin editing of template-backed email fields and metadata
+- email duplication, archive, rendered preview, and rendered HTML export
 - AI analysis for an email, including streaming updates
-- admin auth events and AI analysis logs
+- admin auth events, email events, user management, and AI analysis logs
 - download/copy original HTML
-
-No email editing.
 
 ## Stack
 - Frontend: React 19 + Vite + Mantine v9 + TanStack Query
@@ -22,8 +22,11 @@ No email editing.
 ## Screens
 - `/` email board
 - `/emails/{id}/review` email review view
+- `/emails/{id}/edit` admin email fields editor
 - `/auth-events` admin auth events
 - `/ai-logs` AI analysis logs
+- `/admin/email-events` super-admin email events
+- `/admin/users` super-admin user management
 
 ## Repo layout
 - `apps/web/src/main.tsx` boots Mantine + TanStack Query.
@@ -55,5 +58,6 @@ No email editing.
 ## Notes
 - Backend is the source of truth.
 - Keep original HTML unchanged.
+- Email editing is template-backed: admins edit metadata and `data-edit-*` fields, then the backend renders final HTML for preview/export.
 - Preview untrusted HTML in isolation and do not execute scripts.
 - There is no WebSocket-based realtime layer in the current code.

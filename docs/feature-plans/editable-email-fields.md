@@ -155,34 +155,35 @@ Subject/preheader хранятся отдельно:
 - Сохраняются только field values и metadata.
 
 ## План внедрения
-### Фаза 1: контракт и модель данных
-- Определить поддерживаемые типы полей.
-- Добавить хранение field values в БД.
-- Добавить template version/hash.
-- Зафиксировать контракт `data-edit-text`, `data-edit-attr-*` и логического `cta` field.
-- Вынести extraction/render helpers на backend.
+### Статус на сейчас
+- [x] Добавлено хранение `template_html`, `editable_fields`, `template_hash`, `template_version`.
+- [x] Зафиксирован контракт `data-edit-text`, `data-edit-attr-*`, `data-edit-style-width-px`.
+- [x] Вынесены backend helpers для extraction/render.
+- [x] Добавлен backend render финального HTML из template + editable fields.
+- [x] Добавлен API редактирования metadata и editable fields.
+- [x] Добавлен API дублирования письма с копированием field values.
+- [x] Добавлен API архивации письма.
+- [x] Добавлен UI редактора `/emails/{id}/edit`.
+- [x] Добавлен rendered preview и rendered HTML copy/download.
+- [x] Добавлены email events для update/duplicate/archive.
+- [x] Добавлены backend-тесты на update, render, URL validation, duplicate, archive.
+- [x] Обновлён README под наличие email editing.
 
-### Фаза 2: создание и дублирование
-- Добавить API для create/duplicate.
-- Извлекать default values из HTML-шаблона.
-- Копировать field values при дублировании.
-- Не ломать текущий review flow.
+### Следующий блок
+- [ ] Починить `TestAllEnglishSeedTemplatesExtractAndRender`: сейчас `readRepoGlob` не находит `db/seeds/emails/**/**/en.html`.
+- [ ] Проверить и дозаполнить `data-edit-*` разметку во всех English seed templates.
+- [ ] После разметки прогнать `cd apps/api && go test ./...`.
+- [ ] Прогнать `make db-sync-meta` и `make db-seed` на актуальных шаблонах.
+- [ ] Проверить редактор `/emails/{id}/edit` на нескольких письмах из разных stages.
+- [ ] Проверить, что rendered export использует новые значения, а original HTML остаётся неизменным.
+- [ ] Проверить review/comment flow после изменения editable fields.
 
-### Фаза 3: UI редактирования
-- Сделать форму для editable fields.
-- Поддержать text input, textarea, URL input, image fields и CTA fields.
-- Показать subject/preheader в той же форме как metadata.
-- Добавить preview панели.
-
-### Фаза 4: preview/export
-- Рендерить финальный HTML из сохранённых значений.
-- Использовать этот же рендер для preview.
-- Не загрязнять export служебной разметкой.
-
-### Фаза 5: hardening
-- Добавить тесты на extraction, rendering, URL validation и duplication.
-- Добавить обработку template drift.
-- Проверить, что комментарии и review anchors продолжают работать.
+### Оставшиеся фичи
+- [ ] Добавить создание нового письма из шаблона, сейчас есть дублирование существующего письма.
+- [ ] Добавить явную обработку template drift: изменился template, но saved fields старые или неполные.
+- [ ] Решить, нужны ли протоколы кроме `http`/`https` для URL-полей.
+- [ ] Решить storage для изображений: внешний URL в MVP или отдельный media store.
+- [ ] Расширить frontend-тесты/ручные сценарии для editor, duplicate, archive и rendered export.
 
 ## Основные риски
 - Комментарии могут съехать при изменении текста.
@@ -198,11 +199,12 @@ Subject/preheader хранятся отдельно:
 - Как хранить asset references для изображений: внешний URL в MVP или отдельный upload/media store позже?
 
 ## Критерии готовности
-- Админ может создать письмо из шаблона.
-- Админ может продублировать письмо.
-- Админ может редактировать только смысловые поля письма и metadata.
-- Текст ссылки и URL ссылки редактируются отдельно.
-- CTA text/url обновляют все связанные места в HTML/VML.
-- Экспортированный HTML использует сохранённые значения.
-- Оригинальный HTML-шаблон остаётся неизменным.
-- Текущий review/comment flow продолжает работать.
+- [ ] Админ может создать письмо из шаблона.
+- [x] Админ может продублировать письмо.
+- [x] Админ может редактировать только смысловые поля письма и metadata.
+- [x] Текст ссылки и URL ссылки редактируются отдельно.
+- [x] CTA text/url обновляют все связанные места в HTML/VML через editable fields и template markers.
+- [x] Экспортированный HTML использует сохранённые значения.
+- [x] Оригинальный HTML-шаблон остаётся неизменным.
+- [x] Все English seed templates покрыты `data-edit-*` разметкой.
+- [ ] Текущий review/comment flow проверен после правок editable fields.
