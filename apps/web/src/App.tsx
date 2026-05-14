@@ -4,43 +4,28 @@ import {
   AppShell,
   Badge,
   Box,
+  Burger,
   Button,
   Group,
   Loader,
+  Menu,
   Stack,
   Text,
   Title,
 } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { notifications } from "@mantine/notifications";
 
 import { AIAnalysisLogsView } from "./features/ai-logs/AIAnalysisLogsView";
 import { AdminUsersView } from "./features/admin-users/AdminUsersView";
 import { AuthEventsView } from "./features/auth-events/AuthEventsView";
 import { LoginView } from "./features/auth/LoginView";
 import { EmailEventsView } from "./features/email-events/EmailEventsView";
-import {
-  archiveEmail,
-  duplicateEmail,
-  fetchCurrentUser,
-  fetchEmailDetail,
-  fetchEmails,
-  logout,
-} from "./features/emails/api";
+import { fetchCurrentUser, fetchEmails, logout } from "./features/emails/api";
 import { EmailBoard } from "./features/emails/EmailBoard";
 import { EmailFieldsEditorView } from "./features/emails/EmailFieldsEditorView";
-import { EmailPreviewDrawer } from "./features/emails/EmailPreviewDrawer";
-import {
-  buildStageColumns,
-  getDefaultVersion,
-} from "./features/emails/stages";
-import type {
-  AuthUser,
-  DuplicateEmailPayload,
-  EmailDetail,
-  EmailListItem,
-} from "./features/emails/types";
+import { buildStageColumns } from "./features/emails/stages";
+import type { AuthUser } from "./features/emails/types";
 import { EmailReviewView } from "./features/review/EmailReviewView";
 import styles from "./App.module.css";
 
@@ -104,7 +89,12 @@ function AuthenticatedApp() {
 
   const reviewEmailId = getReviewEmailId(window.location.pathname);
   if (reviewEmailId) {
-    return <EmailReviewView emailId={reviewEmailId} />;
+    return (
+      <EmailReviewView
+        currentUserRole={currentUserQuery.data.role}
+        emailId={reviewEmailId}
+      />
+    );
   }
 
   return (
@@ -135,76 +125,23 @@ function EmailBoardApp({
   isLoggingOut: boolean;
   onLogout: () => void;
 }) {
-  const queryClient = useQueryClient();
-  const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
   const [selectedVersionByGroup, setSelectedVersionByGroup] = useState<
     Record<string, string>
   >({});
-  const isMobile = useMediaQuery("(max-width: 48em)");
-  const isAdmin = currentUser.role === "admin" || currentUser.role === "super_admin";
+  const [userMenuOpened, setUserMenuOpened] = useState(false);
+  const isCompactHeader = useMediaQuery("(max-width: 64em)");
+  const isAdmin =
+    currentUser.role === "admin" || currentUser.role === "super_admin";
 
   const emailsQuery = useQuery({
     queryKey: ["emails"],
     queryFn: fetchEmails,
   });
 
-  const emailDetailQuery = useQuery({
-    queryKey: ["emails", selectedEmailId],
-    queryFn: () => fetchEmailDetail(selectedEmailId ?? ""),
-    enabled: selectedEmailId !== null,
-  });
-  const duplicateEmailMutation = useMutation({
-    mutationFn: ({
-      emailId,
-      payload,
-    }: {
-      emailId: string;
-      payload: DuplicateEmailPayload;
-    }) => duplicateEmail(emailId, payload),
-    onSuccess: (createdEmail) => {
-      queryClient.setQueryData(["emails", createdEmail.id], createdEmail);
-      setSelectedVersionByGroup((current) => ({
-        ...current,
-        [getEmailGroupKey(createdEmail)]: createdEmail.id,
-      }));
-      setSelectedEmailId(createdEmail.id);
-      void queryClient.invalidateQueries({ queryKey: ["emails"] });
-    },
-  });
-  const archiveEmailMutation = useMutation({
-    mutationFn: archiveEmail,
-    onSuccess: () => {
-      setSelectedEmailId(null);
-      void queryClient.invalidateQueries({ queryKey: ["emails"] });
-      notifications.show({
-        color: "green",
-        message: "Email was removed from the active board.",
-        title: "Email archived",
-      });
-    },
-    onError: () => {
-      notifications.show({
-        color: "red",
-        message: "Try again or check that you have admin access.",
-        title: "Archive failed",
-      });
-    },
-  });
-
   const columns = useMemo(
     () => buildStageColumns(emailsQuery.data ?? []),
     [emailsQuery.data]
   );
-
-  const selectedEmail = emailDetailQuery.data;
-  const selectedEmailGroup =
-    selectedEmailId === null
-      ? undefined
-      : columns
-        .flatMap((column) => column.emailGroups)
-        .find((group) =>
-          group.versions.some((version) => version.id === selectedEmailId)
-        );
 
   const handleSelectVersion = (groupKey: string, emailId: string) => {
     setSelectedVersionByGroup((current) => ({
@@ -213,93 +150,145 @@ function EmailBoardApp({
     }));
   };
 
-  const handleOpenVersionGroup = (groupKey: string) => {
-    const emailGroup = columns
-      .flatMap((column) => column.emailGroups)
-      .find((group) => group.key === groupKey);
-    if (!emailGroup) {
-      return;
-    }
-
-    setSelectedEmailId(
-      selectedVersionByGroup[groupKey] ?? getDefaultVersion(emailGroup.versions).id
-    );
+  const handleOpenVersionGroup = (_groupKey: string, emailId: string) => {
+    window.location.href = `/emails/${encodeURIComponent(emailId)}/review`;
   };
 
   return (
     <AppShell header={{ height: 56 }} padding={0}>
       <AppShell.Header className={styles.appHeader}>
         <Group h="100%" px="md" justify="space-between">
-            <Stack gap={0}>
-              <Group gap="xs">
-                <Title order={4}>ReviewDesk</Title>
-              </Group>
-              <Text size="xs" c="dimmed">
-                Onboarding sequence review 
-              </Text>
-            </Stack>
+          <Stack gap={0}>
+            <Group gap="xs">
+              <Title order={4}>ReviewDesk</Title>
+            </Group>
+            <Text size="xs" c="dimmed">
+              Onboarding sequence review
+            </Text>
+          </Stack>
 
           <Group gap="sm" wrap="nowrap">
             <Text className={styles.headerCount} size="sm" c="dimmed">
               {emailsQuery.data?.length ?? 0} emails
             </Text>
-            <Group gap={6} wrap="nowrap">
-              <Text className={styles.headerUser} size="sm" c="dimmed">
-                {currentUser.email}
-              </Text>
-              <Badge color={currentUser.role === "admin" ? "blue" : "gray"}>
-                {currentUser.role}
-              </Badge>
-            </Group>
-            {isAdmin ? (
+            {isCompactHeader ? (
+              <Menu
+                opened={userMenuOpened}
+                position="bottom-end"
+                width={240}
+                withinPortal
+                onChange={setUserMenuOpened}
+              >
+                <Menu.Target>
+                  <Burger
+                    aria-label="Open user menu"
+                    color="white"
+                    opened={userMenuOpened}
+                    size="sm"
+                  />
+                </Menu.Target>
+                <Menu.Dropdown>
+                  <Menu.Label>
+                    <Stack gap={4}>
+                      <Text className={styles.userMenuEmail} size="sm">
+                        {currentUser.email}
+                      </Text>
+                      <Badge
+                        color={currentUser.role === "admin" ? "blue" : "gray"}
+                        size="sm"
+                      >
+                        {currentUser.role}
+                      </Badge>
+                    </Stack>
+                  </Menu.Label>
+                  {isAdmin ? (
+                    <>
+                      <Menu.Divider />
+                      <Menu.Item component="a" href="/auth-events">
+                        Auth events
+                      </Menu.Item>
+                      <Menu.Item component="a" href="/ai-logs">
+                        AI logs
+                      </Menu.Item>
+                    </>
+                  ) : null}
+                  {currentUser.role === "super_admin" ? (
+                    <>
+                      <Menu.Item component="a" href="/admin/email-events">
+                        Email events
+                      </Menu.Item>
+                      <Menu.Item component="a" href="/admin/users">
+                        Users
+                      </Menu.Item>
+                    </>
+                  ) : null}
+                  <Menu.Divider />
+                  <Menu.Item color="red" onClick={onLogout}>
+                    {isLoggingOut ? "Logging out" : "Logout"}
+                  </Menu.Item>
+                </Menu.Dropdown>
+              </Menu>
+            ) : (
               <>
+                <Group gap={6} wrap="nowrap">
+                  <Text className={styles.headerUser} size="sm" c="dimmed">
+                    {currentUser.email}
+                  </Text>
+                  <Badge color={currentUser.role === "admin" ? "blue" : "gray"}>
+                    {currentUser.role}
+                  </Badge>
+                </Group>
+                {isAdmin ? (
+                  <>
+                    <Button
+                      component="a"
+                      href="/auth-events"
+                      size="xs"
+                      variant="white"
+                    >
+                      Auth events
+                    </Button>
+                    <Button
+                      component="a"
+                      href="/ai-logs"
+                      size="xs"
+                      variant="white"
+                    >
+                      AI logs
+                    </Button>
+                  </>
+                ) : null}
+                {currentUser.role === "super_admin" ? (
+                  <>
+                    <Button
+                      component="a"
+                      href="/admin/email-events"
+                      size="xs"
+                      variant="white"
+                    >
+                      Email events
+                    </Button>
+                    <Button
+                      component="a"
+                      href="/admin/users"
+                      size="xs"
+                      variant="white"
+                    >
+                      Users
+                    </Button>
+                  </>
+                ) : null}
                 <Button
-                  component="a"
-                  href="/auth-events"
+                  color="gray"
+                  loading={isLoggingOut}
                   size="xs"
                   variant="white"
+                  onClick={onLogout}
                 >
-                  Auth events
-                </Button>
-                <Button
-                  component="a"
-                  href="/ai-logs"
-                  size="xs"
-                  variant="white"
-                >
-                  AI logs
+                  Logout
                 </Button>
               </>
-            ) : null}
-            {currentUser.role === "super_admin" ? (
-              <>
-                <Button
-                  component="a"
-                  href="/admin/email-events"
-                  size="xs"
-                  variant="white"
-                >
-                  Email events
-                </Button>
-                <Button
-                  component="a"
-                  href="/admin/users"
-                  size="xs"
-                  variant="white"
-                >
-                  Users
-                </Button>
-              </>
-            ) : null}
-            <Button
-              color="gray"
-              loading={isLoggingOut}
-              size="xs"
-              variant="white"
-              onClick={onLogout}
-            >
-              Logout
-            </Button>
+            )}
           </Group>
         </Group>
       </AppShell.Header>
@@ -330,33 +319,6 @@ function EmailBoardApp({
         </Box>
       </AppShell.Main>
 
-      <EmailPreviewDrawer
-        currentUserRole={currentUser.role}
-        duplicateEmailError={duplicateEmailMutation.error}
-        email={selectedEmail}
-        emailGroup={selectedEmailGroup}
-        isArchivingEmail={archiveEmailMutation.isPending}
-        isDuplicatingEmail={duplicateEmailMutation.isPending}
-        isError={emailDetailQuery.isError}
-        isLoading={emailDetailQuery.isLoading}
-        isMobile={isMobile}
-        opened={selectedEmailId !== null}
-        onClose={() => setSelectedEmailId(null)}
-        onArchiveEmail={(emailId) => archiveEmailMutation.mutateAsync(emailId)}
-        onDuplicateEmail={(emailId, payload) =>
-          duplicateEmailMutation.mutateAsync({ emailId, payload })
-        }
-        onResetDuplicateEmail={() => duplicateEmailMutation.reset()}
-        onSelectVersion={(groupKey, emailId) => {
-          handleSelectVersion(groupKey, emailId);
-          setSelectedEmailId(emailId);
-        }}
-        selectedEmailId={selectedEmailId}
-      />
     </AppShell>
   );
-}
-
-function getEmailGroupKey(email: EmailListItem | EmailDetail) {
-  return [email.sequence, email.stage || "uncategorized", email.sort_order].join("/");
 }

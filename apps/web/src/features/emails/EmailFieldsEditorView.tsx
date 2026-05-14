@@ -15,8 +15,12 @@ import {
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Save } from "lucide-react";
-import { Copy, Download } from "lucide-react";
+import {
+  ArrowLeft,
+  Copy,
+  DownloadSimple,
+  FloppyDisk,
+} from "@phosphor-icons/react";
 
 import {
   fetchEmailDetail,
@@ -226,7 +230,7 @@ function EmailFieldsEditor({
           </Group>
           <Button
             disabled={!isDirty}
-            leftSection={<Save aria-hidden="true" size={16} />}
+            leftSection={<FloppyDisk aria-hidden="true" size={16} />}
             loading={saveMutation.isPending}
             onClick={save}
           >
@@ -242,7 +246,7 @@ function EmailFieldsEditor({
           </Button>
           <Button
             disabled={isDirty || saveMutation.isPending}
-            leftSection={<Download aria-hidden="true" size={16} />}
+            leftSection={<DownloadSimple aria-hidden="true" size={16} />}
             variant="light"
             onClick={() => downloadRenderedHTML(email, renderedHTML)}
           >

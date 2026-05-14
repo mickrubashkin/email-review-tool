@@ -29,7 +29,7 @@ import styles from "./EmailCard.module.css";
 type EmailCardProps = {
   emailGroup: EmailVersionGroup;
   selectedEmailId: string | undefined;
-  onOpen: (groupKey: string) => void;
+  onOpen: (groupKey: string, emailId: string) => void;
   onSelectVersion: (groupKey: string, emailId: string) => void;
 };
 
@@ -150,7 +150,7 @@ export function EmailCard({
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
       setCommentsPopoverOpened(false);
-      onOpen(emailGroup.key);
+      onOpen(emailGroup.key, selectedEmail.id);
     }
   };
 
@@ -164,7 +164,7 @@ export function EmailCard({
       tabIndex={0}
       onClick={() => {
         setCommentsPopoverOpened(false);
-        onOpen(emailGroup.key);
+        onOpen(emailGroup.key, selectedEmail.id);
       }}
       onKeyDown={handleCardKeyDown}
     >

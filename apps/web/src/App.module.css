@@ -18,6 +18,14 @@
   white-space: nowrap;
 }
 
+.userMenuEmail {
+  max-width: 200px;
+  color: var(--mantine-color-gray-8);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .boardPage {
   height: calc(100dvh - var(--app-shell-header-height));
   background: #1e1968 url("/images/bg-vibe.jpg") center / cover no-repeat;

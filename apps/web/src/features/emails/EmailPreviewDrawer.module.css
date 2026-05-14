@@ -170,12 +170,6 @@
     var(--mantine-color-white);
 }
 
-.aiIcon {
-  width: 23px;
-  height: 23px;
-  display: block;
-}
-
 .analysisCard {
   background: var(--mantine-color-white);
 }

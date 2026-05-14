@@ -6,6 +6,7 @@ import {
   Text,
   Textarea,
 } from "@mantine/core";
+import { useMediaQuery } from "@mantine/hooks";
 
 import {
   type KeyboardEvent as ReactKeyboardEvent,
@@ -69,6 +70,7 @@ export function MailPreview({
   const frameRef = useRef<HTMLIFrameElement | null>(null);
   const overlayRootRef = useRef<HTMLElement | null>(null);
   const wasCreatingCommentRef = useRef(false);
+  const shouldShowCommentOverlay = !useMediaQuery("(max-width: 64em)");
   const [selectionMenu, setSelectionMenu] = useState<SelectionMenuState | null>(
     null
   );
@@ -144,7 +146,7 @@ export function MailPreview({
   };
   const overlay = useReviewOverlayRects({
     activeCommentId,
-    commentTargets,
+    commentTargets: shouldShowCommentOverlay ? commentTargets : [],
     frameLoadVersion,
     frameRef,
     overlayRootRef,
@@ -303,14 +305,16 @@ export function MailPreview({
               srcDoc={email.review_html || email.original_html}
             />
           </div>
-          <ReviewCommentOverlay
-            activeCommentId={activeCommentId}
-            badges={overlay.badges}
-            hoveredCommentId={hoveredCommentId}
-            onBadgeClick={onCommentBadgeClick}
-            onBadgeHover={onCommentBadgeHover}
-            rects={overlay.rects}
-          />
+          {shouldShowCommentOverlay ? (
+            <ReviewCommentOverlay
+              activeCommentId={activeCommentId}
+              badges={overlay.badges}
+              hoveredCommentId={hoveredCommentId}
+              onBadgeClick={onCommentBadgeClick}
+              onBadgeHover={onCommentBadgeHover}
+              rects={overlay.rects}
+            />
+          ) : null}
         </article>
       </div>
       {isScanning ? (

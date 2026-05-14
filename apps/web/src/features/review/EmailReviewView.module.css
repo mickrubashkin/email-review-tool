@@ -40,6 +40,24 @@
   flex: 0 0 auto;
 }
 
+.actionGroup {
+  flex: 0 0 auto;
+}
+
+.actionDivider {
+  align-self: stretch;
+  width: 1px;
+  min-height: 32px;
+  background: var(--mantine-color-gray-3);
+}
+
+.menuControls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mantine-spacing-xs);
+  padding: 4px var(--mantine-spacing-xs) var(--mantine-spacing-xs);
+}
+
 .selectWrap {
   position: relative;
   display: inline-flex;
@@ -183,6 +201,21 @@
   padding: var(--mantine-spacing-sm);
 }
 
+.mobileContent {
+  padding: var(--mantine-spacing-sm);
+}
+
+.mobileTabsList {
+  position: sticky;
+  z-index: 8;
+  top: 0;
+  background: var(--mantine-color-gray-0);
+}
+
+.mobileTabPanel {
+  padding-top: var(--mantine-spacing-sm);
+}
+
 .emptyState {
   min-height: 220px;
   padding: 28px 18px;
@@ -230,17 +263,30 @@
 
 @media (max-width: 64em) {
   .headerInner {
-    align-items: flex-start;
-    flex-direction: column;
+    align-items: center;
+    flex-direction: row;
   }
 
   .headerMain {
-    width: 100%;
+    flex: 1 1 auto;
+    width: auto;
   }
 
   .headerActions {
-    width: 100%;
+    flex: 0 0 auto;
+    width: auto;
     align-items: center;
+    justify-content: flex-end;
+  }
+
+  .menuControls .selectWrap,
+  .menuControls .select {
+    flex: 1 1 92px;
+  }
+
+  .menuControls .segmentedControl {
+    flex: 1 1 124px;
+    justify-content: center;
   }
 
   .content {

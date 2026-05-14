@@ -7,7 +7,7 @@ import styles from "./EmailBoard.module.css";
 type EmailBoardProps = {
   columns: StageColumn[];
   selectedVersionByGroup: Record<string, string>;
-  onOpenVersionGroup: (groupKey: string) => void;
+  onOpenVersionGroup: (groupKey: string, emailId: string) => void;
   onSelectVersion: (groupKey: string, emailId: string) => void;
 };
 

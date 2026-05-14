@@ -10,7 +10,7 @@ type StageColumnViewProps = {
   column: StageColumn;
   columnIndex: number;
   selectedVersionByGroup: Record<string, string>;
-  onOpenVersionGroup: (groupKey: string) => void;
+  onOpenVersionGroup: (groupKey: string, emailId: string) => void;
   onSelectVersion: (groupKey: string, emailId: string) => void;
 };
 
