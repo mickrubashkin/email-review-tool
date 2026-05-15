@@ -1,4 +1,5 @@
 import {
+  type ChangeEvent,
   type KeyboardEvent,
   type MouseEvent,
   useEffect,
@@ -160,16 +161,13 @@ export function EmailCard({
       onSelectVersion(emailGroup.key, nextEmail.id);
     }
   };
-  const handleAdaptationClick = (
-    event: MouseEvent<HTMLButtonElement>,
-    adaptationKey: string
-  ) => {
+  const handleAdaptationChange = (event: ChangeEvent<HTMLSelectElement>) => {
     event.stopPropagation();
     const nextEmail = getVersionForVariant(
       emailGroup.versions,
       selectedVariant,
       selectedEmail.language,
-      adaptationKey
+      event.currentTarget.value
     );
     if (nextEmail) {
       onSelectVersion(emailGroup.key, nextEmail.id);
@@ -283,19 +281,42 @@ export function EmailCard({
             ) : null}
           </Group>
 
-          <Group className={styles.variantSwitch} gap={2} wrap="nowrap">
-            {(["new", "old"] as const).map((variant) => (
-              <button
-                className={styles.variantButton}
-                data-active={variant === selectedVariant || undefined}
-                disabled={!availableVariants.includes(variant)}
-                key={variant}
-                type="button"
-                onClick={(event) => handleVariantClick(event, variant)}
-              >
-                {variant}
-              </button>
-            ))}
+          <Group className={styles.variantRow} gap={6} wrap="nowrap">
+            <Group className={styles.variantSwitch} gap={2} wrap="nowrap">
+              {(["new", "old"] as const).map((variant) => (
+                <button
+                  className={styles.variantButton}
+                  data-active={variant === selectedVariant || undefined}
+                  disabled={!availableVariants.includes(variant)}
+                  key={variant}
+                  type="button"
+                  onClick={(event) => handleVariantClick(event, variant)}
+                >
+                  {variant}
+                </button>
+              ))}
+            </Group>
+
+            <label
+              className={styles.adaptationSelectWrap}
+              onClick={(event) => event.stopPropagation()}
+            >
+            <select
+              aria-label="Email adaptation"
+              className={styles.adaptationSelect}
+              value={selectedAdaptation}
+              onChange={handleAdaptationChange}
+            >
+              {availableAdaptations.map((adaptation) => (
+                <option
+                  key={adaptation.adaptation_key}
+                  value={adaptation.adaptation_key}
+                >
+                  {adaptation.adaptation_label}
+                </option>
+              ))}
+            </select>
+            </label>
           </Group>
 
           <Group gap={3} wrap="wrap">
@@ -308,24 +329,6 @@ export function EmailCard({
                 onClick={(event) => handleVersionClick(event, email.id)}
               >
                 {email.language}
-              </button>
-            ))}
-          </Group>
-
-          <Group gap={3} wrap="wrap">
-            {availableAdaptations.map((adaptation) => (
-              <button
-                className={styles.adaptationButton}
-                data-active={
-                  adaptation.adaptation_key === selectedAdaptation || undefined
-                }
-                key={adaptation.adaptation_key}
-                type="button"
-                onClick={(event) =>
-                  handleAdaptationClick(event, adaptation.adaptation_key)
-                }
-              >
-                {adaptation.adaptation_label}
               </button>
             ))}
           </Group>
