@@ -261,8 +261,16 @@ export function analyzeEmailStream(
     source.close();
   });
 
-  source.addEventListener("error", () => {
-    handlers.onError?.("stream error");
+  source.addEventListener("error", (event) => {
+    if (event instanceof MessageEvent && typeof event.data === "string" && event.data) {
+      try {
+        handlers.onError?.(JSON.parse(event.data) as string);
+      } catch {
+        handlers.onError?.(event.data);
+      }
+    } else {
+      handlers.onError?.("stream error");
+    }
     source.close();
   });
 

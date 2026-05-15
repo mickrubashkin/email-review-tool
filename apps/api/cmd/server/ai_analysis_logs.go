@@ -16,7 +16,7 @@ type AIAnalysisLogFilters struct {
 	Limit       int
 }
 
-func insertAIAnalysisLog(ctx context.Context, dbpool *pgxpool.Pool, emailID string, user *AuthUser, metrics AIAnalysisMetrics) error {
+func insertAIAnalysisLog(ctx context.Context, dbpool *pgxpool.Pool, emailID string, user *AuthUser, metrics AIAnalysisMetrics, forceRefresh bool) error {
 	var userID *string
 	var userEmail *string
 	if user != nil {
@@ -36,9 +36,10 @@ func insertAIAnalysisLog(ctx context.Context, dbpool *pgxpool.Pool, emailID stri
 			output_tokens,
 			total_tokens,
 			cached_tokens,
+			force_refresh,
 			error_message
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11);
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12);
 	`,
 		emailID,
 		userID,
@@ -50,10 +51,24 @@ func insertAIAnalysisLog(ctx context.Context, dbpool *pgxpool.Pool, emailID stri
 		metrics.OutputTokens,
 		metrics.TotalTokens,
 		metrics.CachedTokens,
+		forceRefresh,
 		metrics.ErrorMessage,
 	)
 
 	return err
+}
+
+func countDailyAIAnalysisRefreshes(ctx context.Context, dbpool *pgxpool.Pool, emailID string, userID string) (int, error) {
+	var count int
+	err := dbpool.QueryRow(ctx, `
+		SELECT COUNT(*)
+		FROM ai_analysis_logs
+		WHERE email_id = $1
+			AND user_id = $2
+			AND force_refresh = TRUE
+			AND created_at >= date_trunc('day', now());
+	`, emailID, userID).Scan(&count)
+	return count, err
 }
 
 func listAIAnalysisLogs(ctx context.Context, dbpool *pgxpool.Pool, filters AIAnalysisLogFilters) ([]AIAnalysisLogItem, error) {

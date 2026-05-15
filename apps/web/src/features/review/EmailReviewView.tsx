@@ -10,6 +10,7 @@ import {
   Modal,
   SegmentedControl,
   Select,
+  Skeleton,
   Stack,
   Tabs,
   Text,
@@ -313,16 +314,24 @@ export function EmailReviewView({
     []
   );
 
-  if (emailQuery.isLoading) {
-    return (
-      <Stack className={styles.centerState} align="center" justify="center">
-        <Loader />
-        <Text c="dimmed">Loading review</Text>
-      </Stack>
-    );
-  }
+  useEffect(() => {
+    for (const neighbor of [previousBoardEmail, nextBoardEmail]) {
+      if (!neighbor) {
+        continue;
+      }
 
-  if (emailQuery.isError || !email) {
+      void queryClient.prefetchQuery({
+        queryKey: ["emails", neighbor.id, "review"],
+        queryFn: () => fetchEmailDetail(neighbor.id),
+      });
+      void queryClient.prefetchQuery({
+        queryKey: ["email-comments", neighbor.id],
+        queryFn: () => fetchEmailComments(neighbor.id),
+      });
+    }
+  }, [nextBoardEmail, previousBoardEmail, queryClient]);
+
+  if (emailQuery.isError) {
     return (
       <Stack className={styles.centerState} align="center" justify="center" p="md">
         <Alert color="red" title="Failed to load review">
@@ -337,13 +346,13 @@ export function EmailReviewView({
   };
 
   const navigateToReview = (nextEmailId: string) => {
-    if (nextEmailId !== email.id) {
+    if (nextEmailId !== email?.id) {
       navigate(`/emails/${encodeURIComponent(nextEmailId)}/review`);
     }
   };
 
   const handleVariantClick = (variant: EmailVariant) => {
-    if (!emailGroup) {
+    if (!emailGroup || !email) {
       return;
     }
 
@@ -435,20 +444,24 @@ export function EmailReviewView({
     setIsResizing(false);
   };
   const previewContent = (
-    <MailPreview
-      activeCommentId={activeCommentId}
-      commentTargets={commentTargets}
-      createCommentError={createCommentMutation.isError}
-      email={email}
-      enableReviewSelectionComposer
-      hoveredCommentId={hoveredCommentId}
-      isCreatingComment={createCommentMutation.isPending}
-      isScanning={isAnalyzingCurrentEmail}
-      onCommentBadgeClick={handleSelectCommentIds}
-      onCommentBadgeHover={handleHoverCommentIds}
-      onCreateReviewComment={handleCreateReviewComment}
-      viewport={isCompactReview ? "mobile" : viewport}
-    />
+    email ? (
+      <MailPreview
+        activeCommentId={activeCommentId}
+        commentTargets={commentTargets}
+        createCommentError={createCommentMutation.isError}
+        email={email}
+        enableReviewSelectionComposer
+        hoveredCommentId={hoveredCommentId}
+        isCreatingComment={createCommentMutation.isPending}
+        isScanning={isAnalyzingCurrentEmail}
+        onCommentBadgeClick={handleSelectCommentIds}
+        onCommentBadgeHover={handleHoverCommentIds}
+        onCreateReviewComment={handleCreateReviewComment}
+        viewport={isCompactReview ? "mobile" : viewport}
+      />
+    ) : (
+      <ReviewPreviewSkeleton />
+    )
   );
   const analysisContent = shouldShowAnalysisPanel ? (
     <AnalysisPanel
@@ -467,7 +480,7 @@ export function EmailReviewView({
     >
       <Text fw={600}>No AI analysis yet</Text>
       <Text c="dimmed" ta="center" size="sm">
-        Run an AI analysis from the header controls to review this email.
+        View or generate the shared AI analysis from the header controls.
       </Text>
     </Stack>
   );
@@ -551,13 +564,13 @@ export function EmailReviewView({
 
             <Group className={styles.breadcrumbs} gap={6} wrap="nowrap">
               <Text className={styles.breadcrumbText} size="sm" fw={600}>
-                {currentStage?.title ?? "Board"}
+                {currentStage?.title ?? <Skeleton h={14} w={84} />}
               </Text>
               <Text c="dimmed" size="sm">
                 /
               </Text>
               <Text className={styles.titleText} size="sm" fw={600}>
-                {formatEmailTitle(email.title)}
+                {email ? formatEmailTitle(email.title) : <Skeleton h={14} w={120} />}
               </Text>
             </Group>
 
@@ -573,7 +586,7 @@ export function EmailReviewView({
 
                 <Group className={styles.actionGroup} gap="xs" wrap="nowrap">
                   <LanguageSelect
-                    selectedEmailId={email.id}
+                    selectedEmailId={email?.id ?? ""}
                     versions={languageVersions}
                     onSelect={navigateToReview}
                   />
@@ -608,7 +621,7 @@ export function EmailReviewView({
                   <Menu.Label>Email version</Menu.Label>
                   <div className={styles.menuControls}>
                     <LanguageSelect
-                      selectedEmailId={email.id}
+                      selectedEmailId={email?.id ?? ""}
                       versions={languageVersions}
                       onSelect={navigateToReview}
                     />
@@ -624,6 +637,7 @@ export function EmailReviewView({
                   {canManageEmail ? (
                     <>
                       <Menu.Item
+                        disabled={!email}
                         leftSection={
                           <StackPlusIcon aria-hidden="true" size={15} />
                         }
@@ -636,7 +650,8 @@ export function EmailReviewView({
                       </Menu.Item>
                       <Menu.Item
                         component={Link}
-                        to={`/emails/${encodeURIComponent(email.id)}/edit`}
+                        disabled={!email}
+                        to={email ? `/emails/${encodeURIComponent(email.id)}/edit` : "#"}
                         leftSection={
                           <PencilSimpleIcon aria-hidden="true" size={15} />
                         }
@@ -645,6 +660,7 @@ export function EmailReviewView({
                       </Menu.Item>
                       <Menu.Item
                         color="red"
+                        disabled={!email}
                         leftSection={
                           <ArchiveIcon aria-hidden="true" size={15} />
                         }
@@ -658,36 +674,47 @@ export function EmailReviewView({
                     </>
                   ) : null}
                   <Menu.Item
+                    disabled={!email}
                     leftSection={
                       <CopyIcon aria-hidden="true" size={15} />
                     }
-                    onClick={() => copyOriginalHTML(email)}
+                    onClick={() => {
+                      if (email) {
+                        copyOriginalHTML(email);
+                      }
+                    }}
                   >
                     Copy original HTML
                   </Menu.Item>
                   <Menu.Item
+                    disabled={!email}
                     leftSection={
                       <DownloadSimpleIcon aria-hidden="true" size={15} />
                     }
-                    onClick={() => downloadOriginalHTML(email)}
+                    onClick={() => {
+                      if (email) {
+                        downloadOriginalHTML(email);
+                      }
+                    }}
                   >
                     Download original HTML
                   </Menu.Item>
                   <Menu.Divider />
                   <Menu.Item
+                    disabled={!email}
                     leftSection={<SparkleIcon aria-hidden="true" size={15} />}
                     onClick={handleAnalyze}
                   >
-                    {isAnalyzingCurrentEmail ? "Analyzing" : "Analyze with AI"}
+                    {isAnalyzingCurrentEmail ? "Analyzing" : "View shared AI analysis"}
                   </Menu.Item>
                   <Menu.Item
-                    disabled={isAnalyzingCurrentEmail}
+                    disabled={!email || isAnalyzingCurrentEmail}
                     leftSection={
                       <ArrowsClockwiseIcon aria-hidden="true" size={15} />
                     }
                     onClick={handleReanalyze}
                   >
-                    Generate new AI analysis
+                    Generate new shared AI analysis
                   </Menu.Item>
                   <Menu.Divider />
                   <Menu.Item
@@ -712,6 +739,7 @@ export function EmailReviewView({
                         <ActionIcon
                           aria-label="Duplicate email"
                           className={styles.headerIconButton}
+                          disabled={!email}
                           onClick={() => {
                             duplicateEmailMutation.reset();
                             setDuplicateModalOpened(true);
@@ -725,17 +753,30 @@ export function EmailReviewView({
                       </Tooltip>
 
                       <Tooltip label="Edit fields">
-                        <ActionIcon
-                          aria-label="Edit fields"
-                          className={styles.headerIconButton}
-                          component={Link}
-                          to={`/emails/${encodeURIComponent(email.id)}/edit`}
-                          radius="md"
-                          size="lg"
-                          variant="light"
-                        >
-                          <PencilSimpleIcon aria-hidden="true" size={16} />
-                        </ActionIcon>
+                        {email ? (
+                          <ActionIcon
+                            aria-label="Edit fields"
+                            className={styles.headerIconButton}
+                            component={Link}
+                            to={`/emails/${encodeURIComponent(email.id)}/edit`}
+                            radius="md"
+                            size="lg"
+                            variant="light"
+                          >
+                            <PencilSimpleIcon aria-hidden="true" size={16} />
+                          </ActionIcon>
+                        ) : (
+                          <ActionIcon
+                            aria-label="Edit fields"
+                            className={styles.headerIconButton}
+                            disabled
+                            radius="md"
+                            size="lg"
+                            variant="light"
+                          >
+                            <PencilSimpleIcon aria-hidden="true" size={16} />
+                          </ActionIcon>
+                        )}
                       </Tooltip>
 
                       <Tooltip label="Archive email">
@@ -763,7 +804,12 @@ export function EmailReviewView({
                     <ActionIcon
                       aria-label="Copy original HTML"
                       className={styles.headerIconButton}
-                      onClick={() => copyOriginalHTML(email)}
+                      disabled={!email}
+                      onClick={() => {
+                        if (email) {
+                          copyOriginalHTML(email);
+                        }
+                      }}
                       radius="md"
                       size="lg"
                       variant="light"
@@ -776,7 +822,12 @@ export function EmailReviewView({
                     <ActionIcon
                       aria-label="Download original HTML"
                       className={styles.headerIconButton}
-                      onClick={() => downloadOriginalHTML(email)}
+                      disabled={!email}
+                      onClick={() => {
+                        if (email) {
+                          downloadOriginalHTML(email);
+                        }
+                      }}
                       radius="md"
                       size="lg"
                       variant="light"
@@ -789,9 +840,9 @@ export function EmailReviewView({
                 <div className={styles.actionDivider} aria-hidden="true" />
 
                 <Group className={styles.actionGroup} gap="xs" wrap="nowrap">
-                  <Tooltip label="Analyze with AI">
+                  <Tooltip label="View the shared AI analysis for this email">
                     <ActionIcon
-                      aria-label="Analyze with AI"
+                      aria-label="View shared AI analysis"
                       className={styles.headerIconButton}
                       loading={isAnalyzingCurrentEmail}
                       onClick={handleAnalyze}
@@ -803,9 +854,9 @@ export function EmailReviewView({
                     </ActionIcon>
                   </Tooltip>
 
-                  <Tooltip label="Generate a new AI analysis. This will make a new AI request and may use tokens/cost.">
+                  <Tooltip label="Creates a new shared analysis for this email and replaces the current one for everyone. Limited to 10 per day per email.">
                     <ActionIcon
-                      aria-label="Generate a new AI analysis"
+                      aria-label="Generate new shared AI analysis"
                       className={styles.headerIconButton}
                       disabled={isAnalyzingCurrentEmail}
                       onClick={handleReanalyze}
@@ -851,7 +902,7 @@ export function EmailReviewView({
         </div>
       </header>
 
-      {duplicateModalOpened ? (
+      {duplicateModalOpened && email ? (
         <DuplicateEmailModal
           email={email}
           error={duplicateEmailMutation.error}
@@ -868,16 +919,18 @@ export function EmailReviewView({
         />
       ) : null}
 
-      <ArchiveEmailModal
-        email={email}
-        isSubmitting={archiveEmailMutation.isPending}
-        opened={archiveModalOpened}
-        onClose={() => setArchiveModalOpened(false)}
-        onSubmit={async (archiveEmailId) => {
-          await archiveEmailMutation.mutateAsync(archiveEmailId);
-          setArchiveModalOpened(false);
-        }}
-      />
+      {email ? (
+        <ArchiveEmailModal
+          email={email}
+          isSubmitting={archiveEmailMutation.isPending}
+          opened={archiveModalOpened}
+          onClose={() => setArchiveModalOpened(false)}
+          onSubmit={async (archiveEmailId) => {
+            await archiveEmailMutation.mutateAsync(archiveEmailId);
+            setArchiveModalOpened(false);
+          }}
+        />
+      ) : null}
 
       {isCompactReview ? (
         <main className={styles.mobileContent}>
@@ -976,6 +1029,30 @@ export function EmailReviewView({
 
 function clampPercent(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
+}
+
+function ReviewPreviewSkeleton() {
+  return (
+    <div className={styles.previewSkeleton}>
+      <Stack gap="md">
+        <Group gap="sm" wrap="nowrap">
+          <Skeleton circle h={40} w={40} />
+          <Stack gap={6} flex={1}>
+            <Skeleton h={12} w={140} />
+            <Skeleton h={12} w="60%" />
+            <Skeleton h={10} w={180} />
+          </Stack>
+        </Group>
+        <Skeleton h={220} radius="md" />
+        <Stack gap="sm">
+          <Skeleton h={14} w="42%" />
+          <Skeleton h={14} w="72%" />
+          <Skeleton h={14} w="68%" />
+          <Skeleton h={14} w="58%" />
+        </Stack>
+      </Stack>
+    </div>
+  );
 }
 
 function findNeighborEmail(

@@ -184,6 +184,14 @@
   padding-right: var(--mantine-spacing-sm);
 }
 
+.previewSkeleton {
+  min-height: calc(100dvh - 104px);
+  padding: var(--mantine-spacing-xl);
+  border: 1px solid var(--mantine-color-gray-2);
+  border-radius: var(--mantine-radius-md);
+  background: var(--mantine-color-white);
+}
+
 .splitter {
   position: relative;
   align-self: stretch;

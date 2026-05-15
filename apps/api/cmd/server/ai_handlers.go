@@ -132,7 +132,7 @@ func analyzeEmailHandler(dbpool *pgxpool.Pool, aiService AIAnalysisService) http
 		}
 
 		result, err := aiService.AnalyzeEmail(r.Context(), email)
-		logAIAnalysisResult(r, dbpool, email.ID, result.Metrics, err)
+		logAIAnalysisResult(r, dbpool, email.ID, result.Metrics, err, false)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "failed to analyze email %s: %v\n", id, err)
 			http.Error(w, "failed to analyze email", http.StatusBadGateway)
@@ -173,6 +173,29 @@ func analyzeEmailStreamHandler(dbpool *pgxpool.Pool, aiService AIAnalysisService
 		w.Header().Set("X-Accel-Buffering", "no")
 
 		forceRefresh := r.URL.Query().Get("refresh") == "true"
+		if forceRefresh {
+			user, ok := authUserFromContext(r)
+			if !ok {
+				http.Error(w, "authentication required", http.StatusUnauthorized)
+				return
+			}
+
+			refreshCount, countErr := countDailyAIAnalysisRefreshes(
+				r.Context(),
+				dbpool,
+				email.ID,
+				user.ID,
+			)
+			if countErr != nil {
+				fmt.Fprintf(os.Stderr, "failed to count ai refreshes for email %s: %v\n", email.ID, countErr)
+				writeAIStreamError(w, flusher, "failed to check ai analysis limit")
+				return
+			}
+			if refreshCount >= 10 {
+				writeAIStreamError(w, flusher, "daily shared ai analysis refresh limit reached")
+				return
+			}
+		}
 		if !forceRefresh {
 			cachedAnalysis, ok := cachedAnalysisOrLogError(r, dbpool, email, aiService)
 			if ok {
@@ -194,7 +217,7 @@ func analyzeEmailStreamHandler(dbpool *pgxpool.Pool, aiService AIAnalysisService
 			return nil
 		})
 
-		logAIAnalysisResult(r, dbpool, email.ID, result.Metrics, err)
+		logAIAnalysisResult(r, dbpool, email.ID, result.Metrics, err, forceRefresh)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "failed to stream ai analysis for email %s: %v\n", id, err)
 			writeAIStreamError(w, flusher, "failed to stream ai analysis")
@@ -216,13 +239,13 @@ func cachedAnalysisOrLogError(r *http.Request, dbpool *pgxpool.Pool, email Email
 	return cachedAnalysis, ok
 }
 
-func logAIAnalysisResult(r *http.Request, dbpool *pgxpool.Pool, emailID string, metrics AIAnalysisMetrics, analysisErr error) {
+func logAIAnalysisResult(r *http.Request, dbpool *pgxpool.Pool, emailID string, metrics AIAnalysisMetrics, analysisErr error, forceRefresh bool) {
 	var user *AuthUser
 	if authUser, ok := authUserFromContext(r); ok {
 		user = &authUser
 	}
 
-	if logErr := insertAIAnalysisLog(r.Context(), dbpool, emailID, user, metrics); logErr != nil {
+	if logErr := insertAIAnalysisLog(r.Context(), dbpool, emailID, user, metrics, forceRefresh); logErr != nil {
 		status := "success"
 		if analysisErr != nil {
 			status = "error"
