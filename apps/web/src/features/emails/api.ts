@@ -216,6 +216,24 @@ export function analyzeEmail(emailId: string): Promise<EmailAnalysis> {
   );
 }
 
+export async function fetchSharedEmailAnalysis(
+  emailId: string
+): Promise<EmailAnalysis | null> {
+  const response = await fetch(`/api/emails/${encodeURIComponent(emailId)}/ai-analysis`, {
+    credentials: "include",
+  });
+
+  if (response.status === 204) {
+    return null;
+  }
+
+  if (!response.ok) {
+    throw new Error(`Request failed with ${response.status}`);
+  }
+
+  return (await response.json()) as EmailAnalysis;
+}
+
 export function analyzeEmailStream(
   emailId: string,
   handlers: {

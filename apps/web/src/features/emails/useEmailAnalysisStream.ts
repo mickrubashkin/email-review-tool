@@ -5,7 +5,11 @@ import type { EmailAnalysis, EmailDetail } from "./types";
 
 export type EmailAnalysisStreamStatus = "idle" | "streaming" | "done" | "error";
 
-export function useEmailAnalysisStream(email: EmailDetail | undefined, opened: boolean) {
+export function useEmailAnalysisStream(
+  email: EmailDetail | undefined,
+  opened: boolean,
+  onAnalysisReady?: (analysis: EmailAnalysis) => void
+) {
   const stopStreamRef = useRef<(() => void) | null>(null);
   const [streamEmailId, setStreamEmailId] = useState<string | null>(null);
   const [streamStatus, setStreamStatus] =
@@ -45,6 +49,7 @@ export function useEmailAnalysisStream(email: EmailDetail | undefined, opened: b
         },
         onResult: (analysis) => {
           setStreamAnalysis(analysis);
+          onAnalysisReady?.(analysis);
         },
         onDone: () => {
           setStreamStatus("done");

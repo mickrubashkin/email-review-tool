@@ -62,6 +62,7 @@ import {
   fetchEmailComments,
   fetchEmailDetail,
   fetchEmails,
+  fetchSharedEmailAnalysis,
   resolveComment,
 } from "../emails/api";
 import { copyOriginalHTML, downloadOriginalHTML } from "../emails/exportHtml";
@@ -141,6 +142,11 @@ export function EmailReviewView({
     queryKey: ["emails"],
     queryFn: fetchEmails,
   });
+  const sharedAnalysisQuery = useQuery({
+    queryKey: ["emails", emailId, "ai-analysis"],
+    queryFn: () => fetchSharedEmailAnalysis(emailId),
+    enabled: emailId.trim() !== "",
+  });
   const email = emailQuery.data;
   const stageColumns = useMemo(
     () => buildStageColumns(emailsQuery.data ?? []),
@@ -213,12 +219,17 @@ export function EmailReviewView({
     streamError,
     streamStatus,
     streamText,
-  } = useEmailAnalysisStream(email, true);
+  } = useEmailAnalysisStream(email, true, (analysis) => {
+    queryClient.setQueryData(["emails", emailId, "ai-analysis"], analysis);
+  });
   const isCurrentStream = streamEmailId === email?.id;
-  const displayedAnalysis = streamAnalysis && isCurrentStream ? streamAnalysis : null;
+  const displayedAnalysis =
+    streamAnalysis && isCurrentStream
+      ? streamAnalysis
+      : sharedAnalysisQuery.data ?? null;
   const streamPreview = buildStreamPreview(streamText);
   const shouldShowAnalysisPanel =
-    isCurrentStream && (streamStatus !== "idle" || Boolean(displayedAnalysis));
+    (isCurrentStream && streamStatus !== "idle") || Boolean(displayedAnalysis);
   const isAnalyzingCurrentEmail = streamStatus === "streaming" && isCurrentStream;
   const comments = useMemo(
     () => commentsQuery.data ?? [],
@@ -478,10 +489,21 @@ export function EmailReviewView({
       justify="center"
       gap="xs"
     >
-      <Text fw={600}>No AI analysis yet</Text>
-      <Text c="dimmed" ta="center" size="sm">
-        View or generate the shared AI analysis from the header controls.
-      </Text>
+      {sharedAnalysisQuery.isLoading ? (
+        <>
+          <Loader size="sm" />
+          <Text c="dimmed" size="sm">
+            Loading shared AI analysis
+          </Text>
+        </>
+      ) : (
+        <>
+          <Text fw={600}>No AI analysis yet</Text>
+          <Text c="dimmed" ta="center" size="sm">
+            View or generate the shared AI analysis from the header controls.
+          </Text>
+        </>
+      )}
     </Stack>
   );
   const commentsContent = (

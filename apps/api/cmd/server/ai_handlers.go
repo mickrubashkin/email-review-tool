@@ -14,9 +14,36 @@ import (
 
 func registerAIRoutes(r chi.Router, dbpool *pgxpool.Pool, aiService AIAnalysisService) {
 	r.Get("/api/ai-analysis-logs", listAIAnalysisLogsHandler(dbpool))
+	r.Get("/api/emails/{id}/ai-analysis", getCachedEmailAnalysisHandler(dbpool, aiService))
 	r.Post("/api/emails/{id}/ai-analysis", analyzeEmailHandler(dbpool, aiService))
 	r.Get("/api/emails/{id}/ai-analysis-stream", analyzeEmailStreamHandler(dbpool, aiService))
 	r.Get("/api/emails/{id}/ai-analysis-debug", debugAIAnalysisHandler(dbpool, aiService))
+}
+
+func getCachedEmailAnalysisHandler(dbpool *pgxpool.Pool, aiService AIAnalysisService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if aiService.APIKey == "" {
+			http.Error(w, "OPENAI_API_KEY is not configured", http.StatusServiceUnavailable)
+			return
+		}
+
+		id := chi.URLParam(r, "id")
+		email, err := getEmailForAI(r.Context(), dbpool, id)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "failed to get email %s for cached ai analysis: %v\n", id, err)
+			http.Error(w, "email not found", http.StatusNotFound)
+			return
+		}
+
+		cachedAnalysis, ok := cachedAnalysisOrLogError(r, dbpool, email, aiService)
+		if !ok {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(cachedAnalysis)
+	}
 }
 
 func listAIAnalysisLogsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
