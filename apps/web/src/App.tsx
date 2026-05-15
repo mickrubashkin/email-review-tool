@@ -15,6 +15,7 @@ import {
   Group,
   Loader,
   Menu,
+  SegmentedControl,
   Stack,
   Text,
   Title,
@@ -38,6 +39,9 @@ import styles from "./App.module.css";
 
 const boardSelectedVersionsStorageKey = "reviewdesk.board.selectedVersions";
 const boardScrollPositionStorageKey = "reviewdesk.board.scrollPosition";
+const boardFilterStorageKey = "reviewdesk.board.filter";
+
+type BoardFilter = "all" | "open";
 
 export default function App() {
   return <AuthenticatedApp />;
@@ -52,6 +56,9 @@ function AuthenticatedApp() {
   const [boardScrollPosition, setBoardScrollPosition] = useState(
     readStoredBoardScrollPosition
   );
+  const [boardFilter, setBoardFilter] = useState<BoardFilter>(
+    readStoredBoardFilter
+  );
   useEffect(() => {
     writeSessionStorageValue(
       boardSelectedVersionsStorageKey,
@@ -61,6 +68,9 @@ function AuthenticatedApp() {
   useEffect(() => {
     writeSessionStorageValue(boardScrollPositionStorageKey, boardScrollPosition);
   }, [boardScrollPosition]);
+  useEffect(() => {
+    writeSessionStorageValue(boardFilterStorageKey, boardFilter);
+  }, [boardFilter]);
   const currentUserQuery = useQuery({
     queryKey: ["auth", "me"],
     queryFn: fetchCurrentUser,
@@ -105,12 +115,14 @@ function AuthenticatedApp() {
         path="/"
         element={
           <EmailBoardApp
+            boardFilter={boardFilter}
             boardScrollPosition={boardScrollPosition}
             currentUser={currentUserQuery.data}
             isLoggingOut={logoutMutation.isPending}
             selectedVersionByGroup={selectedVersionByGroup}
             onLogout={() => logoutMutation.mutate()}
             onBoardScrollPositionChange={setBoardScrollPosition}
+            onBoardFilterChange={setBoardFilter}
             onSelectedVersionByGroupChange={setSelectedVersionByGroup}
           />
         }
@@ -147,20 +159,24 @@ function EmailFieldsEditorRoute({
 }
 
 function EmailBoardApp({
+  boardFilter,
   boardScrollPosition,
   currentUser,
   isLoggingOut,
   selectedVersionByGroup,
   onLogout,
   onBoardScrollPositionChange,
+  onBoardFilterChange,
   onSelectedVersionByGroupChange,
 }: {
+  boardFilter: BoardFilter;
   boardScrollPosition: { x: number; y: number };
   currentUser: AuthUser;
   isLoggingOut: boolean;
   selectedVersionByGroup: Record<string, string>;
   onLogout: () => void;
   onBoardScrollPositionChange: (position: { x: number; y: number }) => void;
+  onBoardFilterChange: (filter: BoardFilter) => void;
   onSelectedVersionByGroupChange: Dispatch<
     SetStateAction<Record<string, string>>
   >;
@@ -179,6 +195,29 @@ function EmailBoardApp({
   const columns = useMemo(
     () => buildStageColumns(emailsQuery.data ?? []),
     [emailsQuery.data]
+  );
+  const openCommentEmailCount = useMemo(
+    () =>
+      (emailsQuery.data ?? []).filter(
+        (email) => (email.open_comment_count ?? 0) > 0
+      ).length,
+    [emailsQuery.data]
+  );
+  const visibleColumns = useMemo(
+    () =>
+      boardFilter === "all"
+        ? columns
+        : columns
+            .map((column) => ({
+              ...column,
+              emailGroups: column.emailGroups.filter((group) =>
+                group.versions.some(
+                  (version) => (version.open_comment_count ?? 0) > 0
+                )
+              ),
+            }))
+            .filter((column) => column.emailGroups.length > 0),
+    [boardFilter, columns]
   );
 
   const handleSelectVersion = (groupKey: string, emailId: string) => {
@@ -209,6 +248,18 @@ function EmailBoardApp({
             <Text className={styles.headerCount} size="sm" c="dimmed">
               {emailsQuery.data?.length ?? 0} emails
             </Text>
+            <SegmentedControl
+              data={[
+                { label: "All", value: "all" },
+                {
+                  label: `Open comments ${openCommentEmailCount}`,
+                  value: "open",
+                },
+              ]}
+              size="xs"
+              value={boardFilter}
+              onChange={(value) => onBoardFilterChange(value as BoardFilter)}
+            />
             {isCompactHeader ? (
               <Menu
                 opened={userMenuOpened}
@@ -347,14 +398,23 @@ function EmailBoardApp({
           ) : null}
 
           {emailsQuery.isSuccess ? (
-            <EmailBoard
-              scrollPosition={boardScrollPosition}
-              columns={columns}
-              selectedVersionByGroup={selectedVersionByGroup}
-              onScrollPositionChange={onBoardScrollPositionChange}
-              onOpenVersionGroup={handleOpenVersionGroup}
-              onSelectVersion={handleSelectVersion}
-            />
+            visibleColumns.length > 0 ? (
+              <EmailBoard
+                scrollPosition={boardScrollPosition}
+                columns={visibleColumns}
+                selectedVersionByGroup={selectedVersionByGroup}
+                onScrollPositionChange={onBoardScrollPositionChange}
+                onOpenVersionGroup={handleOpenVersionGroup}
+                onSelectVersion={handleSelectVersion}
+              />
+            ) : (
+              <Stack align="center" justify="center" h="100%">
+                <Text fw={600}>No emails with open comments</Text>
+                <Text c="rgba(255, 255, 255, 0.72)" size="sm">
+                  Switch back to All to browse the full sequence.
+                </Text>
+              </Stack>
+            )
           ) : null}
         </Box>
       </AppShell.Main>
@@ -375,6 +435,11 @@ function readStoredBoardScrollPosition() {
     boardScrollPositionStorageKey,
     { x: 0, y: 0 }
   );
+}
+
+function readStoredBoardFilter(): BoardFilter {
+  const storedFilter = readSessionStorageValue<string>(boardFilterStorageKey, "all");
+  return storedFilter === "open" ? "open" : "all";
 }
 
 function readSessionStorageValue<T>(key: string, fallback: T): T {

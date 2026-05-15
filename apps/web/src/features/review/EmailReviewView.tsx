@@ -27,6 +27,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArchiveIcon,
   ArrowLeftIcon,
+  ArrowRightIcon,
   ArrowsClockwiseIcon,
   CaretDownIcon,
   ChatTextIcon,
@@ -81,6 +82,7 @@ import type {
   DuplicateEmailPayload,
   EmailComment,
   EmailDetail,
+  EmailListItem,
   EmailVariant,
 } from "../emails/types";
 import { useEmailAnalysisStream } from "../emails/useEmailAnalysisStream";
@@ -143,6 +145,25 @@ export function EmailReviewView({
     return columns
       .flatMap((column) => column.emailGroups)
       .find((group) => group.versions.some((version) => version.id === emailId));
+  }, [emailId, emailsQuery.data]);
+  const nextEmailWithOpenComments = useMemo(() => {
+    const orderedEmails = buildStageColumns(emailsQuery.data ?? []).flatMap(
+      (column) => column.emailGroups.flatMap((group) => group.versions)
+    );
+    const currentEmailIndex = orderedEmails.findIndex(
+      (orderedEmail) => orderedEmail.id === emailId
+    );
+
+    if (currentEmailIndex === -1) {
+      return null;
+    }
+
+    return (
+      orderedEmails
+        .slice(currentEmailIndex + 1)
+        .find((orderedEmail) => (orderedEmail.open_comment_count ?? 0) > 0) ??
+      null
+    );
   }, [emailId, emailsQuery.data]);
   const selectedVariant = emailGroup
     ? getSelectedVariant(emailGroup.versions, emailId)
@@ -436,8 +457,14 @@ export function EmailReviewView({
       isError={commentsQuery.isError}
       isLoading={commentsQuery.isLoading}
       isResolving={resolveMutation.isPending}
+      nextEmailWithOpenComments={nextEmailWithOpenComments}
       onFilterChange={setCommentStatusFilter}
       onHoverComment={handleHoverComment}
+      onNextEmailWithOpenComments={() => {
+        if (nextEmailWithOpenComments) {
+          navigateToReview(nextEmailWithOpenComments.id);
+        }
+      }}
       onResolve={resolveMutation.mutate}
       onSelectComment={handleSelectComment}
     />
@@ -570,6 +597,18 @@ export function EmailReviewView({
                   >
                     Generate new AI analysis
                   </Menu.Item>
+                  <Menu.Divider />
+                  <Menu.Item
+                    disabled={!nextEmailWithOpenComments}
+                    leftSection={<ArrowRightIcon aria-hidden="true" size={15} />}
+                    onClick={() => {
+                      if (nextEmailWithOpenComments) {
+                        navigateToReview(nextEmailWithOpenComments.id);
+                      }
+                    }}
+                  >
+                    Next with open comments
+                  </Menu.Item>
                 </Menu.Dropdown>
               </Menu>
             ) : (
@@ -698,6 +737,33 @@ export function EmailReviewView({
                       variant="light"
                     >
                       <ArrowsClockwiseIcon aria-hidden="true" size={16} />
+                    </ActionIcon>
+                  </Tooltip>
+                </Group>
+
+                <div className={styles.actionDivider} aria-hidden="true" />
+
+                <Group className={styles.actionGroup} gap="xs" wrap="nowrap">
+                  <Tooltip
+                    label={
+                      nextEmailWithOpenComments
+                        ? "Next email with open comments"
+                        : "No later emails with open comments"
+                    }
+                  >
+                    <ActionIcon
+                      aria-label="Next email with open comments"
+                      disabled={!nextEmailWithOpenComments}
+                      onClick={() => {
+                        if (nextEmailWithOpenComments) {
+                          navigateToReview(nextEmailWithOpenComments.id);
+                        }
+                      }}
+                      radius="md"
+                      size="lg"
+                      variant="light"
+                    >
+                      <ArrowRightIcon aria-hidden="true" size={16} />
                     </ActionIcon>
                   </Tooltip>
                 </Group>
@@ -855,8 +921,10 @@ function CommentsPanel({
   isError,
   isLoading,
   isResolving,
+  nextEmailWithOpenComments,
   onFilterChange,
   onHoverComment,
+  onNextEmailWithOpenComments,
   onResolve,
   onSelectComment,
 }: {
@@ -868,8 +936,10 @@ function CommentsPanel({
   isError: boolean;
   isLoading: boolean;
   isResolving: boolean;
+  nextEmailWithOpenComments: EmailListItem | null;
   onFilterChange: (filter: CommentStatusFilter) => void;
   onHoverComment: (comment: EmailComment | null) => void;
+  onNextEmailWithOpenComments: () => void;
   onResolve: (commentId: string) => void;
   onSelectComment: (comment: EmailComment) => void;
 }) {
@@ -953,6 +1023,16 @@ function CommentsPanel({
           <Text c="dimmed" ta="center" size="sm">
             Resolved comments are hidden. Switch to All to review them.
           </Text>
+          {nextEmailWithOpenComments ? (
+            <Button
+              rightSection={<ArrowRightIcon aria-hidden="true" size={15} />}
+              size="xs"
+              variant="light"
+              onClick={onNextEmailWithOpenComments}
+            >
+              Next with open comments
+            </Button>
+          ) : null}
         </Stack>
       ) : (
         <Stack
