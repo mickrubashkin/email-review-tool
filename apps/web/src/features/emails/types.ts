@@ -9,6 +9,8 @@ export type EmailListItem = {
   sort_order: number;
   language: string;
   variant: EmailVariant;
+  adaptation_key: string;
+  adaptation_label: string;
   open_comment_count: number;
 };
 
@@ -30,6 +32,10 @@ export type DuplicateEmailPayload = {
   title?: string;
   subject?: string;
   preheader?: string;
+};
+
+export type CreateEmailAdaptationPayload = {
+  label: string;
 };
 
 export type EditableFieldType = "text" | "url" | "image" | "number";
@@ -164,6 +170,7 @@ export type AuthEventFilters = {
 
 export type EmailEventAction =
   | "email_duplicated"
+  | "email_adaptation_created"
   | "email_created"
   | "email_archived"
   | "email_updated";

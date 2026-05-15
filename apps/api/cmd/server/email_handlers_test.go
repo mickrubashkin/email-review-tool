@@ -646,6 +646,86 @@ func TestDuplicateEmailRejectsReviewer(t *testing.T) {
 	}
 }
 
+func TestCreateEmailAdaptation(t *testing.T) {
+	dbpool := testDBPool(t)
+	emailID := createTestEmail(t, dbpool)
+	user := createTestUserWithRole(t, dbpool, "admin")
+	setTestEmailForDuplicate(t, dbpool, emailID)
+
+	router := chi.NewRouter()
+	registerEmailRoutes(router, dbpool)
+
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/api/emails/"+emailID+"/adaptations",
+		bytes.NewReader([]byte(`{ "label": "UAE" }`)),
+	)
+	request = withAuthUser(request, user)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusCreated {
+		t.Fatalf("expected POST status 201, got %d: %s", response.Code, response.Body.String())
+	}
+
+	var created EmailDetail
+	if err := json.NewDecoder(response.Body).Decode(&created); err != nil {
+		t.Fatalf("failed to decode adaptation: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = dbpool.Exec(context.Background(), `DELETE FROM emails WHERE id = $1;`, created.ID)
+	})
+	if created.Slug != "comment-test-email-en--uae" {
+		t.Fatalf("expected adaptation slug comment-test-email-en--uae, got %q", created.Slug)
+	}
+	if created.Language != "en" || created.Variant != "new" {
+		t.Fatalf("expected adaptation to preserve en/new, got %s/%s", created.Language, created.Variant)
+	}
+	if created.AdaptationKey != "uae" || created.AdaptationLabel != "UAE" {
+		t.Fatalf("expected uae/UAE adaptation, got %s/%s", created.AdaptationKey, created.AdaptationLabel)
+	}
+	assertJSONContainsField(t, created.EditableFields, "primary_cta_text")
+
+	var commentCount int
+	if err := dbpool.QueryRow(context.Background(), `
+		SELECT count(*)::int FROM comments WHERE email_id = $1;
+	`, created.ID).Scan(&commentCount); err != nil {
+		t.Fatalf("failed to count adaptation comments: %v", err)
+	}
+	if commentCount != 0 {
+		t.Fatalf("expected adaptation to have no comments, got %d", commentCount)
+	}
+}
+
+func TestCreateEmailAdaptationConflict(t *testing.T) {
+	dbpool := testDBPool(t)
+	emailID := createTestEmail(t, dbpool)
+	user := createTestUserWithRole(t, dbpool, "admin")
+	setTestEmailForDuplicate(t, dbpool, emailID)
+	t.Cleanup(func() {
+		_, _ = dbpool.Exec(context.Background(), `DELETE FROM emails WHERE slug = 'comment-test-email-en--uae';`)
+	})
+
+	router := chi.NewRouter()
+	registerEmailRoutes(router, dbpool)
+	for index := 0; index < 2; index++ {
+		request := httptest.NewRequest(
+			http.MethodPost,
+			"/api/emails/"+emailID+"/adaptations",
+			bytes.NewReader([]byte(`{ "label": "UAE" }`)),
+		)
+		request = withAuthUser(request, user)
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, request)
+		if index == 0 && response.Code != http.StatusCreated {
+			t.Fatalf("expected first POST status 201, got %d: %s", response.Code, response.Body.String())
+		}
+		if index == 1 && response.Code != http.StatusConflict {
+			t.Fatalf("expected second POST status 409, got %d: %s", response.Code, response.Body.String())
+		}
+	}
+}
+
 func TestArchiveEmail(t *testing.T) {
 	dbpool := testDBPool(t)
 	emailID := createTestEmail(t, dbpool)

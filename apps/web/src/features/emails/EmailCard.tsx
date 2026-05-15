@@ -20,10 +20,12 @@ import { useNavigate } from "react-router-dom";
 import type { EmailVariant, EmailVersionGroup } from "./types";
 import {
   getAvailableVariants,
+  getAvailableAdaptations,
   getDefaultVersion,
+  getSelectedAdaptation,
   getSelectedVariant,
   getVersionForVariant,
-  getVersionsForVariant,
+  getVersionsForVariantAndAdaptation,
 } from "./stages";
 import styles from "./EmailCard.module.css";
 
@@ -113,11 +115,20 @@ export function EmailCard({
     emailGroup.versions,
     selectedEmail.id
   );
-  const variantVersions = getVersionsForVariant(
+  const selectedAdaptation = getSelectedAdaptation(
+    emailGroup.versions,
+    selectedEmail.id
+  );
+  const variantVersions = getVersionsForVariantAndAdaptation(
+    emailGroup.versions,
+    selectedVariant,
+    selectedAdaptation
+  );
+  const availableVariants = getAvailableVariants(emailGroup.versions);
+  const availableAdaptations = getAvailableAdaptations(
     emailGroup.versions,
     selectedVariant
   );
-  const availableVariants = getAvailableVariants(emailGroup.versions);
   const openCommentCount = emailGroup.versions.reduce(
     (count, email) => count + (email.open_comment_count ?? 0),
     0
@@ -142,7 +153,23 @@ export function EmailCard({
     const nextEmail = getVersionForVariant(
       emailGroup.versions,
       variant,
-      selectedEmail.language
+      selectedEmail.language,
+      selectedAdaptation
+    );
+    if (nextEmail) {
+      onSelectVersion(emailGroup.key, nextEmail.id);
+    }
+  };
+  const handleAdaptationClick = (
+    event: MouseEvent<HTMLButtonElement>,
+    adaptationKey: string
+  ) => {
+    event.stopPropagation();
+    const nextEmail = getVersionForVariant(
+      emailGroup.versions,
+      selectedVariant,
+      selectedEmail.language,
+      adaptationKey
     );
     if (nextEmail) {
       onSelectVersion(emailGroup.key, nextEmail.id);
@@ -281,6 +308,24 @@ export function EmailCard({
                 onClick={(event) => handleVersionClick(event, email.id)}
               >
                 {email.language}
+              </button>
+            ))}
+          </Group>
+
+          <Group gap={3} wrap="wrap">
+            {availableAdaptations.map((adaptation) => (
+              <button
+                className={styles.adaptationButton}
+                data-active={
+                  adaptation.adaptation_key === selectedAdaptation || undefined
+                }
+                key={adaptation.adaptation_key}
+                type="button"
+                onClick={(event) =>
+                  handleAdaptationClick(event, adaptation.adaptation_key)
+                }
+              >
+                {adaptation.adaptation_label}
               </button>
             ))}
           </Group>

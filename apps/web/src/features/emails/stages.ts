@@ -50,7 +50,18 @@ export function sortEmailVersions(versions: EmailListItem[]): EmailListItem[] {
       return normalizedFirstIndex - normalizedSecondIndex;
     }
 
-    return first.language.localeCompare(second.language);
+    if (first.language !== second.language) {
+      return first.language.localeCompare(second.language);
+    }
+
+    if (first.adaptation_key === "default" && second.adaptation_key !== "default") {
+      return -1;
+    }
+    if (second.adaptation_key === "default" && first.adaptation_key !== "default") {
+      return 1;
+    }
+
+    return first.adaptation_label.localeCompare(second.adaptation_label);
   });
 }
 
@@ -73,6 +84,39 @@ export function getVersionsForVariant(
   );
 }
 
+export function getAvailableAdaptations(
+  versions: EmailListItem[],
+  variant: EmailVariant
+): EmailListItem[] {
+  const byKey = new Map<string, EmailListItem>();
+  for (const version of getVersionsForVariant(versions, variant)) {
+    if (!byKey.has(version.adaptation_key)) {
+      byKey.set(version.adaptation_key, version);
+    }
+  }
+  return [...byKey.values()];
+}
+
+export function getVersionsForVariantAndAdaptation(
+  versions: EmailListItem[],
+  variant: EmailVariant,
+  adaptationKey: string
+): EmailListItem[] {
+  return getVersionsForVariant(versions, variant).filter(
+    (version) => version.adaptation_key === adaptationKey
+  );
+}
+
+export function getSelectedAdaptation(
+  versions: EmailListItem[],
+  selectedEmailId: string | undefined | null
+): string {
+  return (
+    versions.find((version) => version.id === selectedEmailId)?.adaptation_key ??
+    "default"
+  );
+}
+
 export function getSelectedVariant(
   versions: EmailListItem[],
   selectedEmailId: string | undefined | null
@@ -86,7 +130,12 @@ export function getDefaultVersionForVariant(
   variant: EmailVariant
 ): EmailListItem | undefined {
   const variantVersions = getVersionsForVariant(versions, variant);
+  const defaultAdaptationVersions = variantVersions.filter(
+    (version) => version.adaptation_key === "default"
+  );
   return (
+    defaultAdaptationVersions.find((version) => version.language === "en") ??
+    defaultAdaptationVersions[0] ??
     variantVersions.find((version) => version.language === "en") ??
     variantVersions[0]
   );
@@ -95,11 +144,23 @@ export function getDefaultVersionForVariant(
 export function getVersionForVariant(
   versions: EmailListItem[],
   variant: EmailVariant,
-  preferredLanguage?: string
+  preferredLanguage?: string,
+  preferredAdaptation = "default"
 ): EmailListItem | undefined {
   const variantVersions = getVersionsForVariant(versions, variant);
+  const adaptationVersions = variantVersions.filter(
+    (version) => version.adaptation_key === preferredAdaptation
+  );
+  const defaultAdaptationVersions = variantVersions.filter(
+    (version) => version.adaptation_key === "default"
+  );
   return (
-    variantVersions.find((version) => version.language === preferredLanguage) ??
+    adaptationVersions.find((version) => version.language === preferredLanguage) ??
+    adaptationVersions.find((version) => version.language === "en") ??
+    adaptationVersions[0] ??
+    defaultAdaptationVersions.find((version) => version.language === preferredLanguage) ??
+    defaultAdaptationVersions.find((version) => version.language === "en") ??
+    defaultAdaptationVersions[0] ??
     getDefaultVersionForVariant(versions, variant)
   );
 }

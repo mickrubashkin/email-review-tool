@@ -18,6 +18,8 @@ type EmailListItem struct {
 	SortOrder        int     `json:"sort_order"`
 	Language         string  `json:"language"`
 	Variant          string  `json:"variant"`
+	AdaptationKey    string  `json:"adaptation_key"`
+	AdaptationLabel  string  `json:"adaptation_label"`
 	OpenCommentCount int     `json:"open_comment_count"`
 }
 
@@ -33,6 +35,8 @@ type EmailDetail struct {
 	SortOrder        int             `json:"sort_order"`
 	Language         string          `json:"language"`
 	Variant          string          `json:"variant"`
+	AdaptationKey    string          `json:"adaptation_key"`
+	AdaptationLabel  string          `json:"adaptation_label"`
 	OpenCommentCount int             `json:"open_comment_count"`
 	BodyText         *string         `json:"-"`
 	ContentParts     *string         `json:"-"`

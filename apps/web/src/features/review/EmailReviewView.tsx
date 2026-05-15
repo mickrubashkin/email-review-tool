@@ -57,6 +57,7 @@ import { AnalysisPanel } from "../emails/AnalysisPanel";
 import {
   ApiError,
   archiveEmail,
+  createEmailAdaptation,
   createEmailComment,
   duplicateEmail,
   fetchEmailComments,
@@ -73,14 +74,17 @@ import {
 import type { ReviewCommentTarget } from "../emails/reviewOverlayTypes";
 import {
   buildStageColumns,
+  getAvailableAdaptations,
   getAvailableVariants,
+  getSelectedAdaptation,
   getSelectedVariant,
   getVersionForVariant,
-  getVersionsForVariant,
+  getVersionsForVariantAndAdaptation,
 } from "../emails/stages";
 import { buildStreamPreview } from "../emails/streamPreview";
 import type {
   AuthUser,
+  CreateEmailAdaptationPayload,
   DuplicateEmailPayload,
   EmailComment,
   EmailDetail,
@@ -115,6 +119,7 @@ export function EmailReviewView({
     useState<ReviewContentTab>("email");
   const [archiveModalOpened, setArchiveModalOpened] = useState(false);
   const [duplicateModalOpened, setDuplicateModalOpened] = useState(false);
+  const [adaptationModalOpened, setAdaptationModalOpened] = useState(false);
   const [rightPanelPercent, setRightPanelPercent] = useState(30);
   const [activePanelTab, setActivePanelTab] =
     useState<ReviewPanelTab>("comments");
@@ -179,8 +184,15 @@ export function EmailReviewView({
   const selectedVariant = emailGroup
     ? getSelectedVariant(emailGroup.versions, emailId)
     : email?.variant ?? "new";
+  const selectedAdaptation = emailGroup
+    ? getSelectedAdaptation(emailGroup.versions, emailId)
+    : email?.adaptation_key ?? "default";
   const selectedVariantVersions = emailGroup
-    ? getVersionsForVariant(emailGroup.versions, selectedVariant)
+    ? getVersionsForVariantAndAdaptation(
+        emailGroup.versions,
+        selectedVariant,
+        selectedAdaptation
+      )
     : [];
   const languageVersions =
     selectedVariantVersions.length > 0 || !email
@@ -190,6 +202,11 @@ export function EmailReviewView({
     ? getAvailableVariants(emailGroup.versions)
     : email
       ? [email.variant as EmailVariant]
+      : [];
+  const availableAdaptations = emailGroup
+    ? getAvailableAdaptations(emailGroup.versions, selectedVariant)
+    : email
+      ? [email]
       : [];
   const boardEmailGroups = useMemo(
     () => stageColumns.flatMap((column) => column.emailGroups),
@@ -201,12 +218,14 @@ export function EmailReviewView({
   const previousBoardEmail = findNeighborEmail(
     [...boardEmailGroups.slice(0, Math.max(currentBoardGroupIndex, 0))].reverse(),
     selectedVariant,
-    email?.language
+    email?.language,
+    selectedAdaptation
   );
   const nextBoardEmail = findNeighborEmail(
     boardEmailGroups.slice(currentBoardGroupIndex + 1),
     selectedVariant,
-    email?.language
+    email?.language,
+    selectedAdaptation
   );
   const currentStage = stageColumns.find((column) =>
     column.emailGroups.some((group) => group.key === emailGroup?.key)
@@ -259,6 +278,20 @@ export function EmailReviewView({
       sourceEmailId: string;
       payload: DuplicateEmailPayload;
     }) => duplicateEmail(sourceEmailId, payload),
+    onSuccess: (createdEmail) => {
+      void queryClient.invalidateQueries({ queryKey: ["emails"] });
+      queryClient.setQueryData(["emails", createdEmail.id, "review"], createdEmail);
+      navigate(`/emails/${encodeURIComponent(createdEmail.id)}/review`);
+    },
+  });
+  const createAdaptationMutation = useMutation({
+    mutationFn: ({
+      sourceEmailId,
+      payload,
+    }: {
+      sourceEmailId: string;
+      payload: CreateEmailAdaptationPayload;
+    }) => createEmailAdaptation(sourceEmailId, payload),
     onSuccess: (createdEmail) => {
       void queryClient.invalidateQueries({ queryKey: ["emails"] });
       queryClient.setQueryData(["emails", createdEmail.id, "review"], createdEmail);
@@ -370,7 +403,22 @@ export function EmailReviewView({
     const nextEmail = getVersionForVariant(
       emailGroup.versions,
       variant,
-      email.language
+      email.language,
+      selectedAdaptation
+    );
+    if (nextEmail) {
+      navigateToReview(nextEmail.id);
+    }
+  };
+  const handleAdaptationSelect = (adaptationKey: string) => {
+    if (!emailGroup || !email) {
+      return;
+    }
+    const nextEmail = getVersionForVariant(
+      emailGroup.versions,
+      selectedVariant,
+      email.language,
+      adaptationKey
     );
     if (nextEmail) {
       navigateToReview(nextEmail.id);
@@ -618,6 +666,11 @@ export function EmailReviewView({
                     selectedVariant={selectedVariant}
                     onSelect={handleVariantClick}
                   />
+                  <AdaptationSelect
+                    adaptations={availableAdaptations}
+                    selectedAdaptation={selectedAdaptation}
+                    onSelect={handleAdaptationSelect}
+                  />
                 </Group>
               </>
             ) : null}
@@ -653,6 +706,11 @@ export function EmailReviewView({
                       selectedVariant={selectedVariant}
                       onSelect={handleVariantClick}
                     />
+                    <AdaptationSelect
+                      adaptations={availableAdaptations}
+                      selectedAdaptation={selectedAdaptation}
+                      onSelect={handleAdaptationSelect}
+                    />
                   </div>
                   <Menu.Divider />
 
@@ -664,11 +722,23 @@ export function EmailReviewView({
                           <StackPlusIcon aria-hidden="true" size={15} />
                         }
                         onClick={() => {
+                          createAdaptationMutation.reset();
+                          setAdaptationModalOpened(true);
+                        }}
+                      >
+                        Create adaptation
+                      </Menu.Item>
+                      <Menu.Item
+                        disabled={!email}
+                        leftSection={
+                          <StackPlusIcon aria-hidden="true" size={15} />
+                        }
+                        onClick={() => {
                           duplicateEmailMutation.reset();
                           setDuplicateModalOpened(true);
                         }}
                       >
-                        Duplicate email
+                        Duplicate language/version
                       </Menu.Item>
                       <Menu.Item
                         component={Link}
@@ -757,9 +827,26 @@ export function EmailReviewView({
                 {canManageEmail ? (
                   <>
                     <Group className={styles.actionGroup} gap="xs" wrap="nowrap">
-                      <Tooltip label="Duplicate email">
+                      <Tooltip label="Create adaptation">
                         <ActionIcon
-                          aria-label="Duplicate email"
+                          aria-label="Create adaptation"
+                          className={styles.headerIconButton}
+                          disabled={!email}
+                          onClick={() => {
+                            createAdaptationMutation.reset();
+                            setAdaptationModalOpened(true);
+                          }}
+                          radius="md"
+                          size="lg"
+                          variant="light"
+                        >
+                          <StackPlusIcon aria-hidden="true" size={16} />
+                        </ActionIcon>
+                      </Tooltip>
+
+                      <Tooltip label="Duplicate language/version">
+                        <ActionIcon
+                          aria-label="Duplicate language/version"
                           className={styles.headerIconButton}
                           disabled={!email}
                           onClick={() => {
@@ -770,7 +857,7 @@ export function EmailReviewView({
                           size="lg"
                           variant="light"
                         >
-                          <StackPlusIcon aria-hidden="true" size={16} />
+                          <CopyIcon aria-hidden="true" size={16} />
                         </ActionIcon>
                       </Tooltip>
 
@@ -941,6 +1028,23 @@ export function EmailReviewView({
         />
       ) : null}
 
+      {adaptationModalOpened && email ? (
+        <CreateAdaptationModal
+          email={email}
+          error={createAdaptationMutation.error}
+          isSubmitting={createAdaptationMutation.isPending}
+          onClose={() => {
+            createAdaptationMutation.reset();
+            setAdaptationModalOpened(false);
+          }}
+          onResetError={() => createAdaptationMutation.reset()}
+          onSubmit={async (sourceEmailId, payload) => {
+            await createAdaptationMutation.mutateAsync({ sourceEmailId, payload });
+            setAdaptationModalOpened(false);
+          }}
+        />
+      ) : null}
+
       {email ? (
         <ArchiveEmailModal
           email={email}
@@ -1080,13 +1184,15 @@ function ReviewPreviewSkeleton() {
 function findNeighborEmail(
   groups: EmailVersionGroup[],
   variant: EmailVariant,
-  preferredLanguage: string | undefined
+  preferredLanguage: string | undefined,
+  preferredAdaptation: string
 ) {
   for (const group of groups) {
     const email = getVersionForVariant(
       group.versions,
       variant,
-      preferredLanguage
+      preferredLanguage,
+      preferredAdaptation
     );
     if (email) {
       return email;
@@ -1508,11 +1614,11 @@ function DuplicateEmailModal({
   const isConflict = error instanceof ApiError && error.status === 409;
 
   return (
-    <Modal centered opened title="Duplicate email" onClose={onClose}>
+    <Modal centered opened title="Duplicate language/version" onClose={onClose}>
       <form onSubmit={handleSubmit}>
         <Stack gap="sm">
           {error ? (
-            <Alert color="red" title="Could not duplicate email">
+            <Alert color="red" title="Could not duplicate language/version">
               {isConflict
                 ? "This language and variant already exist for the selected email."
                 : "Try again or check that the API server is reachable."}
@@ -1599,6 +1705,92 @@ function DuplicateEmailModal({
   );
 }
 
+function CreateAdaptationModal({
+  email,
+  error,
+  isSubmitting,
+  onClose,
+  onResetError,
+  onSubmit,
+}: {
+  email: EmailDetail;
+  error: Error | null;
+  isSubmitting: boolean;
+  onClose: () => void;
+  onResetError: () => void;
+  onSubmit: (
+    emailId: string,
+    payload: CreateEmailAdaptationPayload
+  ) => Promise<void>;
+}) {
+  const [label, setLabel] = useState("");
+  const [labelError, setLabelError] = useState<string | null>(null);
+  const isConflict = error instanceof ApiError && error.status === 409;
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const normalizedLabel = label.trim();
+    if (!normalizedLabel) {
+      setLabelError("Name is required");
+      return;
+    }
+    setLabelError(null);
+    try {
+      await onSubmit(email.id, { label: normalizedLabel });
+    } catch {
+      // React Query stores the error; keep the modal open and show it inline.
+    }
+  };
+
+  return (
+    <Modal centered opened title="Create adaptation" onClose={onClose}>
+      <form onSubmit={handleSubmit}>
+        <Stack gap="sm">
+          {error ? (
+            <Alert color="red" title="Could not create adaptation">
+              {isConflict
+                ? "This adaptation already exists for the selected language and variant."
+                : "Try again or check that the API server is reachable."}
+            </Alert>
+          ) : null}
+          <Text size="sm" c="dimmed">
+            Create an independent copy of {email.language.toUpperCase()}{" "}
+            {email.variant} for a specific audience or use case.
+          </Text>
+          <TextInput
+            data-autofocus
+            disabled={isSubmitting}
+            error={labelError}
+            label="Name"
+            placeholder="UAE"
+            value={label}
+            onChange={(event) => {
+              onResetError();
+              setLabel(event.currentTarget.value);
+              if (labelError) {
+                setLabelError(null);
+              }
+            }}
+          />
+          <Group justify="flex-end" mt="xs">
+            <Button
+              disabled={isSubmitting}
+              type="button"
+              variant="default"
+              onClick={onClose}
+            >
+              Cancel
+            </Button>
+            <Button loading={isSubmitting} type="submit">
+              Create adaptation
+            </Button>
+          </Group>
+        </Stack>
+      </form>
+    </Modal>
+  );
+}
+
 function buildOptionalTextPayload<Key extends "title" | "subject" | "preheader">(
   key: Key,
   value: string,
@@ -1638,6 +1830,41 @@ function LanguageSelect({
         {versions.map((version) => (
           <option key={version.id} value={version.id}>
             {version.language.toUpperCase()}
+          </option>
+        ))}
+      </select>
+      <CaretDownIcon
+        aria-hidden="true"
+        className={styles.selectIcon}
+        size={14}
+      />
+    </label>
+  );
+}
+
+function AdaptationSelect({
+  adaptations,
+  onSelect,
+  selectedAdaptation,
+}: {
+  adaptations: Array<{ adaptation_key: string; adaptation_label: string }>;
+  onSelect: (adaptationKey: string) => void;
+  selectedAdaptation: string;
+}) {
+  return (
+    <label className={styles.selectWrap}>
+      <select
+        aria-label="Email adaptation"
+        className={styles.select}
+        value={selectedAdaptation}
+        onChange={(event) => onSelect(event.currentTarget.value)}
+      >
+        {adaptations.map((adaptation) => (
+          <option
+            key={adaptation.adaptation_key}
+            value={adaptation.adaptation_key}
+          >
+            {adaptation.adaptation_label}
           </option>
         ))}
       </select>

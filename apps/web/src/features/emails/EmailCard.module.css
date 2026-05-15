@@ -6,7 +6,7 @@
 }
 
 .emailCard {
-  height: 208px;
+  height: 240px;
   padding: 10px 10px 0 !important;
   overflow: hidden;
   border-color: rgba(255, 255, 255, 0.72);
@@ -94,6 +94,30 @@
   font-size: 9px;
   line-height: 15px;
   cursor: pointer;
+}
+
+.adaptationButton {
+  max-width: 100%;
+  height: 17px;
+  padding: 0 5px;
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  border-radius: 4px;
+  color: var(--mantine-color-gray-6);
+  background: rgba(255, 255, 255, 0.64);
+  font-size: 9px;
+  line-height: 15px;
+  cursor: pointer;
+}
+
+.adaptationButton:hover {
+  border-color: rgba(22, 163, 74, 0.52);
+  color: var(--mantine-color-green-8);
+}
+
+.adaptationButton[data-active] {
+  border-color: rgba(22, 163, 74, 0.62);
+  color: var(--mantine-color-green-8);
+  background: rgba(220, 252, 231, 0.9);
 }
 
 .versionButton:hover {

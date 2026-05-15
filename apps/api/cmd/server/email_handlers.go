@@ -22,6 +22,7 @@ func registerEmailRoutes(r chi.Router, dbpool *pgxpool.Pool) {
 	r.Get("/api/emails/{id}/rendered", getRenderedEmailHandler(dbpool))
 	r.Patch("/api/emails/{id}/editable-fields", updateEmailEditableFieldsHandler(dbpool))
 	r.Post("/api/emails/{id}/duplicate", duplicateEmailHandler(dbpool))
+	r.Post("/api/emails/{id}/adaptations", createEmailAdaptationHandler(dbpool))
 	r.Patch("/api/emails/{id}/archive", archiveEmailHandler(dbpool))
 	r.Get("/api/admin/email-events", listEmailEventsHandler(dbpool))
 }
@@ -40,6 +41,8 @@ func listEmailsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 				sort_order,
 				language,
 				variant,
+				adaptation_key,
+				adaptation_label,
 				(
 					SELECT count(*)::int
 					FROM comments
@@ -72,6 +75,8 @@ func listEmailsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 				&email.SortOrder,
 				&email.Language,
 				&email.Variant,
+				&email.AdaptationKey,
+				&email.AdaptationLabel,
 				&email.OpenCommentCount,
 			)
 			if err != nil {
@@ -112,6 +117,8 @@ func getEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 				sort_order,
 				language,
 				variant,
+				adaptation_key,
+				adaptation_label,
 				(
 					SELECT count(*)::int
 					FROM comments
@@ -138,6 +145,8 @@ func getEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			&email.SortOrder,
 			&email.Language,
 			&email.Variant,
+			&email.AdaptationKey,
+			&email.AdaptationLabel,
 			&email.OpenCommentCount,
 			&email.OriginalHTML,
 			&email.ReviewHTML,
@@ -364,6 +373,10 @@ type duplicateEmailRequest struct {
 	Preheader *string `json:"preheader"`
 }
 
+type createEmailAdaptationRequest struct {
+	Label string `json:"label"`
+}
+
 func duplicateEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := chi.URLParam(r, "id")
@@ -453,6 +466,8 @@ func duplicateEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			SortOrder:       source.SortOrder,
 			Language:        language,
 			Variant:         variant,
+			AdaptationKey:   "default",
+			AdaptationLabel: "Default",
 			BodyText:        source.BodyText,
 			ContentParts:    contentParts,
 			OriginalHTML:    source.OriginalHTML,
@@ -463,7 +478,7 @@ func duplicateEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			EditableFields:  source.EditableFields,
 		})
 		if err != nil {
-			if isEmailSlugConflict(err) {
+			if isEmailCreationConflict(err) {
 				http.Error(w, "email duplicate already exists", http.StatusConflict)
 				return
 			}
@@ -492,6 +507,114 @@ func duplicateEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 		}
 		if err := tx.Commit(r.Context()); err != nil {
 			http.Error(w, "failed to duplicate email", http.StatusInternalServerError)
+			return
+		}
+
+		w.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(w).Encode(created)
+	}
+}
+
+func createEmailAdaptationHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := chi.URLParam(r, "id")
+		user, ok := authUserFromContext(r)
+		if !ok {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		if !isAdminUser(user) {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+
+		var request createEmailAdaptationRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		label := strings.TrimSpace(request.Label)
+		key := normalizeAdaptationKey(label)
+		if label == "" || key == "" {
+			http.Error(w, "label is required", http.StatusBadRequest)
+			return
+		}
+
+		source, err := loadEmailForDuplicate(r, dbpool, id)
+		if err != nil {
+			http.Error(w, "email not found", http.StatusNotFound)
+			return
+		}
+
+		contentParts, err := json.Marshal(emailtext.ExtractContentParts(
+			source.OriginalHTML,
+			stringFromPointer(source.Subject),
+			stringFromPointer(source.Preheader),
+			stringFromPointer(source.BodyText),
+		))
+		if err != nil {
+			http.Error(w, "failed to build adaptation", http.StatusInternalServerError)
+			return
+		}
+
+		tx, err := dbpool.Begin(r.Context())
+		if err != nil {
+			http.Error(w, "failed to create adaptation", http.StatusInternalServerError)
+			return
+		}
+		defer tx.Rollback(r.Context())
+
+		created, err := insertDuplicatedEmail(r, tx, duplicateEmailInsert{
+			Slug:            adaptationEmailSlug(source.Slug, source.AdaptationKey, key),
+			Sequence:        source.Sequence,
+			Title:           source.Title,
+			Subject:         source.Subject,
+			Preheader:       source.Preheader,
+			SendTiming:      source.SendTiming,
+			Stage:           source.Stage,
+			SortOrder:       source.SortOrder,
+			Language:        source.Language,
+			Variant:         source.Variant,
+			AdaptationKey:   key,
+			AdaptationLabel: label,
+			BodyText:        source.BodyText,
+			ContentParts:    contentParts,
+			OriginalHTML:    source.OriginalHTML,
+			ReviewHTML:      source.ReviewHTML,
+			TemplateHTML:    source.TemplateHTML,
+			TemplateHash:    source.TemplateHash,
+			TemplateVersion: source.TemplateVersion,
+			EditableFields:  source.EditableFields,
+		})
+		if err != nil {
+			if isEmailCreationConflict(err) {
+				http.Error(w, "email adaptation already exists", http.StatusConflict)
+				return
+			}
+			fmt.Fprintf(os.Stderr, "failed to create adaptation from email %s: %v\n", id, err)
+			http.Error(w, "failed to create adaptation", http.StatusInternalServerError)
+			return
+		}
+		if err := insertEmailEvent(r.Context(), tx, emailEvent{
+			ActorUserID: user.ID,
+			ActorEmail:  user.Email,
+			Action:      emailEventAdaptationCreated,
+			EmailID:     &created.ID,
+			EmailSlug:   &created.Slug,
+			EmailTitle:  &created.Title,
+			Metadata: map[string]any{
+				"source_email_id":  id,
+				"source_slug":      source.Slug,
+				"created_email_id": created.ID,
+				"adaptation_key":   created.AdaptationKey,
+				"adaptation_label": created.AdaptationLabel,
+			},
+		}); err != nil {
+			http.Error(w, "failed to record email event", http.StatusInternalServerError)
+			return
+		}
+		if err := tx.Commit(r.Context()); err != nil {
+			http.Error(w, "failed to create adaptation", http.StatusInternalServerError)
 			return
 		}
 
@@ -630,6 +753,8 @@ type emailDuplicateSource struct {
 	SortOrder       int
 	Language        string
 	Variant         string
+	AdaptationKey   string
+	AdaptationLabel string
 	BodyText        *string
 	OriginalHTML    string
 	ReviewHTML      *string
@@ -662,6 +787,8 @@ func loadEmailForDuplicate(r *http.Request, dbpool *pgxpool.Pool, id string) (em
 			sort_order,
 			language,
 			variant,
+			adaptation_key,
+			adaptation_label,
 			body_text,
 			original_html,
 			review_html,
@@ -683,6 +810,8 @@ func loadEmailForDuplicate(r *http.Request, dbpool *pgxpool.Pool, id string) (em
 		&source.SortOrder,
 		&source.Language,
 		&source.Variant,
+		&source.AdaptationKey,
+		&source.AdaptationLabel,
 		&source.BodyText,
 		&source.OriginalHTML,
 		&source.ReviewHTML,
@@ -706,6 +835,8 @@ type duplicateEmailInsert struct {
 	SortOrder       int
 	Language        string
 	Variant         string
+	AdaptationKey   string
+	AdaptationLabel string
 	BodyText        *string
 	ContentParts    []byte
 	OriginalHTML    string
@@ -732,6 +863,8 @@ func insertDuplicatedEmail(r *http.Request, db emailEventExecutor, email duplica
 			sort_order,
 			language,
 			variant,
+			adaptation_key,
+			adaptation_label,
 			body_text,
 			content_parts,
 			original_html,
@@ -741,7 +874,7 @@ func insertDuplicatedEmail(r *http.Request, db emailEventExecutor, email duplica
 			template_version,
 			editable_fields
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13, $14, $15, $16, $17, $18::jsonb)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::jsonb, $15, $16, $17, $18, $19, $20::jsonb)
 		RETURNING
 			id,
 			slug,
@@ -754,6 +887,8 @@ func insertDuplicatedEmail(r *http.Request, db emailEventExecutor, email duplica
 			sort_order,
 			language,
 			variant,
+			adaptation_key,
+			adaptation_label,
 			0 AS open_comment_count,
 			original_html,
 			review_html,
@@ -761,7 +896,7 @@ func insertDuplicatedEmail(r *http.Request, db emailEventExecutor, email duplica
 			template_hash,
 			template_version,
 			editable_fields;
-	`, email.Slug, email.Sequence, email.Title, email.Subject, email.Preheader, email.SendTiming, email.Stage, email.SortOrder, email.Language, email.Variant, email.BodyText, email.ContentParts, email.OriginalHTML, email.ReviewHTML, email.TemplateHTML, email.TemplateHash, email.TemplateVersion, email.EditableFields).Scan(
+	`, email.Slug, email.Sequence, email.Title, email.Subject, email.Preheader, email.SendTiming, email.Stage, email.SortOrder, email.Language, email.Variant, email.AdaptationKey, email.AdaptationLabel, email.BodyText, email.ContentParts, email.OriginalHTML, email.ReviewHTML, email.TemplateHTML, email.TemplateHash, email.TemplateVersion, email.EditableFields).Scan(
 		&created.ID,
 		&created.Slug,
 		&created.Sequence,
@@ -773,6 +908,8 @@ func insertDuplicatedEmail(r *http.Request, db emailEventExecutor, email duplica
 		&created.SortOrder,
 		&created.Language,
 		&created.Variant,
+		&created.AdaptationKey,
+		&created.AdaptationLabel,
 		&created.OpenCommentCount,
 		&created.OriginalHTML,
 		&created.ReviewHTML,
@@ -857,7 +994,8 @@ func addStringChange(changes map[string]any, key string, before *string, after *
 }
 
 func duplicateEmailSlug(sourceSlug string, sourceLanguage string, targetLanguage string, targetVariant string) string {
-	base := strings.TrimSuffix(sourceSlug, "-old")
+	base := strings.Split(sourceSlug, "--")[0]
+	base = strings.TrimSuffix(base, "-old")
 	sourceLanguage = strings.ToLower(strings.TrimSpace(sourceLanguage))
 	if sourceLanguage != "" {
 		base = strings.TrimSuffix(base, "-"+sourceLanguage)
@@ -871,11 +1009,40 @@ func duplicateEmailSlug(sourceSlug string, sourceLanguage string, targetLanguage
 	return slug
 }
 
+func adaptationEmailSlug(sourceSlug string, sourceAdaptationKey string, targetAdaptationKey string) string {
+	base := strings.TrimSuffix(sourceSlug, "--"+sourceAdaptationKey)
+	return base + "--" + targetAdaptationKey
+}
+
+func normalizeAdaptationKey(label string) string {
+	key := strings.ToLower(strings.TrimSpace(label))
+	key = strings.Map(func(r rune) rune {
+		switch {
+		case r >= 'a' && r <= 'z':
+			return r
+		case r >= '0' && r <= '9':
+			return r
+		case r == ' ' || r == '_' || r == '-':
+			return '-'
+		default:
+			return -1
+		}
+	}, key)
+	return strings.Trim(strings.Join(strings.FieldsFunc(key, func(r rune) bool { return r == '-' }), "-"), "-")
+}
+
 func isEmailSlugConflict(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) &&
 		pgErr.Code == "23505" &&
 		pgErr.ConstraintName == "emails_slug_unique"
+}
+
+func isEmailCreationConflict(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) &&
+		pgErr.Code == "23505" &&
+		(pgErr.ConstraintName == "emails_slug_unique" || pgErr.ConstraintName == "emails_active_adaptation_unique")
 }
 
 func stringFromPointer(value *string) string {

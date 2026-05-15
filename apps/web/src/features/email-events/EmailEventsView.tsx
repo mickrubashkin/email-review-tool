@@ -27,6 +27,7 @@ const limitOptions = ["50", "100", "250", "500"];
 const actionOptions: { value: EmailEventAction; label: string }[] = [
   { value: "email_updated", label: "Updated" },
   { value: "email_duplicated", label: "Duplicated" },
+  { value: "email_adaptation_created", label: "Adaptation created" },
   { value: "email_archived", label: "Archived" },
   { value: "email_created", label: "Created" },
 ];
@@ -209,6 +210,8 @@ function getActionColor(action: EmailEventAction) {
       return "red";
     case "email_duplicated":
       return "blue";
+    case "email_adaptation_created":
+      return "teal";
     case "email_created":
       return "green";
     case "email_updated":
@@ -222,6 +225,8 @@ function formatSummary(event: EmailEventItem) {
   switch (event.action) {
     case "email_duplicated":
       return `Duplicated from ${stringMetadata(event, "source_slug") || "source email"}`;
+    case "email_adaptation_created":
+      return `Adaptation ${stringMetadata(event, "adaptation_label") || "created"} from ${stringMetadata(event, "source_slug") || "source email"}`;
     case "email_archived":
       return "Archived from the active board";
     case "email_created":
