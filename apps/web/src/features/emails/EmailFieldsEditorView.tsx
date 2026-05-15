@@ -15,6 +15,7 @@ import {
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import {
   ArrowLeft,
   Copy,
@@ -77,7 +78,7 @@ export function EmailFieldsEditorView({
           <Alert color="red" title="Admin access required">
             You do not have permission to edit email fields.
           </Alert>
-          <Button component="a" href="/" variant="light">
+          <Button component={Link} to="/" variant="light">
             Back to board
           </Button>
         </Stack>
@@ -103,7 +104,7 @@ export function EmailFieldsEditorView({
           <Alert color="red" title="Failed to load editor">
             The email may be archived or unavailable.
           </Alert>
-          <Button component="a" href="/" variant="light">
+          <Button component={Link} to="/" variant="light">
             Back to board
           </Button>
         </Stack>
@@ -202,8 +203,8 @@ function EmailFieldsEditor({
         <div className={styles.headerInner}>
           <Group gap="sm" wrap="nowrap" className={styles.titleBlock}>
             <Button
-              component="a"
-              href="/"
+              component={Link}
+              to="/"
               leftSection={<ArrowLeft aria-hidden="true" size={16} />}
               size="xs"
               variant="subtle"

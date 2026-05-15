@@ -15,6 +15,7 @@ import {
 } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link, Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
 
 import { AIAnalysisLogsView } from "./features/ai-logs/AIAnalysisLogsView";
 import { AdminUsersView } from "./features/admin-users/AdminUsersView";
@@ -34,6 +35,7 @@ export default function App() {
 }
 
 function AuthenticatedApp() {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const currentUserQuery = useQuery({
     queryKey: ["auth", "me"],
@@ -44,7 +46,7 @@ function AuthenticatedApp() {
     mutationFn: logout,
     onSettled: () => {
       queryClient.removeQueries();
-      window.location.href = "/";
+      navigate("/");
     },
   });
 
@@ -61,59 +63,59 @@ function AuthenticatedApp() {
     return <LoginView />;
   }
 
-  if (window.location.pathname === "/ai-logs") {
-    return <AIAnalysisLogsView />;
-  }
-
-  if (window.location.pathname === "/auth-events") {
-    return <AuthEventsView />;
-  }
-
-  if (window.location.pathname === "/admin/users") {
-    return <AdminUsersView />;
-  }
-
-  if (window.location.pathname === "/admin/email-events") {
-    return <EmailEventsView />;
-  }
-
-  const editEmailId = getEditEmailId(window.location.pathname);
-  if (editEmailId) {
-    return (
-      <EmailFieldsEditorView
-        currentUserRole={currentUserQuery.data.role}
-        emailId={editEmailId}
-      />
-    );
-  }
-
-  const reviewEmailId = getReviewEmailId(window.location.pathname);
-  if (reviewEmailId) {
-    return (
-      <EmailReviewView
-        currentUserRole={currentUserQuery.data.role}
-        emailId={reviewEmailId}
-      />
-    );
-  }
-
   return (
-    <EmailBoardApp
-      currentUser={currentUserQuery.data}
-      isLoggingOut={logoutMutation.isPending}
-      onLogout={() => logoutMutation.mutate()}
-    />
+    <Routes>
+      <Route path="/ai-logs" element={<AIAnalysisLogsView />} />
+      <Route path="/auth-events" element={<AuthEventsView />} />
+      <Route path="/admin/users" element={<AdminUsersView />} />
+      <Route path="/admin/email-events" element={<EmailEventsView />} />
+      <Route
+        path="/emails/:emailId/edit"
+        element={<EmailFieldsEditorRoute currentUserRole={currentUserQuery.data.role} />}
+      />
+      <Route
+        path="/emails/:emailId/review"
+        element={<EmailReviewRoute currentUserRole={currentUserQuery.data.role} />}
+      />
+      <Route
+        path="/"
+        element={
+          <EmailBoardApp
+            currentUser={currentUserQuery.data}
+            isLoggingOut={logoutMutation.isPending}
+            onLogout={() => logoutMutation.mutate()}
+          />
+        }
+      />
+      <Route path="*" element={<Navigate replace to="/" />} />
+    </Routes>
   );
 }
 
-function getReviewEmailId(pathname: string) {
-  const match = pathname.match(/^\/emails\/([^/]+)\/review\/?$/);
-  return match ? decodeURIComponent(match[1]) : null;
+function EmailReviewRoute({
+  currentUserRole,
+}: {
+  currentUserRole: AuthUser["role"];
+}) {
+  const { emailId } = useParams();
+  return emailId ? (
+    <EmailReviewView currentUserRole={currentUserRole} emailId={emailId} />
+  ) : (
+    <Navigate replace to="/" />
+  );
 }
 
-function getEditEmailId(pathname: string) {
-  const match = pathname.match(/^\/emails\/([^/]+)\/edit\/?$/);
-  return match ? decodeURIComponent(match[1]) : null;
+function EmailFieldsEditorRoute({
+  currentUserRole,
+}: {
+  currentUserRole: AuthUser["role"];
+}) {
+  const { emailId } = useParams();
+  return emailId ? (
+    <EmailFieldsEditorView currentUserRole={currentUserRole} emailId={emailId} />
+  ) : (
+    <Navigate replace to="/" />
+  );
 }
 
 function EmailBoardApp({
@@ -125,6 +127,7 @@ function EmailBoardApp({
   isLoggingOut: boolean;
   onLogout: () => void;
 }) {
+  const navigate = useNavigate();
   const [selectedVersionByGroup, setSelectedVersionByGroup] = useState<
     Record<string, string>
   >({});
@@ -151,7 +154,7 @@ function EmailBoardApp({
   };
 
   const handleOpenVersionGroup = (_groupKey: string, emailId: string) => {
-    window.location.href = `/emails/${encodeURIComponent(emailId)}/review`;
+    navigate(`/emails/${encodeURIComponent(emailId)}/review`);
   };
 
   return (
@@ -204,20 +207,20 @@ function EmailBoardApp({
                   {isAdmin ? (
                     <>
                       <Menu.Divider />
-                      <Menu.Item component="a" href="/auth-events">
+                      <Menu.Item component={Link} to="/auth-events">
                         Auth events
                       </Menu.Item>
-                      <Menu.Item component="a" href="/ai-logs">
+                      <Menu.Item component={Link} to="/ai-logs">
                         AI logs
                       </Menu.Item>
                     </>
                   ) : null}
                   {currentUser.role === "super_admin" ? (
                     <>
-                      <Menu.Item component="a" href="/admin/email-events">
+                      <Menu.Item component={Link} to="/admin/email-events">
                         Email events
                       </Menu.Item>
-                      <Menu.Item component="a" href="/admin/users">
+                      <Menu.Item component={Link} to="/admin/users">
                         Users
                       </Menu.Item>
                     </>
@@ -241,16 +244,16 @@ function EmailBoardApp({
                 {isAdmin ? (
                   <>
                     <Button
-                      component="a"
-                      href="/auth-events"
+                      component={Link}
+                      to="/auth-events"
                       size="xs"
                       variant="white"
                     >
                       Auth events
                     </Button>
                     <Button
-                      component="a"
-                      href="/ai-logs"
+                      component={Link}
+                      to="/ai-logs"
                       size="xs"
                       variant="white"
                     >
@@ -261,16 +264,16 @@ function EmailBoardApp({
                 {currentUser.role === "super_admin" ? (
                   <>
                     <Button
-                      component="a"
-                      href="/admin/email-events"
+                      component={Link}
+                      to="/admin/email-events"
                       size="xs"
                       variant="white"
                     >
                       Email events
                     </Button>
                     <Button
-                      component="a"
-                      href="/admin/users"
+                      component={Link}
+                      to="/admin/users"
                       size="xs"
                       variant="white"
                     >

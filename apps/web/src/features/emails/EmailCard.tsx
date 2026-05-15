@@ -15,6 +15,7 @@ import {
   Tooltip,
   ScrollArea,
 } from "@mantine/core";
+import { useNavigate } from "react-router-dom";
 
 import type { EmailVariant, EmailVersionGroup } from "./types";
 import {
@@ -103,6 +104,7 @@ export function EmailCard({
   onOpen,
   onSelectVersion,
 }: EmailCardProps) {
+  const navigate = useNavigate();
   const [commentsPopoverOpened, setCommentsPopoverOpened] = useState(false);
   const selectedEmail =
     emailGroup.versions.find((email) => email.id === selectedEmailId) ??
@@ -226,7 +228,7 @@ export function EmailCard({
                             type="button"
                             onClick={(event) => {
                               event.stopPropagation();
-                              window.location.href = `/emails/${encodeURIComponent(email.id)}/review`;
+                              navigate(`/emails/${encodeURIComponent(email.id)}/review`);
                               setCommentsPopoverOpened(false);
                             }}
                           >

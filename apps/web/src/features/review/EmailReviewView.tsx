@@ -20,6 +20,7 @@ import {
 } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
+import { Link, useNavigate } from "react-router-dom";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -102,6 +103,7 @@ export function EmailReviewView({
   currentUserRole,
   emailId,
 }: EmailReviewViewProps) {
+  const navigate = useNavigate();
   const [viewport, setViewport] = useState<ReviewViewport>("desktop");
   const [actionMenuOpened, setActionMenuOpened] = useState(false);
   const [activeContentTab, setActiveContentTab] =
@@ -203,7 +205,7 @@ export function EmailReviewView({
     onSuccess: (createdEmail) => {
       void queryClient.invalidateQueries({ queryKey: ["emails"] });
       queryClient.setQueryData(["emails", createdEmail.id, "review"], createdEmail);
-      window.location.href = `/emails/${encodeURIComponent(createdEmail.id)}/review`;
+      navigate(`/emails/${encodeURIComponent(createdEmail.id)}/review`);
     },
   });
   const archiveEmailMutation = useMutation({
@@ -215,7 +217,7 @@ export function EmailReviewView({
         message: "Email was removed from the active board.",
         title: "Email archived",
       });
-      window.location.href = "/";
+      navigate("/");
     },
     onError: () => {
       notifications.show({
@@ -286,12 +288,12 @@ export function EmailReviewView({
   }
 
   const handleBack = () => {
-    window.location.href = "/";
+    navigate("/");
   };
 
   const navigateToReview = (nextEmailId: string) => {
     if (nextEmailId !== email.id) {
-      window.location.href = `/emails/${encodeURIComponent(nextEmailId)}/review`;
+      navigate(`/emails/${encodeURIComponent(nextEmailId)}/review`);
     }
   };
 
@@ -514,8 +516,8 @@ export function EmailReviewView({
                         Duplicate email
                       </Menu.Item>
                       <Menu.Item
-                        component="a"
-                        href={`/emails/${encodeURIComponent(email.id)}/edit`}
+                        component={Link}
+                        to={`/emails/${encodeURIComponent(email.id)}/edit`}
                         leftSection={
                           <PencilSimpleIcon aria-hidden="true" size={15} />
                         }
@@ -615,8 +617,8 @@ export function EmailReviewView({
                       <Tooltip label="Edit fields">
                         <ActionIcon
                           aria-label="Edit fields"
-                          component="a"
-                          href={`/emails/${encodeURIComponent(email.id)}/edit`}
+                          component={Link}
+                          to={`/emails/${encodeURIComponent(email.id)}/edit`}
                           radius="md"
                           size="lg"
                           variant="light"
