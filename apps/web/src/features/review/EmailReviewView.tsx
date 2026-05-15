@@ -15,7 +15,6 @@ import {
   Text,
   TextInput,
   Timeline,
-  Title,
   Tooltip,
 } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
@@ -35,6 +34,7 @@ import {
   CopyIcon,
   DeviceMobileIcon,
   DownloadSimpleIcon,
+  HouseIcon,
   MonitorIcon,
   PencilSimpleIcon,
   SparkleIcon,
@@ -84,6 +84,7 @@ import type {
   EmailDetail,
   EmailListItem,
   EmailVariant,
+  EmailVersionGroup,
 } from "../emails/types";
 import { useEmailAnalysisStream } from "../emails/useEmailAnalysisStream";
 import styles from "./EmailReviewView.module.css";
@@ -140,14 +141,17 @@ export function EmailReviewView({
     queryFn: fetchEmails,
   });
   const email = emailQuery.data;
+  const stageColumns = useMemo(
+    () => buildStageColumns(emailsQuery.data ?? []),
+    [emailsQuery.data]
+  );
   const emailGroup = useMemo(() => {
-    const columns = buildStageColumns(emailsQuery.data ?? []);
-    return columns
+    return stageColumns
       .flatMap((column) => column.emailGroups)
       .find((group) => group.versions.some((version) => version.id === emailId));
-  }, [emailId, emailsQuery.data]);
+  }, [emailId, stageColumns]);
   const nextEmailWithOpenComments = useMemo(() => {
-    const orderedEmails = buildStageColumns(emailsQuery.data ?? []).flatMap(
+    const orderedEmails = stageColumns.flatMap(
       (column) => column.emailGroups.flatMap((group) => group.versions)
     );
     const currentEmailIndex = orderedEmails.findIndex(
@@ -164,7 +168,7 @@ export function EmailReviewView({
         .find((orderedEmail) => (orderedEmail.open_comment_count ?? 0) > 0) ??
       null
     );
-  }, [emailId, emailsQuery.data]);
+  }, [emailId, stageColumns]);
   const selectedVariant = emailGroup
     ? getSelectedVariant(emailGroup.versions, emailId)
     : email?.variant ?? "new";
@@ -180,6 +184,26 @@ export function EmailReviewView({
     : email
       ? [email.variant as EmailVariant]
       : [];
+  const boardEmailGroups = useMemo(
+    () => stageColumns.flatMap((column) => column.emailGroups),
+    [stageColumns]
+  );
+  const currentBoardGroupIndex = emailGroup
+    ? boardEmailGroups.findIndex((group) => group.key === emailGroup.key)
+    : -1;
+  const previousBoardEmail = findNeighborEmail(
+    [...boardEmailGroups.slice(0, Math.max(currentBoardGroupIndex, 0))].reverse(),
+    selectedVariant,
+    email?.language
+  );
+  const nextBoardEmail = findNeighborEmail(
+    boardEmailGroups.slice(currentBoardGroupIndex + 1),
+    selectedVariant,
+    email?.language
+  );
+  const currentStage = stageColumns.find((column) =>
+    column.emailGroups.some((group) => group.key === emailGroup?.key)
+  );
   const {
     analyze,
     reanalyze,
@@ -308,7 +332,7 @@ export function EmailReviewView({
     );
   }
 
-  const handleBack = () => {
+  const handleBackToBoard = () => {
     navigate("/");
   };
 
@@ -475,25 +499,93 @@ export function EmailReviewView({
       <header className={styles.header}>
         <div className={styles.headerInner}>
           <Group className={styles.headerMain} gap="sm" wrap="nowrap">
-            <Tooltip label="Back">
+            <Tooltip label="Back to board">
               <ActionIcon
-                aria-label="Back"
-                onClick={handleBack}
+                aria-label="Back to board"
+                className={styles.headerIconButton}
+                onClick={handleBackToBoard}
                 radius="md"
                 size="lg"
                 variant="subtle"
               >
-                <ArrowLeftIcon aria-hidden="true" size={18} />
+                <HouseIcon aria-hidden="true" size={18} />
               </ActionIcon>
             </Tooltip>
 
-            <Stack className={styles.titleBlock} gap={4}>
-              <Group gap="xs" wrap="nowrap">
-                <Title className={styles.titleText} order={3}>
-                  {email.title}
-                </Title>
-              </Group>
-            </Stack>
+            <Group className={styles.boardNavigation} gap={4} wrap="nowrap">
+              <Tooltip label="Previous email on board">
+                <ActionIcon
+                  aria-label="Previous email on board"
+                  className={styles.headerIconButton}
+                  disabled={!previousBoardEmail}
+                  onClick={() => {
+                    if (previousBoardEmail) {
+                      navigateToReview(previousBoardEmail.id);
+                    }
+                  }}
+                  radius="md"
+                  size="lg"
+                  variant="subtle"
+                >
+                  <ArrowLeftIcon aria-hidden="true" size={17} />
+                </ActionIcon>
+              </Tooltip>
+              <Tooltip label="Next email on board">
+                <ActionIcon
+                  aria-label="Next email on board"
+                  className={styles.headerIconButton}
+                  disabled={!nextBoardEmail}
+                  onClick={() => {
+                    if (nextBoardEmail) {
+                      navigateToReview(nextBoardEmail.id);
+                    }
+                  }}
+                  radius="md"
+                  size="lg"
+                  variant="subtle"
+                >
+                  <ArrowRightIcon aria-hidden="true" size={17} />
+                </ActionIcon>
+              </Tooltip>
+            </Group>
+
+            <Group className={styles.breadcrumbs} gap={6} wrap="nowrap">
+              <Text className={styles.breadcrumbText} size="sm" fw={600}>
+                {currentStage?.title ?? "Board"}
+              </Text>
+              <Text c="dimmed" size="sm">
+                /
+              </Text>
+              <Text className={styles.titleText} size="sm" fw={600}>
+                {formatEmailTitle(email.title)}
+              </Text>
+            </Group>
+
+            {!isCompactReview ? (
+              <>
+                <div className={styles.actionDivider} aria-hidden="true" />
+
+                <Group className={styles.actionGroup} gap="xs" wrap="nowrap">
+                  <ViewportSwitch viewport={viewport} onChange={setViewport} />
+                </Group>
+
+                <div className={styles.actionDivider} aria-hidden="true" />
+
+                <Group className={styles.actionGroup} gap="xs" wrap="nowrap">
+                  <LanguageSelect
+                    selectedEmailId={email.id}
+                    versions={languageVersions}
+                    onSelect={navigateToReview}
+                  />
+
+                  <VariantSwitch
+                    availableVariants={availableVariants}
+                    selectedVariant={selectedVariant}
+                    onSelect={handleVariantClick}
+                  />
+                </Group>
+              </>
+            ) : null}
           </Group>
 
           <Group className={styles.headerActions} gap="xs" wrap="nowrap">
@@ -613,34 +705,13 @@ export function EmailReviewView({
               </Menu>
             ) : (
               <>
-                <Group className={styles.actionGroup} gap="xs" wrap="nowrap">
-                  <LanguageSelect
-                    selectedEmailId={email.id}
-                    versions={languageVersions}
-                    onSelect={navigateToReview}
-                  />
-
-                  <VariantSwitch
-                    availableVariants={availableVariants}
-                    selectedVariant={selectedVariant}
-                    onSelect={handleVariantClick}
-                  />
-                </Group>
-
-                <div className={styles.actionDivider} aria-hidden="true" />
-
-                <Group className={styles.actionGroup} gap="xs" wrap="nowrap">
-                  <ViewportSwitch viewport={viewport} onChange={setViewport} />
-                </Group>
-
                 {canManageEmail ? (
                   <>
-                    <div className={styles.actionDivider} aria-hidden="true" />
-
                     <Group className={styles.actionGroup} gap="xs" wrap="nowrap">
                       <Tooltip label="Duplicate email">
                         <ActionIcon
                           aria-label="Duplicate email"
+                          className={styles.headerIconButton}
                           onClick={() => {
                             duplicateEmailMutation.reset();
                             setDuplicateModalOpened(true);
@@ -656,6 +727,7 @@ export function EmailReviewView({
                       <Tooltip label="Edit fields">
                         <ActionIcon
                           aria-label="Edit fields"
+                          className={styles.headerIconButton}
                           component={Link}
                           to={`/emails/${encodeURIComponent(email.id)}/edit`}
                           radius="md"
@@ -669,6 +741,7 @@ export function EmailReviewView({
                       <Tooltip label="Archive email">
                         <ActionIcon
                           aria-label="Archive email"
+                          className={styles.headerIconButton}
                           color="red"
                           loading={archiveEmailMutation.isPending}
                           onClick={() => setArchiveModalOpened(true)}
@@ -680,15 +753,16 @@ export function EmailReviewView({
                         </ActionIcon>
                       </Tooltip>
                     </Group>
+
+                    <div className={styles.actionDivider} aria-hidden="true" />
                   </>
                 ) : null}
-
-                <div className={styles.actionDivider} aria-hidden="true" />
 
                 <Group className={styles.actionGroup} gap="xs" wrap="nowrap">
                   <Tooltip label="Copy original HTML">
                     <ActionIcon
                       aria-label="Copy original HTML"
+                      className={styles.headerIconButton}
                       onClick={() => copyOriginalHTML(email)}
                       radius="md"
                       size="lg"
@@ -701,6 +775,7 @@ export function EmailReviewView({
                   <Tooltip label="Download original HTML">
                     <ActionIcon
                       aria-label="Download original HTML"
+                      className={styles.headerIconButton}
                       onClick={() => downloadOriginalHTML(email)}
                       radius="md"
                       size="lg"
@@ -717,6 +792,7 @@ export function EmailReviewView({
                   <Tooltip label="Analyze with AI">
                     <ActionIcon
                       aria-label="Analyze with AI"
+                      className={styles.headerIconButton}
                       loading={isAnalyzingCurrentEmail}
                       onClick={handleAnalyze}
                       radius="md"
@@ -730,6 +806,7 @@ export function EmailReviewView({
                   <Tooltip label="Generate a new AI analysis. This will make a new AI request and may use tokens/cost.">
                     <ActionIcon
                       aria-label="Generate a new AI analysis"
+                      className={styles.headerIconButton}
                       disabled={isAnalyzingCurrentEmail}
                       onClick={handleReanalyze}
                       radius="md"
@@ -753,6 +830,7 @@ export function EmailReviewView({
                   >
                     <ActionIcon
                       aria-label="Next email with open comments"
+                      className={styles.headerIconButton}
                       disabled={!nextEmailWithOpenComments}
                       onClick={() => {
                         if (nextEmailWithOpenComments) {
@@ -898,6 +976,36 @@ export function EmailReviewView({
 
 function clampPercent(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
+}
+
+function findNeighborEmail(
+  groups: EmailVersionGroup[],
+  variant: EmailVariant,
+  preferredLanguage: string | undefined
+) {
+  for (const group of groups) {
+    const email = getVersionForVariant(
+      group.versions,
+      variant,
+      preferredLanguage
+    );
+    if (email) {
+      return email;
+    }
+  }
+
+  return undefined;
+}
+
+function formatEmailTitle(title: string) {
+  switch (title) {
+    case "Follow Up 1":
+      return "First Follow-up";
+    case "Follow Up 2":
+      return "Second Follow-up";
+    default:
+      return title;
+  }
 }
 
 function commentToTarget(comment: EmailComment): ReviewCommentTarget {

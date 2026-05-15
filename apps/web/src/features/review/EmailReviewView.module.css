@@ -16,12 +16,13 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--mantine-spacing-md);
-  min-height: 72px;
-  padding: 12px 20px;
+  gap: var(--mantine-spacing-lg);
+  min-height: 64px;
+  padding: 10px 20px;
 }
 
 .headerMain {
+  flex: 1 1 auto;
   min-width: 0;
 }
 
@@ -36,19 +37,45 @@
   white-space: nowrap;
 }
 
+.boardNavigation {
+  flex: 0 0 auto;
+}
+
+.breadcrumbs {
+  min-width: 0;
+  padding-left: var(--mantine-spacing-xs);
+}
+
+.breadcrumbText {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
 .headerActions {
   flex: 0 0 auto;
+  gap: 6px;
+}
+
+.headerIconButton {
+  width: 36px;
+  height: 36px;
+}
+
+.headerIconButton:hover {
+  background: transparent !important;
 }
 
 .actionGroup {
   flex: 0 0 auto;
+  gap: 6px;
 }
 
 .actionDivider {
-  align-self: stretch;
+  align-self: center;
   width: 1px;
-  min-height: 32px;
-  background: var(--mantine-color-gray-3);
+  height: 28px;
+  min-height: 28px;
+  background: var(--mantine-color-gray-2);
 }
 
 .menuControls {
@@ -73,7 +100,7 @@
   background: var(--mantine-color-white);
   appearance: none;
   font: inherit;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -93,7 +120,10 @@
 }
 
 .segmentedControl {
+  display: inline-flex;
+  align-items: center;
   padding: 3px;
+  height: 36px;
   border: 1px solid var(--mantine-color-gray-2);
   border-radius: var(--mantine-radius-md);
   background: var(--mantine-color-white);
@@ -128,7 +158,7 @@
 .segmentedButton:hover:not(:disabled),
 .iconSegmentedButton:hover {
   color: var(--mantine-color-blue-7);
-  background: var(--mantine-color-blue-0);
+  background: transparent;
 }
 
 .segmentedButton[data-active],
@@ -270,6 +300,11 @@
   .headerMain {
     flex: 1 1 auto;
     width: auto;
+  }
+
+  .breadcrumbs {
+    min-width: 0;
+    padding-left: 0;
   }
 
   .headerActions {

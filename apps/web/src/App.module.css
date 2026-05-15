@@ -26,6 +26,10 @@
   white-space: nowrap;
 }
 
+.boardFilterMenuControl {
+  padding: 0 var(--mantine-spacing-xs) var(--mantine-spacing-xs);
+}
+
 .boardPage {
   height: calc(100dvh - var(--app-shell-header-height));
   background: #1e1968 url("/images/bg-vibe.jpg") center / cover no-repeat;

@@ -234,7 +234,7 @@ function EmailBoardApp({
   return (
     <AppShell header={{ height: 56 }} padding={0}>
       <AppShell.Header className={styles.appHeader}>
-        <Group h="100%" px="md" justify="space-between">
+        <Group h="100%" px="md" justify="space-between" wrap="nowrap">
           <Stack gap={0}>
             <Group gap="xs">
               <Title order={4}>ReviewDesk</Title>
@@ -248,18 +248,6 @@ function EmailBoardApp({
             <Text className={styles.headerCount} size="sm" c="dimmed">
               {emailsQuery.data?.length ?? 0} emails
             </Text>
-            <SegmentedControl
-              data={[
-                { label: "All", value: "all" },
-                {
-                  label: `Open comments ${openCommentEmailCount}`,
-                  value: "open",
-                },
-              ]}
-              size="xs"
-              value={boardFilter}
-              onChange={(value) => onBoardFilterChange(value as BoardFilter)}
-            />
             {isCompactHeader ? (
               <Menu
                 opened={userMenuOpened}
@@ -277,6 +265,25 @@ function EmailBoardApp({
                   />
                 </Menu.Target>
                 <Menu.Dropdown>
+                  <Menu.Label>Board filter</Menu.Label>
+                  <div className={styles.boardFilterMenuControl}>
+                    <SegmentedControl
+                      data={[
+                        { label: "All", value: "all" },
+                        {
+                          label: `Open comments ${openCommentEmailCount}`,
+                          value: "open",
+                        },
+                      ]}
+                      fullWidth
+                      size="xs"
+                      value={boardFilter}
+                      onChange={(value) =>
+                        onBoardFilterChange(value as BoardFilter)
+                      }
+                    />
+                  </div>
+                  <Menu.Divider />
                   <Menu.Label>
                     <Stack gap={4}>
                       <Text className={styles.userMenuEmail} size="sm">
@@ -319,6 +326,18 @@ function EmailBoardApp({
               </Menu>
             ) : (
               <>
+                <SegmentedControl
+                  data={[
+                    { label: "All", value: "all" },
+                    {
+                      label: `Open comments ${openCommentEmailCount}`,
+                      value: "open",
+                    },
+                  ]}
+                  size="xs"
+                  value={boardFilter}
+                  onChange={(value) => onBoardFilterChange(value as BoardFilter)}
+                />
                 <Group gap={6} wrap="nowrap">
                   <Text className={styles.headerUser} size="sm" c="dimmed">
                     {currentUser.email}
