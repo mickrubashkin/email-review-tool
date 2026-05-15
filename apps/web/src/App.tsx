@@ -1,4 +1,10 @@
-import { useMemo, useState } from "react";
+import {
+  type Dispatch,
+  type SetStateAction,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import {
   Alert,
   AppShell,
@@ -30,6 +36,9 @@ import type { AuthUser } from "./features/emails/types";
 import { EmailReviewView } from "./features/review/EmailReviewView";
 import styles from "./App.module.css";
 
+const boardSelectedVersionsStorageKey = "reviewdesk.board.selectedVersions";
+const boardScrollPositionStorageKey = "reviewdesk.board.scrollPosition";
+
 export default function App() {
   return <AuthenticatedApp />;
 }
@@ -37,6 +46,21 @@ export default function App() {
 function AuthenticatedApp() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [selectedVersionByGroup, setSelectedVersionByGroup] = useState<
+    Record<string, string>
+  >(readStoredSelectedVersions);
+  const [boardScrollPosition, setBoardScrollPosition] = useState(
+    readStoredBoardScrollPosition
+  );
+  useEffect(() => {
+    writeSessionStorageValue(
+      boardSelectedVersionsStorageKey,
+      selectedVersionByGroup
+    );
+  }, [selectedVersionByGroup]);
+  useEffect(() => {
+    writeSessionStorageValue(boardScrollPositionStorageKey, boardScrollPosition);
+  }, [boardScrollPosition]);
   const currentUserQuery = useQuery({
     queryKey: ["auth", "me"],
     queryFn: fetchCurrentUser,
@@ -81,9 +105,13 @@ function AuthenticatedApp() {
         path="/"
         element={
           <EmailBoardApp
+            boardScrollPosition={boardScrollPosition}
             currentUser={currentUserQuery.data}
             isLoggingOut={logoutMutation.isPending}
+            selectedVersionByGroup={selectedVersionByGroup}
             onLogout={() => logoutMutation.mutate()}
+            onBoardScrollPositionChange={setBoardScrollPosition}
+            onSelectedVersionByGroupChange={setSelectedVersionByGroup}
           />
         }
       />
@@ -119,18 +147,25 @@ function EmailFieldsEditorRoute({
 }
 
 function EmailBoardApp({
+  boardScrollPosition,
   currentUser,
   isLoggingOut,
+  selectedVersionByGroup,
   onLogout,
+  onBoardScrollPositionChange,
+  onSelectedVersionByGroupChange,
 }: {
+  boardScrollPosition: { x: number; y: number };
   currentUser: AuthUser;
   isLoggingOut: boolean;
+  selectedVersionByGroup: Record<string, string>;
   onLogout: () => void;
+  onBoardScrollPositionChange: (position: { x: number; y: number }) => void;
+  onSelectedVersionByGroupChange: Dispatch<
+    SetStateAction<Record<string, string>>
+  >;
 }) {
   const navigate = useNavigate();
-  const [selectedVersionByGroup, setSelectedVersionByGroup] = useState<
-    Record<string, string>
-  >({});
   const [userMenuOpened, setUserMenuOpened] = useState(false);
   const isCompactHeader = useMediaQuery("(max-width: 64em)");
   const isAdmin =
@@ -147,7 +182,7 @@ function EmailBoardApp({
   );
 
   const handleSelectVersion = (groupKey: string, emailId: string) => {
-    setSelectedVersionByGroup((current) => ({
+    onSelectedVersionByGroupChange((current) => ({
       ...current,
       [groupKey]: emailId,
     }));
@@ -313,8 +348,10 @@ function EmailBoardApp({
 
           {emailsQuery.isSuccess ? (
             <EmailBoard
+              scrollPosition={boardScrollPosition}
               columns={columns}
               selectedVersionByGroup={selectedVersionByGroup}
+              onScrollPositionChange={onBoardScrollPositionChange}
               onOpenVersionGroup={handleOpenVersionGroup}
               onSelectVersion={handleSelectVersion}
             />
@@ -324,4 +361,35 @@ function EmailBoardApp({
 
     </AppShell>
   );
+}
+
+function readStoredSelectedVersions() {
+  return readSessionStorageValue<Record<string, string>>(
+    boardSelectedVersionsStorageKey,
+    {}
+  );
+}
+
+function readStoredBoardScrollPosition() {
+  return readSessionStorageValue<{ x: number; y: number }>(
+    boardScrollPositionStorageKey,
+    { x: 0, y: 0 }
+  );
+}
+
+function readSessionStorageValue<T>(key: string, fallback: T): T {
+  try {
+    const storedValue = window.sessionStorage.getItem(key);
+    return storedValue ? (JSON.parse(storedValue) as T) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeSessionStorageValue<T>(key: string, value: T) {
+  try {
+    window.sessionStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Session storage may be unavailable in restricted browser contexts.
+  }
 }
