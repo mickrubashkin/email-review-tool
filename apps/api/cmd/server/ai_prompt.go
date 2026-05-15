@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-const aiAnalysisSchemaVersion = "email-analysis-schema-v3"
+const aiAnalysisSchemaVersion = "email-analysis-schema-v4"
 
 func (service AIAnalysisService) PromptHash() string {
 	hash := sha256.Sum256([]byte(strings.Join([]string{
@@ -29,7 +29,7 @@ func (service AIAnalysisService) buildOpenAIAnalysisRequestBody(email EmailDetai
 		"model":             service.Model,
 		"stream":            true,
 		"instructions":      service.analysisInstructions(),
-		"input":             buildEmailAnalysisInput(service.ReviewRules, service.SequenceContext, email),
+		"input":             buildEmailAnalysisInput(service.ReviewRules, service.SequenceContext, service.ResponseLanguage, email),
 		"max_output_tokens": 550,
 		"text": map[string]any{
 			"format": map[string]any{
@@ -37,7 +37,7 @@ func (service AIAnalysisService) buildOpenAIAnalysisRequestBody(email EmailDetai
 				"name":        "email_analysis",
 				"description": "Email text review result",
 				"strict":      true,
-				"schema":      emailAnalysisSchema(),
+				"schema":      service.emailAnalysisSchema(),
 			},
 		},
 	}
@@ -48,30 +48,38 @@ func (service AIAnalysisService) analysisInstructions() string {
 You are an email copy reviewer for partner onboarding sequences.
 Use the provided review rules and onboarding sequence context.
 Review only email text and metadata.
+The email text may be in any language. Do not use the email language for your response unless it is also the requested response language.
+All human-readable output fields MUST be written in %s:
+- summary
+- every recommendation.title
+- every recommendation.details
+Do not write those fields in declared_language or in the email's own language when it differs from %s.
 primary_cta is the actual button CTA.
 If primary_cta is present, do not infer the main CTA from links or repeated body text.
 Support links are not competing CTAs when they help complete primary_cta and are phrased as help.
 Footer links are omitted from the input.
 Use support and other links only as supporting context.
 Return only JSON matching the schema.
-Write summary, recommendation titles, and details in %s.
 Limits:
 - summary: 1 short sentence
 - score: integer from 1 to 10
 - recommendations: max 3
 - recommendation details: max 220 characters
-`), service.ResponseLanguage)
+`), service.ResponseLanguage, service.ResponseLanguage)
 }
 
-func emailAnalysisSchema() map[string]any {
+func (service AIAnalysisService) emailAnalysisSchema() map[string]any {
+	responseLanguage := service.ResponseLanguage
+
 	return map[string]any{
 		"type":                 "object",
 		"additionalProperties": false,
 		"required":             []string{"summary", "score", "verdict", "checks", "recommendations"},
 		"properties": map[string]any{
 			"summary": map[string]any{
-				"type":      "string",
-				"maxLength": 160,
+				"type":        "string",
+				"description": fmt.Sprintf("One short sentence written only in %s.", responseLanguage),
+				"maxLength":   160,
 			},
 			"score": map[string]any{
 				"type":    "integer",
@@ -115,12 +123,14 @@ func emailAnalysisSchema() map[string]any {
 							"enum": []string{"high", "medium", "low"},
 						},
 						"title": map[string]any{
-							"type":      "string",
-							"maxLength": 80,
+							"type":        "string",
+							"description": fmt.Sprintf("Recommendation title written only in %s.", responseLanguage),
+							"maxLength":   80,
 						},
 						"details": map[string]any{
-							"type":      "string",
-							"maxLength": 220,
+							"type":        "string",
+							"description": fmt.Sprintf("Actionable recommendation details written only in %s.", responseLanguage),
+							"maxLength":   220,
 						},
 					},
 				},
@@ -136,7 +146,7 @@ func analysisStatusSchema() map[string]any {
 	}
 }
 
-func buildEmailAnalysisInput(reviewRules string, sequenceContext string, email EmailDetail) string {
+func buildEmailAnalysisInput(reviewRules string, sequenceContext string, responseLanguage string, email EmailDetail) string {
 	parts := emailContentParts(email)
 
 	type emailInput struct {
@@ -151,6 +161,7 @@ func buildEmailAnalysisInput(reviewRules string, sequenceContext string, email E
 	type analysisInput struct {
 		Rules            string     `json:"rules"`
 		SequenceContext  string     `json:"sequence_context"`
+		ResponseLanguage string     `json:"response_language"`
 		Stage            string     `json:"stage"`
 		Timing           string     `json:"timing"`
 		TimingIntent     string     `json:"timing_intent"`
@@ -161,6 +172,7 @@ func buildEmailAnalysisInput(reviewRules string, sequenceContext string, email E
 	input := analysisInput{
 		Rules:            reviewRules,
 		SequenceContext:  sequenceContext,
+		ResponseLanguage: responseLanguage,
 		Stage:            email.Stage,
 		Timing:           stringValue(email.SendTiming),
 		TimingIntent:     inferTimingIntent(email.Title, email.SendTiming),

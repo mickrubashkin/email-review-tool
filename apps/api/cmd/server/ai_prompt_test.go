@@ -23,7 +23,7 @@ func TestBuildEmailAnalysisInputOmitsFooterLinksAndFooterPrimaryCTA(t *testing.T
 	}
 	contentPartsText := string(contentPartsBytes)
 
-	input := buildEmailAnalysisInput("", "", EmailDetail{
+	input := buildEmailAnalysisInput("", "", "Russian", EmailDetail{
 		Title:        "Test email",
 		ContentParts: &contentPartsText,
 	})
@@ -34,6 +34,9 @@ func TestBuildEmailAnalysisInputOmitsFooterLinksAndFooterPrimaryCTA(t *testing.T
 	}
 
 	emailInput := payload["email"].(map[string]any)
+	if payload["response_language"] != "Russian" {
+		t.Fatalf("expected response language in AI input, got %#v", payload["response_language"])
+	}
 	if emailInput["primary_cta"] != "" {
 		t.Fatalf("expected footer primary CTA to be removed, got %q", emailInput["primary_cta"])
 	}
