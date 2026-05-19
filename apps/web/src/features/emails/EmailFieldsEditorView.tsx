@@ -17,10 +17,10 @@ import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import {
-  ArrowLeft,
   Copy,
   DownloadSimple,
   FloppyDisk,
+  HouseIcon,
 } from "@phosphor-icons/react";
 
 import {
@@ -79,7 +79,7 @@ export function EmailFieldsEditorView({
             You do not have permission to edit email fields.
           </Alert>
           <Button component={Link} to="/" variant="light">
-            Back to board
+            Home
           </Button>
         </Stack>
       </div>
@@ -105,7 +105,7 @@ export function EmailFieldsEditorView({
             The email may be archived or unavailable.
           </Alert>
           <Button component={Link} to="/" variant="light">
-            Back to board
+            Home
           </Button>
         </Stack>
       </div>
@@ -205,11 +205,11 @@ function EmailFieldsEditor({
             <Button
               component={Link}
               to="/"
-              leftSection={<ArrowLeft aria-hidden="true" size={16} />}
+              leftSection={<HouseIcon aria-hidden="true" size={16} />}
               size="xs"
               variant="subtle"
             >
-              Board
+              Home
             </Button>
             <Stack gap={2} className={styles.titleBlock}>
               <Group gap="xs" wrap="nowrap">

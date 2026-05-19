@@ -14,6 +14,8 @@ import {
   Title,
 } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
+import { HouseIcon } from "@phosphor-icons/react";
+import { Link } from "react-router-dom";
 
 import { fetchAuthEvents } from "../emails/api";
 import type { AuthEventFilters, AuthEventItem } from "../emails/types";
@@ -26,18 +28,32 @@ const eventTypeOptions = [
   { value: "failed_otp", label: "Failed OTP" },
   { value: "logout", label: "Logout" },
 ];
+type SortDirection = "asc" | "desc";
+type AuthEventSortKey = keyof Pick<
+  AuthEventItem,
+  "created_at" | "email" | "event_type" | "success" | "ip_address" | "user_agent"
+>;
+
+const defaultSort = {
+  direction: "desc" as SortDirection,
+  key: "created_at" as AuthEventSortKey,
+};
 
 export function AuthEventsView() {
   const [filters, setFilters] = useState<AuthEventFilters>({
     limit: "100",
   });
+  const [sort, setSort] = useState(defaultSort);
 
   const eventsQuery = useQuery({
     queryKey: ["auth-events", filters],
     queryFn: () => fetchAuthEvents(filters),
   });
 
-  const events = useMemo(() => eventsQuery.data ?? [], [eventsQuery.data]);
+  const events = useMemo(
+    () => sortItems(eventsQuery.data ?? [], sort),
+    [eventsQuery.data, sort]
+  );
   const visibleFilters = useMemo(
     () => ({
       email: filters.email ?? "",
@@ -57,6 +73,14 @@ export function AuthEventsView() {
             Login, logout, and one-time code audit trail.
           </Text>
         </Stack>
+        <Button
+          component={Link}
+          leftSection={<HouseIcon aria-hidden="true" size={16} />}
+          to="/"
+          variant="light"
+        >
+          Home
+        </Button>
       </header>
 
       <section className={styles.filters}>
@@ -145,12 +169,12 @@ export function AuthEventsView() {
             >
               <Table.Thead>
                 <Table.Tr>
-                  <Table.Th>Created</Table.Th>
-                  <Table.Th>Email</Table.Th>
-                  <Table.Th>Event</Table.Th>
-                  <Table.Th>Result</Table.Th>
-                  <Table.Th>IP</Table.Th>
-                  <Table.Th>User agent</Table.Th>
+                  <SortableTh label="Created" sortKey="created_at" sort={sort} onSort={setSort} />
+                  <SortableTh label="Email" sortKey="email" sort={sort} onSort={setSort} />
+                  <SortableTh label="Event" sortKey="event_type" sort={sort} onSort={setSort} />
+                  <SortableTh label="Result" sortKey="success" sort={sort} onSort={setSort} />
+                  <SortableTh label="IP" sortKey="ip_address" sort={sort} onSort={setSort} />
+                  <SortableTh label="User agent" sortKey="user_agent" sort={sort} onSort={setSort} />
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
@@ -183,6 +207,59 @@ export function AuthEventsView() {
       </section>
     </div>
   );
+}
+
+function SortableTh({
+  label,
+  onSort,
+  sort,
+  sortKey,
+}: {
+  label: string;
+  onSort: (sort: { direction: SortDirection; key: AuthEventSortKey }) => void;
+  sort: { direction: SortDirection; key: AuthEventSortKey };
+  sortKey: AuthEventSortKey;
+}) {
+  const isActive = sort.key === sortKey;
+  return (
+    <Table.Th>
+      <button
+        className={styles.sortButton}
+        type="button"
+        onClick={() =>
+          onSort({
+            key: sortKey,
+            direction: isActive && sort.direction === "asc" ? "desc" : "asc",
+          })
+        }
+      >
+        {label}
+        <span className={styles.sortIndicator}>
+          {isActive ? (sort.direction === "asc" ? "↑" : "↓") : ""}
+        </span>
+      </button>
+    </Table.Th>
+  );
+}
+
+function sortItems(
+  items: AuthEventItem[],
+  sort: { direction: SortDirection; key: AuthEventSortKey }
+) {
+  return [...items].sort((first, second) => {
+    const result = compareValues(first[sort.key], second[sort.key]);
+    return sort.direction === "asc" ? result : -result;
+  });
+}
+
+function compareValues(first: unknown, second: unknown) {
+  if (typeof first === "boolean" && typeof second === "boolean") {
+    return Number(first) - Number(second);
+  }
+  return String(first ?? "").localeCompare(String(second ?? ""), undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
 }
 
 function formatDateTime(value: string) {

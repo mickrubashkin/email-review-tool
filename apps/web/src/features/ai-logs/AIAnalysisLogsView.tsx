@@ -16,6 +16,8 @@ import {
   Code,
 } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
+import { HouseIcon } from "@phosphor-icons/react";
+import { Link } from "react-router-dom";
 
 import { fetchAIAnalysisLogs } from "../emails/api";
 import type { AIAnalysisLogFilters, AIAnalysisLogItem } from "../emails/types";
@@ -27,11 +29,28 @@ const cacheStatusOptions = [
   { value: "miss", label: "Miss" },
   { value: "unknown", label: "Unknown" },
 ];
+type SortDirection = "asc" | "desc";
+type AILogSortKey =
+  | "created_at"
+  | "user_email"
+  | "email"
+  | "status"
+  | "cache_status"
+  | "model"
+  | "latency_ms"
+  | "tokens"
+  | "cached_tokens"
+  | "error_message";
+const defaultSort = {
+  direction: "desc" as SortDirection,
+  key: "created_at" as AILogSortKey,
+};
 
 export function AIAnalysisLogsView() {
   const [filters, setFilters] = useState<AIAnalysisLogFilters>({
     limit: "100",
   });
+  const [sort, setSort] = useState(defaultSort);
   const [selectedErrorLog, setSelectedErrorLog] =
     useState<AIAnalysisLogItem | null>(null);
 
@@ -40,7 +59,10 @@ export function AIAnalysisLogsView() {
     queryFn: () => fetchAIAnalysisLogs(filters),
   });
 
-  const logs = useMemo(() => logsQuery.data ?? [], [logsQuery.data]);
+  const logs = useMemo(
+    () => sortItems(logsQuery.data ?? [], sort),
+    [logsQuery.data, sort]
+  );
   const summary = useMemo(() => buildCacheSummary(logs), [logs]);
   const visibleFilters = useMemo(
     () => ({
@@ -62,6 +84,14 @@ export function AIAnalysisLogsView() {
             Stored request metrics and errors from ai_analysis_logs.
           </Text>
         </Stack>
+        <Button
+          component={Link}
+          leftSection={<HouseIcon aria-hidden="true" size={16} />}
+          to="/"
+          variant="light"
+        >
+          Home
+        </Button>
       </header>
 
       <section className={styles.filters}>
@@ -180,16 +210,16 @@ export function AIAnalysisLogsView() {
             >
               <Table.Thead>
                 <Table.Tr>
-                  <Table.Th>Created</Table.Th>
-                  <Table.Th>User</Table.Th>
-                  <Table.Th>Email</Table.Th>
-                  <Table.Th>Status</Table.Th>
-                  <Table.Th>Cache</Table.Th>
-                  <Table.Th>Model</Table.Th>
-                  <Table.Th>Latency</Table.Th>
-                  <Table.Th>Tokens</Table.Th>
-                  <Table.Th>Cached</Table.Th>
-                  <Table.Th>Error</Table.Th>
+                  <SortableTh label="Created" sortKey="created_at" sort={sort} onSort={setSort} />
+                  <SortableTh label="User" sortKey="user_email" sort={sort} onSort={setSort} />
+                  <SortableTh label="Email" sortKey="email" sort={sort} onSort={setSort} />
+                  <SortableTh label="Status" sortKey="status" sort={sort} onSort={setSort} />
+                  <SortableTh label="Cache" sortKey="cache_status" sort={sort} onSort={setSort} />
+                  <SortableTh label="Model" sortKey="model" sort={sort} onSort={setSort} />
+                  <SortableTh label="Latency" sortKey="latency_ms" sort={sort} onSort={setSort} />
+                  <SortableTh label="Tokens" sortKey="tokens" sort={sort} onSort={setSort} />
+                  <SortableTh label="Cached" sortKey="cached_tokens" sort={sort} onSort={setSort} />
+                  <SortableTh label="Error" sortKey="error_message" sort={sort} onSort={setSort} />
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
@@ -294,6 +324,70 @@ function SummaryBadge({
       {label}: {value}
     </Badge>
   );
+}
+
+function SortableTh({
+  label,
+  onSort,
+  sort,
+  sortKey,
+}: {
+  label: string;
+  onSort: (sort: { direction: SortDirection; key: AILogSortKey }) => void;
+  sort: { direction: SortDirection; key: AILogSortKey };
+  sortKey: AILogSortKey;
+}) {
+  const isActive = sort.key === sortKey;
+  return (
+    <Table.Th>
+      <button
+        className={styles.sortButton}
+        type="button"
+        onClick={() =>
+          onSort({
+            key: sortKey,
+            direction: isActive && sort.direction === "asc" ? "desc" : "asc",
+          })
+        }
+      >
+        {label}
+        <span className={styles.sortIndicator}>
+          {isActive ? (sort.direction === "asc" ? "↑" : "↓") : ""}
+        </span>
+      </button>
+    </Table.Th>
+  );
+}
+
+function sortItems(
+  items: AIAnalysisLogItem[],
+  sort: { direction: SortDirection; key: AILogSortKey }
+) {
+  return [...items].sort((first, second) => {
+    const result = compareValues(sortValue(first, sort.key), sortValue(second, sort.key));
+    return sort.direction === "asc" ? result : -result;
+  });
+}
+
+function sortValue(log: AIAnalysisLogItem, key: AILogSortKey) {
+  switch (key) {
+    case "email":
+      return log.email_title ?? log.email_slug ?? log.email_id ?? "";
+    case "tokens":
+      return log.total_tokens ?? log.input_tokens ?? log.output_tokens ?? -1;
+    default:
+      return log[key];
+  }
+}
+
+function compareValues(first: unknown, second: unknown) {
+  if (typeof first === "number" && typeof second === "number") {
+    return first - second;
+  }
+  return String(first ?? "").localeCompare(String(second ?? ""), undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
 }
 
 function buildCacheSummary(logs: AIAnalysisLogItem[]) {

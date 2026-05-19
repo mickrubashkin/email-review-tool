@@ -4,7 +4,7 @@ Internal tool for reviewing HTML email sequences.
 
 ## What it does
 - OTP login with session cookies
-- email board for browsing sequences and versions
+- email board for browsing sequences, language versions, and adaptations
 - email review view with text selection, comments, and resolution
 - admin editing of template-backed email fields and metadata
 - email duplication, delivery adaptations, archive, rendered preview, and rendered HTML export
@@ -37,7 +37,7 @@ Internal tool for reviewing HTML email sequences.
 
 ## Email data
 - Emails are stored as HTML files under `db/seeds/emails/{stage}/{email}/{language[-old]}.html`.
-- In the app, a concrete reviewed email is selected by language, `new/old`, and adaptation; existing data uses the `Default` adaptation.
+- In the app, a concrete reviewed email is selected by language, `new/old`, and adaptation; existing data uses the `Default` adaptation, and admins can create independent adaptations from a current email.
 - `meta.json` lives beside the seed tree.
 - `data-review-block` marks review anchors.
 - Original HTML is preserved for preview/export.
@@ -61,5 +61,5 @@ Internal tool for reviewing HTML email sequences.
 - Keep original HTML unchanged.
 - Email editing is template-backed: admins edit metadata and `data-edit-*` fields, then the backend renders final HTML for preview/export.
 - Preview untrusted HTML in isolation and do not execute scripts.
-- AI analysis is shared per email: cached results are reused across users, while explicit shared re-generation is limited per user/email.
+- AI analysis is shared per email: cached results are reused across users, while explicit shared re-generation is limited to 10 per day per email and user.
 - There is no WebSocket-based realtime layer in the current code.

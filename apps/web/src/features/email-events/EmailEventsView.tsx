@@ -14,6 +14,8 @@ import {
   Title,
 } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
+import { HouseIcon } from "@phosphor-icons/react";
+import { Link } from "react-router-dom";
 
 import { fetchEmailEvents } from "../emails/api";
 import type {
@@ -31,18 +33,34 @@ const actionOptions: { value: EmailEventAction; label: string }[] = [
   { value: "email_archived", label: "Archived" },
   { value: "email_created", label: "Created" },
 ];
+type SortDirection = "asc" | "desc";
+type EmailEventSortKey =
+  | "created_at"
+  | "actor_email"
+  | "action"
+  | "email"
+  | "summary"
+  | "changed_fields";
+const defaultSort = {
+  direction: "desc" as SortDirection,
+  key: "created_at" as EmailEventSortKey,
+};
 
 export function EmailEventsView() {
   const [filters, setFilters] = useState<EmailEventFilters>({
     limit: "100",
   });
+  const [sort, setSort] = useState(defaultSort);
 
   const eventsQuery = useQuery({
     queryKey: ["email-events", filters],
     queryFn: () => fetchEmailEvents(filters),
   });
 
-  const events = useMemo(() => eventsQuery.data ?? [], [eventsQuery.data]);
+  const events = useMemo(
+    () => sortItems(eventsQuery.data ?? [], sort),
+    [eventsQuery.data, sort]
+  );
   const visibleFilters = useMemo(
     () => ({
       action: filters.action ?? "",
@@ -62,6 +80,14 @@ export function EmailEventsView() {
             Admin changes to email content and lifecycle.
           </Text>
         </Stack>
+        <Button
+          component={Link}
+          leftSection={<HouseIcon aria-hidden="true" size={16} />}
+          to="/"
+          variant="light"
+        >
+          Home
+        </Button>
       </header>
 
       <section className={styles.filters}>
@@ -148,12 +174,12 @@ export function EmailEventsView() {
             >
               <Table.Thead>
                 <Table.Tr>
-                  <Table.Th>Created</Table.Th>
-                  <Table.Th>Actor</Table.Th>
-                  <Table.Th>Action</Table.Th>
-                  <Table.Th>Email</Table.Th>
-                  <Table.Th>Summary</Table.Th>
-                  <Table.Th>Changed fields</Table.Th>
+                  <SortableTh label="Created" sortKey="created_at" sort={sort} onSort={setSort} />
+                  <SortableTh label="Actor" sortKey="actor_email" sort={sort} onSort={setSort} />
+                  <SortableTh label="Action" sortKey="action" sort={sort} onSort={setSort} />
+                  <SortableTh label="Email" sortKey="email" sort={sort} onSort={setSort} />
+                  <SortableTh label="Summary" sortKey="summary" sort={sort} onSort={setSort} />
+                  <SortableTh label="Changed fields" sortKey="changed_fields" sort={sort} onSort={setSort} />
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
@@ -191,6 +217,69 @@ export function EmailEventsView() {
       </section>
     </div>
   );
+}
+
+function SortableTh({
+  label,
+  onSort,
+  sort,
+  sortKey,
+}: {
+  label: string;
+  onSort: (sort: { direction: SortDirection; key: EmailEventSortKey }) => void;
+  sort: { direction: SortDirection; key: EmailEventSortKey };
+  sortKey: EmailEventSortKey;
+}) {
+  const isActive = sort.key === sortKey;
+  return (
+    <Table.Th>
+      <button
+        className={styles.sortButton}
+        type="button"
+        onClick={() =>
+          onSort({
+            key: sortKey,
+            direction: isActive && sort.direction === "asc" ? "desc" : "asc",
+          })
+        }
+      >
+        {label}
+        <span className={styles.sortIndicator}>
+          {isActive ? (sort.direction === "asc" ? "↑" : "↓") : ""}
+        </span>
+      </button>
+    </Table.Th>
+  );
+}
+
+function sortItems(
+  items: EmailEventItem[],
+  sort: { direction: SortDirection; key: EmailEventSortKey }
+) {
+  return [...items].sort((first, second) => {
+    const result = compareValues(sortValue(first, sort.key), sortValue(second, sort.key));
+    return sort.direction === "asc" ? result : -result;
+  });
+}
+
+function sortValue(event: EmailEventItem, key: EmailEventSortKey) {
+  switch (key) {
+    case "email":
+      return event.email_title ?? event.email_slug ?? event.email_id ?? "";
+    case "summary":
+      return formatSummary(event);
+    case "changed_fields":
+      return formatChangedFields(event);
+    default:
+      return event[key];
+  }
+}
+
+function compareValues(first: unknown, second: unknown) {
+  return String(first ?? "").localeCompare(String(second ?? ""), undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
 }
 
 function formatDateTime(value: string) {

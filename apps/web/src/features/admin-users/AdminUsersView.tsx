@@ -1,7 +1,8 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   Alert,
   Badge,
+  Button,
   Group,
   Loader,
   ScrollArea,
@@ -13,6 +14,8 @@ import {
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { HouseIcon } from "@phosphor-icons/react";
+import { Link } from "react-router-dom";
 
 import { fetchAdminUsers, updateAdminUserRole } from "../emails/api";
 import type { UserAdminItem, UserRole } from "../emails/types";
@@ -23,9 +26,19 @@ const roleOptions: { label: string; value: UserRole }[] = [
   { label: "Admin", value: "admin" },
   { label: "Reviewer", value: "reviewer" },
 ];
+type SortDirection = "asc" | "desc";
+type UserSortKey = keyof Pick<
+  UserAdminItem,
+  "email" | "role" | "last_seen_at" | "created_at" | "updated_at"
+>;
+const defaultSort = {
+  direction: "asc" as SortDirection,
+  key: "email" as UserSortKey,
+};
 
 export function AdminUsersView() {
   const queryClient = useQueryClient();
+  const [sort, setSort] = useState(defaultSort);
   const usersQuery = useQuery({
     queryKey: ["admin", "users"],
     queryFn: fetchAdminUsers,
@@ -57,7 +70,10 @@ export function AdminUsersView() {
     },
   });
 
-  const users = useMemo(() => usersQuery.data ?? [], [usersQuery.data]);
+  const users = useMemo(
+    () => sortItems(usersQuery.data ?? [], sort),
+    [usersQuery.data, sort]
+  );
 
   return (
     <div className={styles.page}>
@@ -68,6 +84,14 @@ export function AdminUsersView() {
             Manage ReviewDesk access roles.
           </Text>
         </Stack>
+        <Button
+          component={Link}
+          leftSection={<HouseIcon aria-hidden="true" size={16} />}
+          to="/"
+          variant="light"
+        >
+          Home
+        </Button>
       </header>
 
       <section className={styles.tableShell}>
@@ -100,11 +124,11 @@ export function AdminUsersView() {
             >
               <Table.Thead>
                 <Table.Tr>
-                  <Table.Th>Email</Table.Th>
-                  <Table.Th>Role</Table.Th>
-                  <Table.Th>Last seen</Table.Th>
-                  <Table.Th>Created</Table.Th>
-                  <Table.Th>Updated</Table.Th>
+                  <SortableTh label="Email" sortKey="email" sort={sort} onSort={setSort} />
+                  <SortableTh label="Role" sortKey="role" sort={sort} onSort={setSort} />
+                  <SortableTh label="Last seen" sortKey="last_seen_at" sort={sort} onSort={setSort} />
+                  <SortableTh label="Created" sortKey="created_at" sort={sort} onSort={setSort} />
+                  <SortableTh label="Updated" sortKey="updated_at" sort={sort} onSort={setSort} />
                   <Table.Th>Change role</Table.Th>
                 </Table.Tr>
               </Table.Thead>
@@ -151,6 +175,56 @@ export function AdminUsersView() {
       </section>
     </div>
   );
+}
+
+function SortableTh({
+  label,
+  onSort,
+  sort,
+  sortKey,
+}: {
+  label: string;
+  onSort: (sort: { direction: SortDirection; key: UserSortKey }) => void;
+  sort: { direction: SortDirection; key: UserSortKey };
+  sortKey: UserSortKey;
+}) {
+  const isActive = sort.key === sortKey;
+  return (
+    <Table.Th>
+      <button
+        className={styles.sortButton}
+        type="button"
+        onClick={() =>
+          onSort({
+            key: sortKey,
+            direction: isActive && sort.direction === "asc" ? "desc" : "asc",
+          })
+        }
+      >
+        {label}
+        <span className={styles.sortIndicator}>
+          {isActive ? (sort.direction === "asc" ? "↑" : "↓") : ""}
+        </span>
+      </button>
+    </Table.Th>
+  );
+}
+
+function sortItems(
+  items: UserAdminItem[],
+  sort: { direction: SortDirection; key: UserSortKey }
+) {
+  return [...items].sort((first, second) => {
+    const result = compareValues(first[sort.key], second[sort.key]);
+    return sort.direction === "asc" ? result : -result;
+  });
+}
+
+function compareValues(first: unknown, second: unknown) {
+  return String(first ?? "").localeCompare(String(second ?? ""), undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
 }
 
 function formatDateTime(value: string) {

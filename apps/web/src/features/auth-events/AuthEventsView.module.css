@@ -5,8 +5,35 @@
 }
 
 .header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--mantine-spacing-md);
   max-width: 1320px;
   margin: 0 auto 18px;
+}
+
+.sortButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.sortButton:hover {
+  color: var(--mantine-primary-color-filled);
+}
+
+.sortIndicator {
+  min-width: 10px;
+  color: var(--mantine-color-gray-5);
+  font-size: 11px;
 }
 
 .filters {
