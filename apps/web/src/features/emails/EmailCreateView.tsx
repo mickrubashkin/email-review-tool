@@ -34,6 +34,7 @@ type EmailCreateViewProps = {
 
 type CreateEmailFormState = {
   sequence: string;
+  eventGroupKey: string;
   title: string;
   subject: string;
   preheader: string;
@@ -48,6 +49,7 @@ type CreateEmailFormState = {
 
 const initialFormState: CreateEmailFormState = {
   sequence: "onboarding",
+  eventGroupKey: "",
   title: "",
   subject: "",
   preheader: "",
@@ -139,6 +141,13 @@ export function EmailCreateView({ currentUserRole }: EmailCreateViewProps) {
     () => uniqueSorted(["Default", ...emails.map((email) => email.adaptation_label)]),
     [emails]
   );
+  const eventGroupOptions = useMemo(
+    () => buildEventGroupOptions(emails, selectedBoard, selectedStage),
+    [emails, selectedBoard, selectedStage]
+  );
+  const selectedEventGroup = eventGroupOptions.find(
+    (option) => option.value === formState.eventGroupKey
+  );
   useEffect(() => {
     const timeoutID = window.setTimeout(() => {
       setDebouncedHTML(formState.originalHTML.trim());
@@ -225,8 +234,39 @@ export function EmailCreateView({ currentUserRole }: EmailCreateViewProps) {
       ...current,
       sequence: nextBoard,
       stage: nextStage,
+      eventGroupKey: "",
     }));
     setSortOrderAuto(true);
+  };
+  const handleStageChange = (value: string | null) => {
+    const nextStage = value ?? "";
+    setFormState((current) => ({
+      ...current,
+      stage: nextStage,
+      eventGroupKey: "",
+    }));
+    setSortOrderAuto(true);
+  };
+  const handleEventGroupChange = (value: string | null) => {
+    const nextGroup = eventGroupOptions.find((option) => option.value === value);
+    if (!nextGroup) {
+      setFormState((current) => ({
+        ...current,
+        eventGroupKey: "",
+      }));
+      setSortOrderAuto(true);
+      return;
+    }
+
+    setFormState((current) => ({
+      ...current,
+      eventGroupKey: nextGroup.value,
+      title: nextGroup.title,
+      sendTiming: nextGroup.sendTiming ?? current.sendTiming,
+      sortOrder: nextGroup.sortOrder,
+      adaptationLabel: nextGroup.adaptationLabel,
+    }));
+    setSortOrderAuto(false);
   };
 
   const editorPanel = (
@@ -263,13 +303,7 @@ export function EmailCreateView({ currentUserRole }: EmailCreateViewProps) {
           placeholder={selectedBoard ? "Select stage" : "Select a board first"}
           required
           value={selectedStage}
-          onChange={(value) => {
-            const nextStage = value ?? "";
-            setFormState((current) => ({
-              ...current,
-              stage: nextStage,
-            }));
-          }}
+          onChange={handleStageChange}
         />
       </Group>
       {selectedBoard && stageOptions.length === 0 ? (
@@ -278,11 +312,35 @@ export function EmailCreateView({ currentUserRole }: EmailCreateViewProps) {
         </Alert>
       ) : null}
 
+      <Select
+        clearable
+        data={eventGroupOptions}
+        description={
+          selectedEventGroup
+            ? "New language/version will be placed into this existing card."
+            : "Leave empty to create a separate event card."
+        }
+        disabled={!selectedBoard || !selectedStage || eventGroupOptions.length === 0}
+        label="Existing event"
+        placeholder={
+          eventGroupOptions.length > 0
+            ? "Select event for a new language"
+            : "No events in this stage yet"
+        }
+        value={formState.eventGroupKey || null}
+        onChange={handleEventGroupChange}
+      />
+
       <TextInput
         label="Title"
         required
         value={formState.title}
-        onChange={(event) => updateField("title", event.currentTarget.value)}
+        onChange={(event) => {
+          updateField("title", event.currentTarget.value);
+          if (formState.eventGroupKey) {
+            updateField("eventGroupKey", "");
+          }
+        }}
       />
       <TextInput
         label="Subject"
@@ -567,4 +625,64 @@ function getNextSortOrder(
   }
 
   return Math.max(...matchingSortOrders) + 1;
+}
+
+type EventGroupOption = {
+  value: string;
+  label: string;
+  title: string;
+  sortOrder: number;
+  sendTiming: string | null;
+  adaptationLabel: string;
+};
+
+function buildEventGroupOptions(
+  emails: Array<{
+    sequence: string;
+    stage: string | null;
+    sort_order: number;
+    title: string;
+    language: string;
+    variant: string;
+    adaptation_label: string;
+    send_timing: string | null;
+  }>,
+  sequence: string,
+  stage: string
+): EventGroupOption[] {
+  const groups = new Map<string, {
+    title: string;
+    sortOrder: number;
+    sendTiming: string | null;
+    adaptationLabel: string;
+    languages: Set<string>;
+  }>();
+
+  for (const email of emails) {
+    if (email.sequence !== sequence || (email.stage ?? "") !== stage) {
+      continue;
+    }
+
+    const key = [email.sequence, stage, email.sort_order].join("/");
+    const group = groups.get(key) ?? {
+      title: email.title,
+      sortOrder: email.sort_order,
+      sendTiming: email.send_timing,
+      adaptationLabel: email.adaptation_label,
+      languages: new Set<string>(),
+    };
+    group.languages.add(email.language);
+    groups.set(key, group);
+  }
+
+  return [...groups.entries()]
+    .sort(([, first], [, second]) => first.sortOrder - second.sortOrder)
+    .map(([value, group]) => ({
+      value,
+      label: `${group.title} (${[...group.languages].sort().join(", ")})`,
+      title: group.title,
+      sortOrder: group.sortOrder,
+      sendTiming: group.sendTiming,
+      adaptationLabel: group.adaptationLabel,
+    }));
 }
