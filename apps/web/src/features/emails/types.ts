@@ -41,6 +41,19 @@ export type CreateBoardPayload = {
   source_board_key?: string;
 };
 
+export type CreateBoardStagePayload = {
+  name: string;
+  key?: string;
+};
+
+export type UpdateBoardStagePayload = {
+  name: string;
+};
+
+export type ReorderBoardStagesPayload = {
+  stages: string[];
+};
+
 export type CreateEmailPayload = {
   sequence?: string;
   title: string;

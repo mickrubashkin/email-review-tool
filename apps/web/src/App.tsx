@@ -7,6 +7,7 @@ import {
   useState,
 } from "react";
 import {
+  ActionIcon,
   Alert,
   AppShell,
   Badge,
@@ -23,8 +24,16 @@ import {
   Text,
   TextInput,
   Title,
+  Tooltip,
 } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
+import {
+  ArrowLeftIcon,
+  ArrowRightIcon,
+  PencilSimpleIcon,
+  PlusIcon,
+  TrashIcon,
+} from "@phosphor-icons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
 
@@ -36,15 +45,19 @@ import { EmailEventsView } from "./features/email-events/EmailEventsView";
 import {
   ApiError,
   createBoard,
+  createBoardStage,
+  deleteBoardStage,
   fetchBoards,
   fetchCurrentUser,
   fetchEmails,
   logout,
+  reorderBoardStages,
+  updateBoardStage,
 } from "./features/emails/api";
 import { EmailBoard } from "./features/emails/EmailBoard";
 import { EmailCreateView } from "./features/emails/EmailCreateView";
 import { EmailFieldsEditorView } from "./features/emails/EmailFieldsEditorView";
-import { buildStageColumns } from "./features/emails/stages";
+import { buildStageColumns, formatStageName } from "./features/emails/stages";
 import type { AuthUser, Board, CreateBoardPayload } from "./features/emails/types";
 import { EmailReviewView } from "./features/review/EmailReviewView";
 import styles from "./App.module.css";
@@ -281,6 +294,7 @@ function EmailBoardApp({
   const queryClient = useQueryClient();
   const [userMenuOpened, setUserMenuOpened] = useState(false);
   const [createBoardModalOpened, setCreateBoardModalOpened] = useState(false);
+  const [manageStagesModalOpened, setManageStagesModalOpened] = useState(false);
   const isCompactHeader = useMediaQuery("(max-width: 64em)");
   const isAdmin =
     currentUser.role === "admin" || currentUser.role === "super_admin";
@@ -302,6 +316,10 @@ function EmailBoardApp({
       navigate(`/boards/${encodeURIComponent(board.key)}`);
     },
   });
+  const refreshBoardData = () => {
+    void queryClient.invalidateQueries({ queryKey: ["boards"] });
+    void queryClient.invalidateQueries({ queryKey: ["emails", boardKey] });
+  };
   const boards = boardsQuery.data ?? [];
   const activeBoard = boards.find((board) => board.key === boardKey);
 
@@ -439,6 +457,9 @@ function EmailBoardApp({
                       <Menu.Item onClick={() => setCreateBoardModalOpened(true)}>
                         New board
                       </Menu.Item>
+                      <Menu.Item onClick={() => setManageStagesModalOpened(true)}>
+                        Stages
+                      </Menu.Item>
                       <Menu.Item component={Link} to="/emails/new">
                         New email
                       </Menu.Item>
@@ -500,6 +521,13 @@ function EmailBoardApp({
                       onClick={() => setCreateBoardModalOpened(true)}
                     >
                       New board
+                    </Button>
+                    <Button
+                      size="xs"
+                      variant="white"
+                      onClick={() => setManageStagesModalOpened(true)}
+                    >
+                      Stages
                     </Button>
                     <Button
                       component={Link}
@@ -624,6 +652,15 @@ function EmailBoardApp({
           onSubmit={(payload) => createBoardMutation.mutateAsync(payload)}
         />
       ) : null}
+
+      {manageStagesModalOpened && activeBoard ? (
+        <ManageStagesModal
+          board={activeBoard}
+          stageCounts={new Map(columns.map((column) => [column.stage, column.emailGroups.length]))}
+          onClose={() => setManageStagesModalOpened(false)}
+          onMutated={refreshBoardData}
+        />
+      ) : null}
     </AppShell>
   );
 }
@@ -722,6 +759,211 @@ function CreateBoardModal({
           </Group>
         </Stack>
       </form>
+    </Modal>
+  );
+}
+
+function ManageStagesModal({
+  board,
+  stageCounts,
+  onClose,
+  onMutated,
+}: {
+  board: Board;
+  stageCounts: Map<string, number>;
+  onClose: () => void;
+  onMutated: () => void;
+}) {
+  const [newStageName, setNewStageName] = useState("");
+  const [stageNames, setStageNames] = useState<Record<string, string>>({});
+  const [formError, setFormError] = useState<string | null>(null);
+
+  const handleSuccess = (updatedBoard: Board) => {
+    setFormError(null);
+    setStageNames(
+      Object.fromEntries(updatedBoard.stages.map((stage) => [stage, formatStageName(stage)]))
+    );
+    onMutated();
+  };
+
+  const handleError = (error: Error) => {
+    if (error instanceof ApiError) {
+      if (error.status === 409) {
+        setFormError(error.message.includes("not empty")
+          ? "Only empty stages can be deleted."
+          : "A stage with this name already exists.");
+        return;
+      }
+      if (error.status === 400) {
+        setFormError("Stage order must contain the same stages exactly once.");
+        return;
+      }
+    }
+    setFormError("Could not update stages. Try again or check the API server.");
+  };
+
+  const addStageMutation = useMutation({
+    mutationFn: () => createBoardStage(board.key, { name: newStageName.trim() }),
+    onSuccess: (updatedBoard) => {
+      setNewStageName("");
+      handleSuccess(updatedBoard);
+    },
+    onError: handleError,
+  });
+  const renameStageMutation = useMutation({
+    mutationFn: ({ stage, name }: { stage: string; name: string }) =>
+      updateBoardStage(board.key, stage, { name }),
+    onSuccess: handleSuccess,
+    onError: handleError,
+  });
+  const deleteStageMutation = useMutation({
+    mutationFn: (stage: string) => deleteBoardStage(board.key, stage),
+    onSuccess: handleSuccess,
+    onError: handleError,
+  });
+  const reorderStageMutation = useMutation({
+    mutationFn: (stages: string[]) => reorderBoardStages(board.key, { stages }),
+    onSuccess: handleSuccess,
+    onError: handleError,
+  });
+
+  const isSubmitting =
+    addStageMutation.isPending ||
+    renameStageMutation.isPending ||
+    deleteStageMutation.isPending ||
+    reorderStageMutation.isPending;
+
+  const handleAddStage = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!newStageName.trim()) {
+      setFormError("Stage name is required.");
+      return;
+    }
+    addStageMutation.mutate();
+  };
+
+  const moveStage = (stageIndex: number, direction: -1 | 1) => {
+    const nextIndex = stageIndex + direction;
+    if (nextIndex < 0 || nextIndex >= board.stages.length) {
+      return;
+    }
+    const nextStages = [...board.stages];
+    [nextStages[stageIndex], nextStages[nextIndex]] = [
+      nextStages[nextIndex],
+      nextStages[stageIndex],
+    ];
+    reorderStageMutation.mutate(nextStages);
+  };
+
+  return (
+    <Modal centered opened size="lg" title={`Stages for ${board.name}`} onClose={onClose}>
+      <Stack gap="md">
+        {formError ? (
+          <Alert color="red" title="Could not update stages">
+            {formError}
+          </Alert>
+        ) : null}
+
+        <form onSubmit={handleAddStage}>
+          <Group align="flex-end" gap="xs" wrap="nowrap">
+            <TextInput
+              disabled={isSubmitting}
+              label="New stage"
+              placeholder="Ready for QA"
+              value={newStageName}
+              onChange={(event) => {
+                setFormError(null);
+                setNewStageName(event.currentTarget.value);
+              }}
+            />
+            <Button
+              disabled={isSubmitting || !newStageName.trim()}
+              leftSection={<PlusIcon aria-hidden="true" size={16} />}
+              type="submit"
+            >
+              Add
+            </Button>
+          </Group>
+        </form>
+
+        <Stack gap="xs">
+          {board.stages.map((stage, stageIndex) => {
+            const stageName = stageNames[stage] ?? formatStageName(stage);
+            const emailCount = stageCounts.get(stage) ?? 0;
+            const isNameChanged = stageName.trim() !== formatStageName(stage);
+
+            return (
+              <Group className={styles.stageManagerRow} gap="xs" key={stage} wrap="nowrap">
+                <TextInput
+                  className={styles.stageManagerName}
+                  disabled={isSubmitting}
+                  value={stageName}
+                  onChange={(event) => {
+                    setFormError(null);
+                    setStageNames((current) => ({
+                      ...current,
+                      [stage]: event.currentTarget.value,
+                    }));
+                  }}
+                />
+                <Badge variant="light">{emailCount}</Badge>
+                <Tooltip label="Move stage left">
+                  <ActionIcon
+                    aria-label="Move stage left"
+                    disabled={isSubmitting || stageIndex === 0}
+                    variant="default"
+                    onClick={() => moveStage(stageIndex, -1)}
+                  >
+                    <ArrowLeftIcon aria-hidden="true" size={16} />
+                  </ActionIcon>
+                </Tooltip>
+                <Tooltip label="Move stage right">
+                  <ActionIcon
+                    aria-label="Move stage right"
+                    disabled={isSubmitting || stageIndex === board.stages.length - 1}
+                    variant="default"
+                    onClick={() => moveStage(stageIndex, 1)}
+                  >
+                    <ArrowRightIcon aria-hidden="true" size={16} />
+                  </ActionIcon>
+                </Tooltip>
+                <Tooltip label="Rename stage">
+                  <ActionIcon
+                    aria-label="Rename stage"
+                    disabled={isSubmitting || !stageName.trim() || !isNameChanged}
+                    variant="default"
+                    onClick={() =>
+                      renameStageMutation.mutate({
+                        name: stageName.trim(),
+                        stage,
+                      })
+                    }
+                  >
+                    <PencilSimpleIcon aria-hidden="true" size={16} />
+                  </ActionIcon>
+                </Tooltip>
+                <Tooltip label={emailCount > 0 ? "Only empty stages can be deleted" : "Delete stage"}>
+                  <ActionIcon
+                    aria-label="Delete stage"
+                    color="red"
+                    disabled={isSubmitting || emailCount > 0}
+                    variant="light"
+                    onClick={() => deleteStageMutation.mutate(stage)}
+                  >
+                    <TrashIcon aria-hidden="true" size={16} />
+                  </ActionIcon>
+                </Tooltip>
+              </Group>
+            );
+          })}
+        </Stack>
+
+        <Group justify="flex-end">
+          <Button disabled={isSubmitting} variant="default" onClick={onClose}>
+            Close
+          </Button>
+        </Group>
+      </Stack>
     </Modal>
   );
 }

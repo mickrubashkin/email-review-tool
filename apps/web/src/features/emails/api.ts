@@ -6,6 +6,7 @@ import type {
   AuthUser,
   Board,
   CreateBoardPayload,
+  CreateBoardStagePayload,
   EmailAnalysis,
   EmailDetail,
   EmailEventFilters,
@@ -20,6 +21,8 @@ import type {
   UserAdminItem,
   UserRole,
   RenderedEmail,
+  ReorderBoardStagesPayload,
+  UpdateBoardStagePayload,
   UpdateEditableFieldsPayload,
 } from "./types";
 
@@ -129,6 +132,58 @@ export function fetchBoards(): Promise<Board[]> {
 export function createBoard(payload: CreateBoardPayload): Promise<Board> {
   return fetchJson<Board>("/api/boards", {
     method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function createBoardStage(
+  boardKey: string,
+  payload: CreateBoardStagePayload
+): Promise<Board> {
+  return fetchJson<Board>(`/api/boards/${encodeURIComponent(boardKey)}/stages`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateBoardStage(
+  boardKey: string,
+  stage: string,
+  payload: UpdateBoardStagePayload
+): Promise<Board> {
+  return fetchJson<Board>(
+    `/api/boards/${encodeURIComponent(boardKey)}/stages/${encodeURIComponent(stage)}`,
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    }
+  );
+}
+
+export function deleteBoardStage(boardKey: string, stage: string): Promise<Board> {
+  return fetchJson<Board>(
+    `/api/boards/${encodeURIComponent(boardKey)}/stages/${encodeURIComponent(stage)}`,
+    {
+      method: "DELETE",
+    }
+  );
+}
+
+export function reorderBoardStages(
+  boardKey: string,
+  payload: ReorderBoardStagesPayload
+): Promise<Board> {
+  return fetchJson<Board>(`/api/boards/${encodeURIComponent(boardKey)}/stages`, {
+    method: "PATCH",
     headers: {
       "Content-Type": "application/json",
     },
