@@ -10,8 +10,8 @@ This roadmap captures the next production-hardening and workflow improvements fo
 
 ## Priority 2: Test Reproducibility
 
-- [ ] Make `go test ./...` reliable from the intended working directory.
-- [ ] Fix tests that depend on repo-relative seed paths.
+- [x] Make `go test ./...` reliable from the intended working directory.
+- [x] Fix tests that depend on repo-relative seed paths.
 - [ ] Keep network-listener tests isolated or skippable in restricted environments.
 
 ## Priority 3: Review Workflow

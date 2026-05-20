@@ -220,29 +220,30 @@ func readRepoGlob(t *testing.T, pattern string) []string {
 		t.Fatalf("failed to get working dir: %v", err)
 	}
 
-	for {
-		candidate := filepath.Join(workingDir, "go.mod")
-		if _, err := os.Stat(candidate); err == nil {
-			matches, err := filepath.Glob(filepath.Join(workingDir, "..", "..", "..", pattern))
+	for dir := workingDir; ; dir = filepath.Dir(dir) {
+		seedDir := filepath.Join(dir, "db", "seeds", "emails")
+		if info, err := os.Stat(seedDir); err == nil && info.IsDir() {
+			matches, err := filepath.Glob(filepath.Join(dir, pattern))
 			if err != nil {
 				t.Fatalf("failed to glob %s: %v", pattern, err)
 			}
 			relativeMatches := make([]string, 0, len(matches))
 			for _, match := range matches {
-				relativePath, err := filepath.Rel(filepath.Join(workingDir, "..", "..", ".."), match)
+				relativePath, err := filepath.Rel(dir, match)
 				if err != nil {
 					t.Fatalf("failed to make relative path for %s: %v", match, err)
 				}
 				relativeMatches = append(relativeMatches, relativePath)
 			}
 			return relativeMatches
+		} else if err != nil && !os.IsNotExist(err) {
+			t.Fatalf("failed to inspect %s: %v", seedDir, err)
 		}
 
-		parent := filepath.Dir(workingDir)
-		if parent == workingDir {
+		parent := filepath.Dir(dir)
+		if parent == dir {
 			break
 		}
-		workingDir = parent
 	}
 
 	t.Fatalf("failed to find repository root")
