@@ -47,9 +47,11 @@ type CreateEmailFormState = {
   originalHTML: string;
 };
 
+const newEventGroupValue = "__new_event__";
+
 const initialFormState: CreateEmailFormState = {
   sequence: "onboarding",
-  eventGroupKey: "",
+  eventGroupKey: newEventGroupValue,
   title: "",
   subject: "",
   preheader: "",
@@ -145,6 +147,13 @@ export function EmailCreateView({ currentUserRole }: EmailCreateViewProps) {
     () => buildEventGroupOptions(emails, selectedBoard, selectedStage),
     [emails, selectedBoard, selectedStage]
   );
+  const eventSelectOptions = useMemo(
+    () => [
+      { label: "Create new event", value: newEventGroupValue },
+      ...eventGroupOptions,
+    ],
+    [eventGroupOptions]
+  );
   const selectedEventGroup = eventGroupOptions.find(
     (option) => option.value === formState.eventGroupKey
   );
@@ -234,7 +243,7 @@ export function EmailCreateView({ currentUserRole }: EmailCreateViewProps) {
       ...current,
       sequence: nextBoard,
       stage: nextStage,
-      eventGroupKey: "",
+      eventGroupKey: newEventGroupValue,
     }));
     setSortOrderAuto(true);
   };
@@ -243,16 +252,25 @@ export function EmailCreateView({ currentUserRole }: EmailCreateViewProps) {
     setFormState((current) => ({
       ...current,
       stage: nextStage,
-      eventGroupKey: "",
+      eventGroupKey: newEventGroupValue,
     }));
     setSortOrderAuto(true);
   };
   const handleEventGroupChange = (value: string | null) => {
+    if (!value || value === newEventGroupValue) {
+      setFormState((current) => ({
+        ...current,
+        eventGroupKey: newEventGroupValue,
+      }));
+      setSortOrderAuto(true);
+      return;
+    }
+
     const nextGroup = eventGroupOptions.find((option) => option.value === value);
     if (!nextGroup) {
       setFormState((current) => ({
         ...current,
-        eventGroupKey: "",
+        eventGroupKey: newEventGroupValue,
       }));
       setSortOrderAuto(true);
       return;
@@ -313,21 +331,17 @@ export function EmailCreateView({ currentUserRole }: EmailCreateViewProps) {
       ) : null}
 
       <Select
-        clearable
-        data={eventGroupOptions}
+        allowDeselect={false}
+        data={eventSelectOptions}
         description={
           selectedEventGroup
             ? "New language/version will be placed into this existing card."
-            : "Leave empty to create a separate event card."
+            : "A separate event card will be created in this stage."
         }
-        disabled={!selectedBoard || !selectedStage || eventGroupOptions.length === 0}
-        label="Existing event"
-        placeholder={
-          eventGroupOptions.length > 0
-            ? "Select event for a new language"
-            : "No events in this stage yet"
-        }
-        value={formState.eventGroupKey || null}
+        disabled={!selectedBoard || !selectedStage}
+        label="Event"
+        placeholder="Choose event"
+        value={formState.eventGroupKey || newEventGroupValue}
         onChange={handleEventGroupChange}
       />
 
@@ -337,8 +351,8 @@ export function EmailCreateView({ currentUserRole }: EmailCreateViewProps) {
         value={formState.title}
         onChange={(event) => {
           updateField("title", event.currentTarget.value);
-          if (formState.eventGroupKey) {
-            updateField("eventGroupKey", "");
+          if (formState.eventGroupKey !== newEventGroupValue) {
+            updateField("eventGroupKey", newEventGroupValue);
           }
         }}
       />
