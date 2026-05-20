@@ -61,6 +61,7 @@ func TestCreateBoardCopiesStages(t *testing.T) {
 		t.Fatalf("failed to decode created board: %v", err)
 	}
 	t.Cleanup(func() {
+		_, _ = dbpool.Exec(context.Background(), `DELETE FROM email_events WHERE metadata->>'board_key' = $1;`, created.Key)
 		_, _ = dbpool.Exec(context.Background(), `DELETE FROM boards WHERE id = $1;`, created.ID)
 	})
 	if created.Key != "launch-board" || created.Name != "Launch Board" {
@@ -68,6 +69,14 @@ func TestCreateBoardCopiesStages(t *testing.T) {
 	}
 	if len(created.Stages) != 2 || created.Stages[0] != "registered" || created.Stages[1] != "qualified" {
 		t.Fatalf("expected copied stages, got %#v", created.Stages)
+	}
+
+	event := loadBoardEvent(t, dbpool, created.Key, boardEventCreated)
+	if event.ActorEmail != user.Email {
+		t.Fatalf("expected board event actor %s, got %s", user.Email, event.ActorEmail)
+	}
+	if event.Metadata["source_board_key"] != sourceKey {
+		t.Fatalf("expected source board key %s in event metadata, got %#v", sourceKey, event.Metadata["source_board_key"])
 	}
 }
 
@@ -143,6 +152,14 @@ func TestCreateBoardStage(t *testing.T) {
 	if len(board.Stages) != 2 || board.Stages[1] != "ready-for-qa" {
 		t.Fatalf("expected appended stage, got %#v", board.Stages)
 	}
+
+	event := loadBoardEvent(t, dbpool, boardKey, boardEventStageCreated)
+	if event.ActorEmail != user.Email {
+		t.Fatalf("expected stage create event actor %s, got %s", user.Email, event.ActorEmail)
+	}
+	if event.Metadata["stage"] != "ready-for-qa" {
+		t.Fatalf("expected created stage in event metadata, got %#v", event.Metadata["stage"])
+	}
 }
 
 func TestRenameBoardStageUpdatesEmails(t *testing.T) {
@@ -173,6 +190,44 @@ func TestRenameBoardStageUpdatesEmails(t *testing.T) {
 	}
 	if stage != "signup" {
 		t.Fatalf("expected email stage signup, got %s", stage)
+	}
+
+	event := loadBoardEvent(t, dbpool, boardKey, boardEventStageRenamed)
+	stageChange, ok := event.Changes["stage"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected stage change event, got %#v", event.Changes)
+	}
+	if stageChange["before"] != "registered" || stageChange["after"] != "signup" {
+		t.Fatalf("unexpected stage change: %#v", stageChange)
+	}
+	if event.Metadata["affected_email_count"] != float64(1) {
+		t.Fatalf("expected affected email count 1, got %#v", event.Metadata["affected_email_count"])
+	}
+}
+
+func TestDeleteBoardStageWritesEvent(t *testing.T) {
+	dbpool := testDBPool(t)
+	user := createTestUserWithRole(t, dbpool, "admin")
+	boardKey := createTestBoard(t, dbpool, "stage-delete-board", []string{"registered", "empty-stage"})
+
+	router := chi.NewRouter()
+	registerBoardRoutes(router, dbpool)
+
+	request := httptest.NewRequest(http.MethodDelete, "/api/boards/"+boardKey+"/stages/empty-stage", nil)
+	request = withAuthUser(request, user)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected delete status 200, got %d: %s", response.Code, response.Body.String())
+	}
+
+	event := loadBoardEvent(t, dbpool, boardKey, boardEventStageDeleted)
+	if event.ActorEmail != user.Email {
+		t.Fatalf("expected stage delete event actor %s, got %s", user.Email, event.ActorEmail)
+	}
+	if event.Metadata["stage"] != "empty-stage" {
+		t.Fatalf("expected deleted stage in event metadata, got %#v", event.Metadata["stage"])
 	}
 }
 
@@ -223,6 +278,16 @@ func TestReorderBoardStages(t *testing.T) {
 	if len(board.Stages) != 3 || board.Stages[0] != "approved" || board.Stages[1] != "registered" {
 		t.Fatalf("unexpected stage order: %#v", board.Stages)
 	}
+
+	event := loadBoardEvent(t, dbpool, boardKey, boardEventStagesReordered)
+	stagesChange, ok := event.Changes["stages"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected stages change event, got %#v", event.Changes)
+	}
+	after, ok := stagesChange["after"].([]any)
+	if !ok || len(after) != 3 || after[0] != "approved" {
+		t.Fatalf("unexpected reordered stages in event: %#v", stagesChange["after"])
+	}
 }
 
 func createTestBoard(t *testing.T, dbpool *pgxpool.Pool, key string, stages []string) string {
@@ -244,6 +309,7 @@ func createTestBoard(t *testing.T, dbpool *pgxpool.Pool, key string, stages []st
 		t.Fatalf("failed to create test board: %v", err)
 	}
 	t.Cleanup(func() {
+		_, _ = dbpool.Exec(context.Background(), `DELETE FROM email_events WHERE metadata->>'board_key' = $1;`, key)
 		_, _ = dbpool.Exec(context.Background(), `DELETE FROM boards WHERE key = $1;`, key)
 	})
 
@@ -292,4 +358,36 @@ func createBoardTestEmail(t *testing.T, dbpool *pgxpool.Pool, sequence string, s
 	})
 
 	return emailID
+}
+
+type boardEventRecord struct {
+	ActorEmail string
+	Metadata   map[string]any
+	Changes    map[string]any
+}
+
+func loadBoardEvent(t *testing.T, dbpool *pgxpool.Pool, boardKey string, action string) boardEventRecord {
+	t.Helper()
+
+	var event boardEventRecord
+	var metadata []byte
+	var changes []byte
+	err := dbpool.QueryRow(context.Background(), `
+		SELECT actor_email, metadata, changes
+		FROM email_events
+		WHERE action = $1 AND metadata->>'board_key' = $2
+		ORDER BY created_at DESC
+		LIMIT 1;
+	`, action, boardKey).Scan(&event.ActorEmail, &metadata, &changes)
+	if err != nil {
+		t.Fatalf("failed to load board event %s for %s: %v", action, boardKey, err)
+	}
+	if err := json.Unmarshal(metadata, &event.Metadata); err != nil {
+		t.Fatalf("failed to decode board event metadata: %v", err)
+	}
+	if err := json.Unmarshal(changes, &event.Changes); err != nil {
+		t.Fatalf("failed to decode board event changes: %v", err)
+	}
+
+	return event
 }

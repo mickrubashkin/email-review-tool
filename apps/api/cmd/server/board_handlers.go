@@ -67,7 +67,8 @@ func listBoardsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 
 func createBoardStageHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !requireAdmin(w, r) {
+		user, ok := requireAdminUser(w, r)
+		if !ok {
 			return
 		}
 
@@ -88,14 +89,15 @@ func createBoardStageHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			return
 		}
 
-		board, err := addBoardStage(r.Context(), dbpool, chi.URLParam(r, "boardKey"), stage)
+		board, err := addBoardStage(r.Context(), dbpool, chi.URLParam(r, "boardKey"), stage, user)
 		writeBoardStageResponse(w, err, board)
 	}
 }
 
 func updateBoardStageHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !requireAdmin(w, r) {
+		user, ok := requireAdminUser(w, r)
+		if !ok {
 			return
 		}
 
@@ -111,25 +113,27 @@ func updateBoardStageHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			return
 		}
 
-		board, err := renameBoardStage(r.Context(), dbpool, chi.URLParam(r, "boardKey"), chi.URLParam(r, "stage"), newStage)
+		board, err := renameBoardStage(r.Context(), dbpool, chi.URLParam(r, "boardKey"), chi.URLParam(r, "stage"), newStage, user)
 		writeBoardStageResponse(w, err, board)
 	}
 }
 
 func deleteBoardStageHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !requireAdmin(w, r) {
+		user, ok := requireAdminUser(w, r)
+		if !ok {
 			return
 		}
 
-		board, err := deleteBoardStage(r.Context(), dbpool, chi.URLParam(r, "boardKey"), chi.URLParam(r, "stage"))
+		board, err := deleteBoardStage(r.Context(), dbpool, chi.URLParam(r, "boardKey"), chi.URLParam(r, "stage"), user)
 		writeBoardStageResponse(w, err, board)
 	}
 }
 
 func reorderBoardStagesHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !requireAdmin(w, r) {
+		user, ok := requireAdminUser(w, r)
+		if !ok {
 			return
 		}
 
@@ -149,23 +153,28 @@ func reorderBoardStagesHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			stages = append(stages, normalizedStage)
 		}
 
-		board, err := reorderBoardStages(r.Context(), dbpool, chi.URLParam(r, "boardKey"), stages)
+		board, err := reorderBoardStages(r.Context(), dbpool, chi.URLParam(r, "boardKey"), stages, user)
 		writeBoardStageResponse(w, err, board)
 	}
 }
 
 func requireAdmin(w http.ResponseWriter, r *http.Request) bool {
+	_, ok := requireAdminUser(w, r)
+	return ok
+}
+
+func requireAdminUser(w http.ResponseWriter, r *http.Request) (AuthUser, bool) {
 	user, ok := authUserFromContext(r)
 	if !ok {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return false
+		return AuthUser{}, false
 	}
 	if !isAdminUser(user) {
 		http.Error(w, "forbidden", http.StatusForbidden)
-		return false
+		return AuthUser{}, false
 	}
 
-	return true
+	return user, true
 }
 
 func writeBoardStageResponse(w http.ResponseWriter, err error, board BoardItem) {
@@ -194,13 +203,8 @@ func writeBoardStageResponse(w http.ResponseWriter, err error, board BoardItem) 
 
 func createBoardHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		user, ok := authUserFromContext(r)
+		user, ok := requireAdminUser(w, r)
 		if !ok {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
-			return
-		}
-		if !isAdminUser(user) {
-			http.Error(w, "forbidden", http.StatusForbidden)
 			return
 		}
 
@@ -231,7 +235,7 @@ func createBoardHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			sourceBoardKey = "onboarding"
 		}
 
-		board, err := createBoardFromSource(r.Context(), dbpool, name, key, sourceBoardKey)
+		board, err := createBoardFromSource(r.Context(), dbpool, name, key, sourceBoardKey, user)
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				http.Error(w, "source board not found", http.StatusBadRequest)
@@ -252,9 +256,15 @@ func createBoardHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 	}
 }
 
-func createBoardFromSource(ctx context.Context, dbpool *pgxpool.Pool, name string, key string, sourceBoardKey string) (BoardItem, error) {
+func createBoardFromSource(ctx context.Context, dbpool *pgxpool.Pool, name string, key string, sourceBoardKey string, actor AuthUser) (BoardItem, error) {
+	tx, err := dbpool.Begin(ctx)
+	if err != nil {
+		return BoardItem{}, err
+	}
+	defer tx.Rollback(ctx)
+
 	var stages []byte
-	err := dbpool.QueryRow(ctx, `
+	err = tx.QueryRow(ctx, `
 		SELECT stages
 		FROM boards
 		WHERE key = $1;
@@ -265,7 +275,7 @@ func createBoardFromSource(ctx context.Context, dbpool *pgxpool.Pool, name strin
 
 	var board BoardItem
 	var createdStages []byte
-	err = dbpool.QueryRow(ctx, `
+	err = tx.QueryRow(ctx, `
 		INSERT INTO boards (key, name, stages)
 		VALUES ($1, $2, $3::jsonb)
 		RETURNING id, key, name, stages, created_at, updated_at;
@@ -281,6 +291,25 @@ func createBoardFromSource(ctx context.Context, dbpool *pgxpool.Pool, name strin
 		return BoardItem{}, err
 	}
 	if err := json.Unmarshal(createdStages, &board.Stages); err != nil {
+		return BoardItem{}, err
+	}
+	if err := insertBoardEvent(ctx, tx, actor, boardEventCreated, board, map[string]any{
+		"board_key":        board.Key,
+		"board_name":       board.Name,
+		"source_board_key": sourceBoardKey,
+	}, map[string]any{
+		"board": map[string]any{
+			"before": nil,
+			"after": map[string]any{
+				"key":    board.Key,
+				"name":   board.Name,
+				"stages": board.Stages,
+			},
+		},
+	}); err != nil {
+		return BoardItem{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
 		return BoardItem{}, err
 	}
 
@@ -324,7 +353,7 @@ func listBoards(ctx context.Context, dbpool *pgxpool.Pool) ([]BoardItem, error) 
 	return boards, nil
 }
 
-func addBoardStage(ctx context.Context, dbpool *pgxpool.Pool, boardKey string, stage string) (BoardItem, error) {
+func addBoardStage(ctx context.Context, dbpool *pgxpool.Pool, boardKey string, stage string, actor AuthUser) (BoardItem, error) {
 	tx, err := dbpool.Begin(ctx)
 	if err != nil {
 		return BoardItem{}, err
@@ -339,9 +368,26 @@ func addBoardStage(ctx context.Context, dbpool *pgxpool.Pool, boardKey string, s
 		return BoardItem{}, errStageExists
 	}
 
+	beforeStages := copyStringSlice(board.Stages)
 	board.Stages = append(board.Stages, stage)
 	updated, err := updateBoardStages(ctx, tx, board.Key, board.Stages)
 	if err != nil {
+		return BoardItem{}, err
+	}
+	if err := insertBoardEvent(ctx, tx, actor, boardEventStageCreated, updated, map[string]any{
+		"board_key":  updated.Key,
+		"board_name": updated.Name,
+		"stage":      stage,
+	}, map[string]any{
+		"stage": map[string]any{
+			"before": nil,
+			"after":  stage,
+		},
+		"stages": map[string]any{
+			"before": beforeStages,
+			"after":  updated.Stages,
+		},
+	}); err != nil {
 		return BoardItem{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -351,7 +397,7 @@ func addBoardStage(ctx context.Context, dbpool *pgxpool.Pool, boardKey string, s
 	return updated, nil
 }
 
-func renameBoardStage(ctx context.Context, dbpool *pgxpool.Pool, boardKey string, oldStage string, newStage string) (BoardItem, error) {
+func renameBoardStage(ctx context.Context, dbpool *pgxpool.Pool, boardKey string, oldStage string, newStage string, actor AuthUser) (BoardItem, error) {
 	oldStage = normalizeStageKey(oldStage)
 	if oldStage == "" {
 		return BoardItem{}, errStageNotFound
@@ -376,19 +422,40 @@ func renameBoardStage(ctx context.Context, dbpool *pgxpool.Pool, boardKey string
 		return BoardItem{}, errStageExists
 	}
 
+	beforeStages := copyStringSlice(board.Stages)
 	board.Stages[stageIndex] = newStage
 	updated, err := updateBoardStages(ctx, tx, board.Key, board.Stages)
 	if err != nil {
 		return BoardItem{}, err
 	}
+	affectedEmailCount := int64(0)
 	if oldStage != newStage {
-		if _, err := tx.Exec(ctx, `
+		commandTag, err := tx.Exec(ctx, `
 			UPDATE emails
 			SET stage = $1, updated_at = now()
 			WHERE sequence = $2 AND stage = $3;
-		`, newStage, board.Key, oldStage); err != nil {
+		`, newStage, board.Key, oldStage)
+		if err != nil {
 			return BoardItem{}, err
 		}
+		affectedEmailCount = commandTag.RowsAffected()
+	}
+	if err := insertBoardEvent(ctx, tx, actor, boardEventStageRenamed, updated, map[string]any{
+		"board_key":            updated.Key,
+		"board_name":           updated.Name,
+		"stage":                newStage,
+		"affected_email_count": affectedEmailCount,
+	}, map[string]any{
+		"stage": map[string]any{
+			"before": oldStage,
+			"after":  newStage,
+		},
+		"stages": map[string]any{
+			"before": beforeStages,
+			"after":  updated.Stages,
+		},
+	}); err != nil {
+		return BoardItem{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return BoardItem{}, err
@@ -397,7 +464,7 @@ func renameBoardStage(ctx context.Context, dbpool *pgxpool.Pool, boardKey string
 	return updated, nil
 }
 
-func deleteBoardStage(ctx context.Context, dbpool *pgxpool.Pool, boardKey string, stage string) (BoardItem, error) {
+func deleteBoardStage(ctx context.Context, dbpool *pgxpool.Pool, boardKey string, stage string, actor AuthUser) (BoardItem, error) {
 	stage = normalizeStageKey(stage)
 	if stage == "" {
 		return BoardItem{}, errStageNotFound
@@ -431,9 +498,26 @@ func deleteBoardStage(ctx context.Context, dbpool *pgxpool.Pool, boardKey string
 		return BoardItem{}, errStageNotEmpty
 	}
 
+	beforeStages := copyStringSlice(board.Stages)
 	board.Stages = append(board.Stages[:stageIndex], board.Stages[stageIndex+1:]...)
 	updated, err := updateBoardStages(ctx, tx, board.Key, board.Stages)
 	if err != nil {
+		return BoardItem{}, err
+	}
+	if err := insertBoardEvent(ctx, tx, actor, boardEventStageDeleted, updated, map[string]any{
+		"board_key":  updated.Key,
+		"board_name": updated.Name,
+		"stage":      stage,
+	}, map[string]any{
+		"stage": map[string]any{
+			"before": stage,
+			"after":  nil,
+		},
+		"stages": map[string]any{
+			"before": beforeStages,
+			"after":  updated.Stages,
+		},
+	}); err != nil {
 		return BoardItem{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -443,7 +527,7 @@ func deleteBoardStage(ctx context.Context, dbpool *pgxpool.Pool, boardKey string
 	return updated, nil
 }
 
-func reorderBoardStages(ctx context.Context, dbpool *pgxpool.Pool, boardKey string, stages []string) (BoardItem, error) {
+func reorderBoardStages(ctx context.Context, dbpool *pgxpool.Pool, boardKey string, stages []string, actor AuthUser) (BoardItem, error) {
 	tx, err := dbpool.Begin(ctx)
 	if err != nil {
 		return BoardItem{}, err
@@ -458,8 +542,20 @@ func reorderBoardStages(ctx context.Context, dbpool *pgxpool.Pool, boardKey stri
 		return BoardItem{}, errInvalidStageOrder
 	}
 
+	beforeStages := copyStringSlice(board.Stages)
 	updated, err := updateBoardStages(ctx, tx, board.Key, stages)
 	if err != nil {
+		return BoardItem{}, err
+	}
+	if err := insertBoardEvent(ctx, tx, actor, boardEventStagesReordered, updated, map[string]any{
+		"board_key":  updated.Key,
+		"board_name": updated.Name,
+	}, map[string]any{
+		"stages": map[string]any{
+			"before": beforeStages,
+			"after":  updated.Stages,
+		},
+	}); err != nil {
 		return BoardItem{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -496,6 +592,26 @@ func getBoardForUpdate(ctx context.Context, tx pgx.Tx, boardKey string) (BoardIt
 	}
 
 	return board, nil
+}
+
+func insertBoardEvent(ctx context.Context, db emailEventExecutor, actor AuthUser, action string, board BoardItem, metadata map[string]any, changes map[string]any) error {
+	if metadata == nil {
+		metadata = map[string]any{}
+	}
+	if _, ok := metadata["board_key"]; !ok {
+		metadata["board_key"] = board.Key
+	}
+	if _, ok := metadata["board_name"]; !ok {
+		metadata["board_name"] = board.Name
+	}
+
+	return insertEmailEvent(ctx, db, emailEvent{
+		ActorUserID: actor.ID,
+		ActorEmail:  actor.Email,
+		Action:      action,
+		Metadata:    metadata,
+		Changes:     changes,
+	})
 }
 
 func updateBoardStages(ctx context.Context, tx pgx.Tx, boardKey string, stages []string) (BoardItem, error) {
@@ -576,6 +692,12 @@ func sameStageSet(first []string, second []string) bool {
 	}
 
 	return true
+}
+
+func copyStringSlice(values []string) []string {
+	copied := make([]string, len(values))
+	copy(copied, values)
+	return copied
 }
 
 func isBoardKeyConflict(err error) bool {

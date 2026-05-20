@@ -18,6 +18,11 @@ const (
 	emailEventArchived            = "email_archived"
 	emailEventUpdated             = "email_updated"
 	emailEventReviewStatusUpdated = "email_review_status_updated"
+	boardEventCreated             = "board_created"
+	boardEventStageCreated        = "board_stage_created"
+	boardEventStageRenamed        = "board_stage_renamed"
+	boardEventStageDeleted        = "board_stage_deleted"
+	boardEventStagesReordered     = "board_stages_reordered"
 )
 
 type emailEventFilters struct {
@@ -101,7 +106,12 @@ func listEmailEvents(ctx context.Context, dbpool *pgxpool.Pool, filters emailEve
 	}
 	if filters.Email != "" {
 		args = append(args, "%"+strings.ToLower(filters.Email)+"%")
-		where = append(where, fmt.Sprintf("(lower(coalesce(email_title, '')) LIKE $%d OR lower(coalesce(email_slug, '')) LIKE $%d)", len(args), len(args)))
+		where = append(where, fmt.Sprintf(`(
+			lower(coalesce(email_title, '')) LIKE $%d OR
+			lower(coalesce(email_slug, '')) LIKE $%d OR
+			lower(coalesce(metadata->>'board_name', '')) LIKE $%d OR
+			lower(coalesce(metadata->>'board_key', '')) LIKE $%d
+		)`, len(args), len(args), len(args), len(args)))
 	}
 
 	query := `

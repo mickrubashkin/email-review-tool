@@ -244,7 +244,12 @@ export type EmailEventAction =
   | "email_created"
   | "email_archived"
   | "email_updated"
-  | "email_review_status_updated";
+  | "email_review_status_updated"
+  | "board_created"
+  | "board_stage_created"
+  | "board_stage_renamed"
+  | "board_stage_deleted"
+  | "board_stages_reordered";
 
 export type EmailEventItem = {
   id: string;

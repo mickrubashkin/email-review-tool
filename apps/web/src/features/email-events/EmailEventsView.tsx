@@ -34,6 +34,11 @@ const actionOptions: { value: EmailEventAction; label: string }[] = [
   { value: "email_archived", label: "Archived" },
   { value: "email_created", label: "Created" },
   { value: "email_review_status_updated", label: "Review status updated" },
+  { value: "board_created", label: "Board created" },
+  { value: "board_stage_created", label: "Stage created" },
+  { value: "board_stage_renamed", label: "Stage renamed" },
+  { value: "board_stage_deleted", label: "Stage deleted" },
+  { value: "board_stages_reordered", label: "Stages reordered" },
 ];
 type SortDirection = "asc" | "desc";
 type EmailEventSortKey =
@@ -79,7 +84,7 @@ export function EmailEventsView() {
         <Stack gap={4}>
           <Title order={2}>Email events</Title>
           <Text c="dimmed" size="sm">
-            Admin changes to email content and lifecycle.
+            Admin changes to email content, boards, and lifecycle.
           </Text>
         </Stack>
         <Button
@@ -179,7 +184,7 @@ export function EmailEventsView() {
                   <SortableTh label="Created" sortKey="created_at" sort={sort} onSort={setSort} />
                   <SortableTh label="Actor" sortKey="actor_email" sort={sort} onSort={setSort} />
                   <SortableTh label="Action" sortKey="action" sort={sort} onSort={setSort} />
-                  <SortableTh label="Email" sortKey="email" sort={sort} onSort={setSort} />
+                  <SortableTh label="Target" sortKey="email" sort={sort} onSort={setSort} />
                   <SortableTh label="Summary" sortKey="summary" sort={sort} onSort={setSort} />
                   <SortableTh label="Changed fields" sortKey="changed_fields" sort={sort} onSort={setSort} />
                 </Table.Tr>
@@ -196,9 +201,14 @@ export function EmailEventsView() {
                     </Table.Td>
                     <Table.Td>
                       <Stack gap={0}>
-                        <Text size="sm">{event.email_title ?? "-"}</Text>
+                        <Text size="sm">
+                          {event.email_title || stringMetadata(event, "board_name") || "-"}
+                        </Text>
                         <Text c="dimmed" className={styles.monoCell}>
-                          {event.email_slug ?? event.email_id ?? "-"}
+                          {event.email_slug ||
+                            event.email_id ||
+                            stringMetadata(event, "board_key") ||
+                            "-"}
                         </Text>
                       </Stack>
                     </Table.Td>
@@ -267,7 +277,7 @@ function sortItems(
 function sortValue(event: EmailEventItem, key: EmailEventSortKey) {
   switch (key) {
     case "email":
-      return event.email_title ?? event.email_slug ?? event.email_id ?? "";
+      return targetLabel(event);
     case "summary":
       return formatSummary(event);
     case "changed_fields":
@@ -292,7 +302,7 @@ function formatDateTime(value: string) {
 }
 
 function formatAction(action: EmailEventAction) {
-  return action.replace("email_", "").replaceAll("_", " ");
+  return action.replace("email_", "").replace("board_", "").replaceAll("_", " ");
 }
 
 function getActionColor(action: EmailEventAction) {
@@ -309,6 +319,16 @@ function getActionColor(action: EmailEventAction) {
       return "yellow";
     case "email_review_status_updated":
       return "violet";
+    case "board_created":
+      return "green";
+    case "board_stage_created":
+      return "cyan";
+    case "board_stage_renamed":
+      return "yellow";
+    case "board_stage_deleted":
+      return "red";
+    case "board_stages_reordered":
+      return "blue";
     default:
       return "gray";
   }
@@ -328,13 +348,27 @@ function formatSummary(event: EmailEventItem) {
       return "Updated editable content";
     case "email_review_status_updated":
       return `Changed review status to ${formatChangedReviewStatus(event)}`;
+    case "board_created":
+      return `Created board ${stringMetadata(event, "board_name") || stringMetadata(event, "board_key") || "board"}`;
+    case "board_stage_created":
+      return `Created stage ${stringMetadata(event, "stage") || "stage"}`;
+    case "board_stage_renamed":
+      return `Renamed stage to ${formatChangedValue(event, "stage", "new stage")}`;
+    case "board_stage_deleted":
+      return `Deleted stage ${formatChangedValue(event, "stage", "stage")}`;
+    case "board_stages_reordered":
+      return "Reordered board stages";
     default:
       return "Changed email";
   }
 }
 
 function formatChangedFields(event: EmailEventItem) {
-  if (event.action !== "email_updated" && event.action !== "email_review_status_updated") {
+  if (
+    event.action !== "email_updated" &&
+    event.action !== "email_review_status_updated" &&
+    !event.action.startsWith("board_")
+  ) {
     return "-";
   }
 
@@ -351,6 +385,31 @@ function formatChangedFields(event: EmailEventItem) {
   }
 
   return fields.length > 0 ? fields.join(", ") : "-";
+}
+
+function targetLabel(event: EmailEventItem) {
+  return (
+    event.email_title ||
+    event.email_slug ||
+    event.email_id ||
+    stringMetadata(event, "board_name") ||
+    stringMetadata(event, "board_key") ||
+    ""
+  );
+}
+
+function formatChangedValue(
+  event: EmailEventItem,
+  key: string,
+  fallback: string
+) {
+  const value = event.changes[key];
+  if (!isRecord(value)) {
+    return fallback;
+  }
+
+  const nextValue = value.after ?? value.before;
+  return typeof nextValue === "string" ? nextValue : fallback;
 }
 
 function formatChangedReviewStatus(event: EmailEventItem) {

@@ -22,7 +22,7 @@ This roadmap captures the next production-hardening and workflow improvements fo
 
 ## Priority 4: Audit And Operations
 
-- [ ] Add audit events for board and stage changes.
+- [x] Add audit events for board and stage changes.
 - [x] Add a production smoke check for `GET /api/boards`.
 - [x] Document Cloudflare Pages `BACKEND_ORIGIN` and Railway service mapping.
 
