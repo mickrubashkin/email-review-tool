@@ -6,9 +6,10 @@ Internal tool for reviewing HTML email sequences.
 - OTP login with session cookies
 - multiple review boards with URL-based board switching
 - email board for browsing stages, language versions, and adaptations
+- admin board setup: create boards, add/rename/reorder stages, and delete empty stages
 - email review view with text selection, comments, resolution, and 5-second comment polling
 - admin editing of template-backed email fields and metadata
-- admin creation of new boards and uploaded/pasted HTML emails
+- admin creation of uploaded/pasted HTML emails
 - backend HTML inspection before creating an email: generated review HTML, review block count, editable fields, and warnings
 - email duplication, versioning, delivery adaptations, archive, rendered preview, and rendered HTML export
 - shared AI analysis for an email, including streaming first-run updates and cached reuse
@@ -43,6 +44,8 @@ Internal tool for reviewing HTML email sequences.
 ## Email data
 - Emails are stored as HTML files under `db/seeds/emails/{stage}/{email}/{language[-old]}.html`.
 - Boards are stored in the `boards` table; `emails.sequence` currently stores the board key.
+- Board stages are stored as ordered stage keys in `boards.stages`; `emails.stage` stores the current stage key for each email.
+- Renaming a stage updates matching `emails.stage` rows for that board. Deleting a stage is allowed only when it has no active emails.
 - In the app, a concrete reviewed email is selected by language, version, and adaptation; legacy seed data may still use `new/old`, while newly created emails default to `v1`.
 - Existing data uses the `Default` adaptation, and admins can create independent adaptations from a current email.
 - `meta.json` lives beside the seed tree.
@@ -57,6 +60,14 @@ Internal tool for reviewing HTML email sequences.
 - `cd apps/web && npm run dev|lint|build`.
 - `cd apps/api && go test ./...`.
 - `cd apps/api && go run ./cmd/server`.
+
+## API
+- `GET /api/boards` lists boards and their ordered stages.
+- `POST /api/boards` creates a board by copying stages from a source board.
+- `POST /api/boards/{boardKey}/stages` adds a stage.
+- `PATCH /api/boards/{boardKey}/stages/{stage}` renames a stage and updates emails in that board.
+- `PATCH /api/boards/{boardKey}/stages` reorders stages; the payload must contain the same stages exactly once.
+- `DELETE /api/boards/{boardKey}/stages/{stage}` deletes an empty stage.
 
 ## Environment
 - `apps/api/cmd/server/main.go` and `apps/api/cmd/seed/main.go` both load `../../.env`.
