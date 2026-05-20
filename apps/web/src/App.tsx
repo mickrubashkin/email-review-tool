@@ -34,12 +34,14 @@ import {
   EnvelopeSimpleIcon,
   GearSixIcon,
   KanbanIcon,
+  MagnifyingGlassIcon,
   PencilSimpleIcon,
   PlusIcon,
   SignOutIcon,
   SlidersHorizontalIcon,
   TrashIcon,
   UserCircleIcon,
+  XIcon,
 } from "@phosphor-icons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
@@ -65,13 +67,20 @@ import { EmailBoard } from "./features/emails/EmailBoard";
 import { EmailCreateView } from "./features/emails/EmailCreateView";
 import { EmailFieldsEditorView } from "./features/emails/EmailFieldsEditorView";
 import { buildStageColumns, formatStageName } from "./features/emails/stages";
-import type { AuthUser, Board, CreateBoardPayload } from "./features/emails/types";
+import type {
+  AuthUser,
+  Board,
+  CreateBoardPayload,
+  EmailListItem,
+  StageColumn,
+} from "./features/emails/types";
 import { EmailReviewView } from "./features/review/EmailReviewView";
 import styles from "./App.module.css";
 
 const boardSelectedVersionsStorageKey = "reviewdesk.board.selectedVersions";
 const boardScrollPositionStorageKey = "reviewdesk.board.scrollPosition";
 const boardFilterStorageKey = "reviewdesk.board.filter";
+const boardSearchStorageKey = "reviewdesk.board.search";
 
 type BoardFilter = "all" | "open";
 
@@ -91,6 +100,7 @@ function AuthenticatedApp() {
   const [boardFilter, setBoardFilter] = useState<BoardFilter>(
     readStoredBoardFilter
   );
+  const [boardSearchQuery, setBoardSearchQuery] = useState(readStoredBoardSearch);
   useEffect(() => {
     writeSessionStorageValue(
       boardSelectedVersionsStorageKey,
@@ -103,6 +113,9 @@ function AuthenticatedApp() {
   useEffect(() => {
     writeSessionStorageValue(boardFilterStorageKey, boardFilter);
   }, [boardFilter]);
+  useEffect(() => {
+    writeSessionStorageValue(boardSearchStorageKey, boardSearchQuery);
+  }, [boardSearchQuery]);
   const currentUserQuery = useQuery({
     queryKey: ["auth", "me"],
     queryFn: fetchCurrentUser,
@@ -157,12 +170,14 @@ function AuthenticatedApp() {
           <EmailBoardRoute
             boardFilter={boardFilter}
             boardScrollPosition={boardScrollPosition}
+            boardSearchQuery={boardSearchQuery}
             currentUser={currentUserQuery.data}
             isLoggingOut={logoutMutation.isPending}
             selectedVersionByGroup={selectedVersionByGroup}
             onLogout={() => logoutMutation.mutate()}
             onBoardScrollPositionChange={setBoardScrollPosition}
             onBoardFilterChange={setBoardFilter}
+            onBoardSearchQueryChange={setBoardSearchQuery}
             onSelectedVersionByGroupChange={setSelectedVersionByGroup}
           />
         }
@@ -233,40 +248,46 @@ function BoardHomeRedirect() {
 function EmailBoardRoute({
   boardFilter,
   boardScrollPosition,
+  boardSearchQuery,
   currentUser,
   isLoggingOut,
   selectedVersionByGroup,
   onLogout,
   onBoardScrollPositionChange,
   onBoardFilterChange,
+  onBoardSearchQueryChange,
   onSelectedVersionByGroupChange,
 }: {
   boardFilter: BoardFilter;
   boardScrollPosition: { x: number; y: number };
+  boardSearchQuery: string;
   currentUser: AuthUser;
   isLoggingOut: boolean;
   selectedVersionByGroup: Record<string, string>;
   onLogout: () => void;
   onBoardScrollPositionChange: (position: { x: number; y: number }) => void;
   onBoardFilterChange: (filter: BoardFilter) => void;
+  onBoardSearchQueryChange: (query: string) => void;
   onSelectedVersionByGroupChange: Dispatch<
     SetStateAction<Record<string, string>>
   >;
 }) {
   const { boardKey } = useParams();
   return boardKey ? (
-    <EmailBoardApp
-      boardFilter={boardFilter}
-      boardKey={boardKey}
-      boardScrollPosition={boardScrollPosition}
-      currentUser={currentUser}
-      isLoggingOut={isLoggingOut}
-      selectedVersionByGroup={selectedVersionByGroup}
-      onLogout={onLogout}
-      onBoardScrollPositionChange={onBoardScrollPositionChange}
-      onBoardFilterChange={onBoardFilterChange}
-      onSelectedVersionByGroupChange={onSelectedVersionByGroupChange}
-    />
+      <EmailBoardApp
+        boardFilter={boardFilter}
+        boardKey={boardKey}
+        boardScrollPosition={boardScrollPosition}
+        boardSearchQuery={boardSearchQuery}
+        currentUser={currentUser}
+        isLoggingOut={isLoggingOut}
+        selectedVersionByGroup={selectedVersionByGroup}
+        onLogout={onLogout}
+        onBoardScrollPositionChange={onBoardScrollPositionChange}
+        onBoardFilterChange={onBoardFilterChange}
+        onBoardSearchQueryChange={onBoardSearchQueryChange}
+        onSelectedVersionByGroupChange={onSelectedVersionByGroupChange}
+      />
   ) : (
     <Navigate replace to="/" />
   );
@@ -276,23 +297,27 @@ function EmailBoardApp({
   boardFilter,
   boardKey,
   boardScrollPosition,
+  boardSearchQuery,
   currentUser,
   isLoggingOut,
   selectedVersionByGroup,
   onLogout,
   onBoardScrollPositionChange,
   onBoardFilterChange,
+  onBoardSearchQueryChange,
   onSelectedVersionByGroupChange,
 }: {
   boardFilter: BoardFilter;
   boardKey: string;
   boardScrollPosition: { x: number; y: number };
+  boardSearchQuery: string;
   currentUser: AuthUser;
   isLoggingOut: boolean;
   selectedVersionByGroup: Record<string, string>;
   onLogout: () => void;
   onBoardScrollPositionChange: (position: { x: number; y: number }) => void;
   onBoardFilterChange: (filter: BoardFilter) => void;
+  onBoardSearchQueryChange: (query: string) => void;
   onSelectedVersionByGroupChange: Dispatch<
     SetStateAction<Record<string, string>>
   >;
@@ -334,6 +359,11 @@ function EmailBoardApp({
     () => buildStageColumns(emailsQuery.data ?? [], activeBoard?.stages ?? []),
     [activeBoard?.stages, emailsQuery.data]
   );
+  const searchQuery = boardSearchQuery.trim();
+  const searchedColumns = useMemo(
+    () => filterColumnsBySearch(columns, searchQuery),
+    [columns, searchQuery]
+  );
   const openCommentEmailCount = useMemo(
     () =>
       (emailsQuery.data ?? []).filter(
@@ -344,8 +374,8 @@ function EmailBoardApp({
   const visibleColumns = useMemo(
     () =>
       boardFilter === "all"
-        ? columns
-        : columns
+        ? searchedColumns
+        : searchedColumns
             .map((column) => ({
               ...column,
               emailGroups: column.emailGroups.filter((group) =>
@@ -355,10 +385,21 @@ function EmailBoardApp({
               ),
             }))
             .filter((column) => column.emailGroups.length > 0),
-    [boardFilter, columns]
+    [boardFilter, searchedColumns]
+  );
+  const visibleGroupCount = visibleColumns.reduce(
+    (count, column) => count + column.emailGroups.length,
+    0
+  );
+  const totalGroupCount = columns.reduce(
+    (count, column) => count + column.emailGroups.length,
+    0
   );
   const preferredBoard =
     boards.find((board) => board.key === "onboarding") ?? boards[0];
+  const headerSubtitle = searchQuery
+    ? `${activeBoard?.name ?? "Board review"} · ${visibleGroupCount} of ${totalGroupCount} matches`
+    : `${activeBoard?.name ?? "Board review"} · ${emailsQuery.data?.length ?? 0} emails`;
   if (boardsQuery.isSuccess && !activeBoard && preferredBoard) {
     return <Navigate replace to={`/boards/${encodeURIComponent(preferredBoard.key)}`} />;
   }
@@ -388,7 +429,7 @@ function EmailBoardApp({
               ReviewDesk
             </Title>
             <Text className={styles.headerSubtitle} size="xs">
-              {activeBoard?.name ?? "Board review"} · {emailsQuery.data?.length ?? 0} emails
+              {headerSubtitle}
             </Text>
           </Stack>
 
@@ -421,6 +462,30 @@ function EmailBoardApp({
                       size="xs"
                       value={activeBoard?.key ?? null}
                       onChange={handleBoardChange}
+                    />
+                  </div>
+                  <Menu.Label>Search</Menu.Label>
+                  <div className={styles.boardFilterMenuControl}>
+                    <TextInput
+                      leftSection={<MagnifyingGlassIcon aria-hidden="true" size={16} />}
+                      placeholder="Search emails"
+                      size="xs"
+                      value={boardSearchQuery}
+                      rightSection={
+                        boardSearchQuery ? (
+                          <ActionIcon
+                            aria-label="Clear search"
+                            size="xs"
+                            variant="subtle"
+                            onClick={() => onBoardSearchQueryChange("")}
+                          >
+                            <XIcon aria-hidden="true" size={12} />
+                          </ActionIcon>
+                        ) : null
+                      }
+                      onChange={(event) =>
+                        onBoardSearchQueryChange(event.currentTarget.value)
+                      }
                     />
                   </div>
                   <Menu.Label>Comments</Menu.Label>
@@ -537,6 +602,28 @@ function EmailBoardApp({
                   size="sm"
                   value={boardFilter}
                   onChange={(value) => onBoardFilterChange(value as BoardFilter)}
+                />
+                <TextInput
+                  className={styles.boardSearch}
+                  leftSection={<MagnifyingGlassIcon aria-hidden="true" size={16} />}
+                  placeholder="Search emails"
+                  size="sm"
+                  value={boardSearchQuery}
+                  rightSection={
+                    boardSearchQuery ? (
+                      <ActionIcon
+                        aria-label="Clear search"
+                        size="sm"
+                        variant="subtle"
+                        onClick={() => onBoardSearchQueryChange("")}
+                      >
+                        <XIcon aria-hidden="true" size={14} />
+                      </ActionIcon>
+                    ) : null
+                  }
+                  onChange={(event) =>
+                    onBoardSearchQueryChange(event.currentTarget.value)
+                  }
                 />
               </Group>
 
@@ -680,10 +767,20 @@ function EmailBoardApp({
                 onSelectVersion={handleSelectVersion}
               />
             ) : (
-              <Stack align="center" justify="center" h="100%">
-                <Text fw={600}>No emails with open comments</Text>
+              <Stack align="center" justify="center" h="100%" ta="center">
+                <Text fw={600}>
+                  {searchQuery
+                    ? "No matching emails"
+                    : boardFilter === "open"
+                      ? "No emails with open comments"
+                      : "No emails on this board"}
+                </Text>
                 <Text c="rgba(255, 255, 255, 0.72)" size="sm">
-                  Switch back to All to browse the full sequence.
+                  {searchQuery
+                    ? "Try another search or clear the query."
+                    : boardFilter === "open"
+                      ? "Switch back to All to browse the full sequence."
+                      : "Create or import an email to start reviewing."}
                 </Text>
               </Stack>
             )
@@ -715,6 +812,53 @@ function EmailBoardApp({
       ) : null}
     </AppShell>
   );
+}
+
+function filterColumnsBySearch(columns: StageColumn[], query: string) {
+  const terms = normalizeSearchText(query).split(" ").filter(Boolean);
+  if (terms.length === 0) {
+    return columns;
+  }
+
+  return columns
+    .map((column) => ({
+      ...column,
+      emailGroups: column.emailGroups.filter((group) =>
+        group.versions.some((email) => emailMatchesSearch(email, column, terms))
+      ),
+    }))
+    .filter((column) => column.emailGroups.length > 0);
+}
+
+function emailMatchesSearch(
+  email: EmailListItem,
+  column: StageColumn,
+  terms: string[]
+) {
+  const searchableText = normalizeSearchText(
+    [
+      email.title,
+      email.subject,
+      email.preheader,
+      email.send_timing,
+      email.stage,
+      column.title,
+      formatStageName(email.stage ?? column.stage),
+      email.language,
+      email.variant,
+      email.adaptation_label,
+      email.adaptation_key,
+      email.sequence,
+    ]
+      .filter(Boolean)
+      .join(" ")
+  );
+
+  return terms.every((term) => searchableText.includes(term));
+}
+
+function normalizeSearchText(value: string) {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
 function CreateBoardModal({
@@ -1038,6 +1182,10 @@ function readStoredBoardScrollPosition() {
 function readStoredBoardFilter(): BoardFilter {
   const storedFilter = readSessionStorageValue<string>(boardFilterStorageKey, "all");
   return storedFilter === "open" ? "open" : "all";
+}
+
+function readStoredBoardSearch() {
+  return readSessionStorageValue<string>(boardSearchStorageKey, "");
 }
 
 function readSessionStorageValue<T>(key: string, fallback: T): T {
