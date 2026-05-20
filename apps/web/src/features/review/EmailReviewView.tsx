@@ -142,6 +142,8 @@ export function EmailReviewView({
     queryKey: ["email-comments", emailId],
     queryFn: () => fetchEmailComments(emailId),
     enabled: emailId.trim() !== "",
+    refetchInterval: 5000,
+    refetchIntervalInBackground: false,
   });
   const emailsQuery = useQuery({
     queryKey: ["emails"],
@@ -270,6 +272,33 @@ export function EmailReviewView({
   );
   const canManageEmail =
     currentUserRole === "admin" || currentUserRole === "super_admin";
+
+  useEffect(() => {
+    if (!commentsQuery.data) {
+      return;
+    }
+
+    queryClient.setQueryData<EmailListItem[]>(["emails"], (currentEmails) => {
+      if (!currentEmails) {
+        return currentEmails;
+      }
+
+      return currentEmails.map((currentEmail) =>
+        currentEmail.id === emailId
+          ? { ...currentEmail, open_comment_count: openCommentCount }
+          : currentEmail
+      );
+    });
+
+    queryClient.setQueryData<EmailDetail>(
+      ["emails", emailId, "review"],
+      (currentEmail) =>
+        currentEmail
+          ? { ...currentEmail, open_comment_count: openCommentCount }
+          : currentEmail
+    );
+  }, [commentsQuery.data, emailId, openCommentCount, queryClient]);
+
   const duplicateEmailMutation = useMutation({
     mutationFn: ({
       sourceEmailId,
