@@ -951,10 +951,11 @@ function ManageStagesModal({
                   disabled={isSubmitting}
                   value={stageName}
                   onChange={(event) => {
+                    const nextStageName = event.currentTarget.value;
                     setFormError(null);
                     setStageNames((current) => ({
                       ...current,
-                      [stage]: event.currentTarget.value,
+                      [stage]: nextStageName,
                     }));
                   }}
                 />
