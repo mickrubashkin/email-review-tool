@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -84,6 +85,84 @@ func TestIsValidOTPCodeFormat(t *testing.T) {
 		if isValidOTPCodeFormat(code) {
 			t.Fatalf("expected %q to be invalid", code)
 		}
+	}
+}
+
+func TestIsAllowedRequestOrigin(t *testing.T) {
+	t.Setenv("CORS_ORIGIN", "")
+	t.Setenv("AUTH_ALLOWED_ORIGINS", "https://reviewdesk.example.com")
+
+	tests := []struct {
+		name   string
+		host   string
+		origin string
+		want   bool
+	}{
+		{
+			name: "allows requests without browser origin",
+			host: "localhost:8080",
+			want: true,
+		},
+		{
+			name:   "allows same host origin",
+			host:   "localhost:5173",
+			origin: "http://localhost:5173",
+			want:   true,
+		},
+		{
+			name:   "allows configured deployment origin",
+			host:   "api.example.com",
+			origin: "https://reviewdesk.example.com",
+			want:   true,
+		},
+		{
+			name:   "rejects cross origin request",
+			host:   "reviewdesk.example.com",
+			origin: "https://attacker.example.com",
+			want:   false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodPost, "/api/emails", nil)
+			request.Host = test.host
+			if test.origin != "" {
+				request.Header.Set("Origin", test.origin)
+			}
+
+			if got := isAllowedRequestOrigin(request); got != test.want {
+				t.Fatalf("expected %v, got %v", test.want, got)
+			}
+		})
+	}
+}
+
+func TestIsAllowedRequestOriginFallsBackToCORSOrigin(t *testing.T) {
+	t.Setenv("AUTH_ALLOWED_ORIGINS", "")
+	t.Setenv("CORS_ORIGIN", "http://localhost:5173")
+
+	request := httptest.NewRequest(http.MethodPost, "/api/auth/logout", nil)
+	request.Host = "localhost:8080"
+	request.Header.Set("Origin", "http://localhost:5173")
+
+	if !isAllowedRequestOrigin(request) {
+		t.Fatal("expected CORS_ORIGIN to allow local Vite proxy logout")
+	}
+}
+
+func TestIsRequestCanceledError(t *testing.T) {
+	if !isRequestCanceledError(context.Canceled) {
+		t.Fatal("expected context.Canceled to be treated as request cancellation")
+	}
+	if !isRequestCanceledError(context.DeadlineExceeded) {
+		t.Fatal("expected context.DeadlineExceeded to be treated as request cancellation")
+	}
+	if !isRequestCanceledError(errors.Join(errors.New("wrapped"), context.Canceled)) {
+		t.Fatal("expected wrapped context.Canceled to be treated as request cancellation")
+	}
+	if isRequestCanceledError(errors.New("database unavailable")) {
+		t.Fatal("expected unrelated errors to be logged")
 	}
 }
 

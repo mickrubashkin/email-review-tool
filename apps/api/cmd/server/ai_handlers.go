@@ -48,6 +48,10 @@ func getCachedEmailAnalysisHandler(dbpool *pgxpool.Pool, aiService AIAnalysisSer
 
 func listAIAnalysisLogsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if !requireAdmin(w, r) {
+			return
+		}
+
 		filters := AIAnalysisLogFilters{
 			Status:      strings.TrimSpace(r.URL.Query().Get("status")),
 			CacheStatus: strings.TrimSpace(r.URL.Query().Get("cache_status")),
@@ -87,6 +91,9 @@ func debugAIAnalysisHandler(dbpool *pgxpool.Pool, aiService AIAnalysisService) h
 	return func(w http.ResponseWriter, r *http.Request) {
 		if os.Getenv("AI_DEBUG_ENABLED") != "true" {
 			http.NotFound(w, r)
+			return
+		}
+		if !requireAdmin(w, r) {
 			return
 		}
 

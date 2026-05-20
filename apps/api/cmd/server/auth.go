@@ -7,9 +7,11 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/big"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -67,6 +69,69 @@ func authMiddleware(dbpool *pgxpool.Pool) func(http.Handler) http.Handler {
 	}
 }
 
+func sameOriginMutationMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !isMutatingMethod(r.Method) {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		if !isAllowedRequestOrigin(r) {
+			http.Error(w, "invalid request origin", http.StatusForbidden)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+func isMutatingMethod(method string) bool {
+	return method != http.MethodGet &&
+		method != http.MethodHead &&
+		method != http.MethodOptions
+}
+
+func isAllowedRequestOrigin(r *http.Request) bool {
+	origin := strings.TrimSpace(r.Header.Get("Origin"))
+	if origin == "" {
+		return true
+	}
+
+	originURL, err := url.Parse(origin)
+	if err != nil || originURL.Scheme == "" || originURL.Host == "" {
+		return false
+	}
+
+	if strings.EqualFold(originURL.Host, r.Host) {
+		return true
+	}
+
+	for _, allowedOrigin := range allowedAuthOrigins() {
+		if strings.EqualFold(origin, allowedOrigin) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func allowedAuthOrigins() []string {
+	value := strings.TrimSpace(os.Getenv("AUTH_ALLOWED_ORIGINS"))
+	if value == "" {
+		value = strings.TrimSpace(os.Getenv("CORS_ORIGIN"))
+	}
+	origins := []string{}
+
+	for _, origin := range strings.Split(value, ",") {
+		normalizedOrigin := strings.TrimRight(strings.TrimSpace(origin), "/")
+		if normalizedOrigin != "" {
+			origins = append(origins, normalizedOrigin)
+		}
+	}
+
+	return origins
+}
+
 func touchUserLastSeen(ctx context.Context, dbpool *pgxpool.Pool, user AuthUser) {
 	_, err := dbpool.Exec(ctx, `
 		UPDATE users
@@ -78,8 +143,15 @@ func touchUserLastSeen(ctx context.Context, dbpool *pgxpool.Pool, user AuthUser)
 			);
 	`, user.ID)
 	if err != nil {
+		if isRequestCanceledError(err) {
+			return
+		}
 		fmt.Fprintf(os.Stderr, "failed to update last_seen_at for user %s: %v\n", user.Email, err)
 	}
+}
+
+func isRequestCanceledError(err error) bool {
+	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
 }
 
 func requestOTPCodeHandler(dbpool *pgxpool.Pool, emailSender EmailSender) http.HandlerFunc {

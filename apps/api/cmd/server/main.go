@@ -35,6 +35,7 @@ func main() {
 	}
 
 	r := chi.NewRouter()
+	r.Use(sameOriginMutationMiddleware)
 	r.Use(authMiddleware(dbpool))
 	aiService, err := newAIAnalysisService()
 	if err != nil {

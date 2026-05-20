@@ -19,7 +19,7 @@ import { useQuery } from "@tanstack/react-query";
 import { HouseIcon } from "@phosphor-icons/react";
 import { Link } from "react-router-dom";
 
-import { fetchAIAnalysisLogs } from "../emails/api";
+import { ApiError, fetchAIAnalysisLogs } from "../emails/api";
 import type { AIAnalysisLogFilters, AIAnalysisLogItem } from "../emails/types";
 import styles from "./AIAnalysisLogsView.module.css";
 
@@ -63,6 +63,7 @@ export function AIAnalysisLogsView() {
     () => sortItems(logsQuery.data ?? [], sort),
     [logsQuery.data, sort]
   );
+  const errorCopy = getAIAnalysisLogsErrorCopy(logsQuery.error);
   const summary = useMemo(() => buildCacheSummary(logs), [logs]);
   const visibleFilters = useMemo(
     () => ({
@@ -186,8 +187,8 @@ export function AIAnalysisLogsView() {
         ) : null}
 
         {logsQuery.isError ? (
-          <Alert color="red" title="Failed to load AI logs">
-            Check that the API server is reachable.
+          <Alert color="red" title={errorCopy.title}>
+            {errorCopy.message}
           </Alert>
         ) : null}
 
@@ -308,6 +309,27 @@ export function AIAnalysisLogsView() {
       </Modal>
     </div>
   );
+}
+
+function getAIAnalysisLogsErrorCopy(error: unknown) {
+  if (error instanceof ApiError && error.status === 403) {
+    return {
+      title: "Access denied",
+      message: "Admin access is required to view AI analysis logs.",
+    };
+  }
+
+  if (error instanceof ApiError && error.status === 401) {
+    return {
+      title: "Session expired",
+      message: "Sign in again to continue.",
+    };
+  }
+
+  return {
+    title: "Failed to load AI logs",
+    message: "Check that the API server is reachable.",
+  };
 }
 
 function SummaryBadge({
