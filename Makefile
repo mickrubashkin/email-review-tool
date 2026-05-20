@@ -1,4 +1,4 @@
-.PHONY: db-up db-down db-logs db-migrate db-migrate-status db-migrate-down db-seed db-sync-meta api-dev web-dev dev setup-dev
+.PHONY: db-up db-down db-logs db-migrate db-migrate-status db-migrate-down db-seed db-sync-meta api-dev web-dev dev setup-dev smoke-check
 
 db-up:
 	docker compose up -d db
@@ -38,3 +38,6 @@ dev: db-up
 	(cd apps/api && go run ./cmd/server) & api_pid=$$!; \
 	(cd apps/web && npm run dev) & web_pid=$$!; \
 	wait
+
+smoke-check:
+	./scripts/smoke-check.sh "$$SMOKE_ORIGIN"
