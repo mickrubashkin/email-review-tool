@@ -202,6 +202,87 @@ func TestUpdateEmailEditableFields(t *testing.T) {
 	}
 }
 
+func TestUpdateEmailEditableFieldsResetsChangedTextCommentAnchors(t *testing.T) {
+	dbpool := testDBPool(t)
+	emailID := createTestEmail(t, dbpool)
+	user := createTestUserWithRole(t, dbpool, "admin")
+
+	_, err := dbpool.Exec(context.Background(), `
+		UPDATE emails
+		SET
+			subject = 'Old subject',
+			preheader = 'Old preheader',
+			template_html = '
+				<html>
+					<body>
+						<p data-review-block="primary_cta" data-edit-text="primary_cta_text">Old CTA</p>
+						<p data-review-block="secondary_cta" data-edit-text="secondary_cta_text">Keep going</p>
+					</body>
+				</html>
+			',
+			editable_fields = '{
+				"primary_cta_text": { "type": "text", "value": "Old CTA" },
+				"secondary_cta_text": { "type": "text", "value": "Keep going" }
+			}'::jsonb
+		WHERE id = $1;
+	`, emailID)
+	if err != nil {
+		t.Fatalf("failed to prepare editable comment anchor test: %v", err)
+	}
+
+	_, err = dbpool.Exec(context.Background(), `
+		INSERT INTO comments (
+			email_id,
+			review_block,
+			selected_text,
+			start_offset,
+			end_offset,
+			body,
+			status
+		)
+		VALUES
+			($1, 'primary_cta', 'CTA', 4, 7, 'changed text fragment', 'open'),
+			($1, 'primary_cta', 'Old', 0, 3, 'resolved text fragment', 'resolved'),
+			($1, 'secondary_cta', 'Keep', 0, 4, 'unchanged text fragment', 'open'),
+			($1, 'subject', 'Old', 0, 3, 'subject fragment', 'open'),
+			($1, 'preheader', 'pre', 4, 7, 'preheader fragment', 'open');
+	`, emailID)
+	if err != nil {
+		t.Fatalf("failed to seed comments: %v", err)
+	}
+
+	router := chi.NewRouter()
+	registerEmailRoutes(router, dbpool)
+
+	requestBody := []byte(`{
+		"subject": "New subject",
+		"preheader": "New preheader",
+		"editable_fields": {
+			"primary_cta_text": { "type": "text", "value": "Start now" },
+			"secondary_cta_text": { "type": "text", "value": "Keep going" }
+		}
+	}`)
+	request := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/emails/"+emailID+"/editable-fields",
+		bytes.NewReader(requestBody),
+	)
+	request = withAuthUser(request, user)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusNoContent {
+		t.Fatalf("expected PATCH status 204, got %d: %s", response.Code, response.Body.String())
+	}
+
+	anchors := loadTestCommentAnchorsByBody(t, dbpool, emailID)
+	assertCommentAnchor(t, anchors, "changed text fragment", "primary_cta", "Start now", 0, 9, "open")
+	assertCommentAnchor(t, anchors, "resolved text fragment", "primary_cta", "Start now", 0, 9, "resolved")
+	assertCommentAnchor(t, anchors, "unchanged text fragment", "secondary_cta", "Keep", 0, 4, "open")
+	assertCommentAnchor(t, anchors, "subject fragment", "subject", "New subject", 0, 11, "open")
+	assertCommentAnchor(t, anchors, "preheader fragment", "preheader", "New preheader", 0, 13, "open")
+}
+
 func TestUpdateEmailEditableFieldsRejectsNullFields(t *testing.T) {
 	dbpool := testDBPool(t)
 	emailID := createTestEmail(t, dbpool)
@@ -882,6 +963,84 @@ func setTestEmailTemplate(t *testing.T, dbpool *pgxpool.Pool, emailID string, te
 	`, emailID, templateHTML)
 	if err != nil {
 		t.Fatalf("failed to update test email template: %v", err)
+	}
+}
+
+type testCommentAnchor struct {
+	ReviewBlock  string
+	SelectedText string
+	StartOffset  int
+	EndOffset    int
+	Status       string
+}
+
+func loadTestCommentAnchorsByBody(t *testing.T, dbpool *pgxpool.Pool, emailID string) map[string]testCommentAnchor {
+	t.Helper()
+
+	rows, err := dbpool.Query(context.Background(), `
+		SELECT body, review_block, selected_text, start_offset, end_offset, status
+		FROM comments
+		WHERE email_id = $1;
+	`, emailID)
+	if err != nil {
+		t.Fatalf("failed to load comment anchors: %v", err)
+	}
+	defer rows.Close()
+
+	anchors := map[string]testCommentAnchor{}
+	for rows.Next() {
+		var body string
+		var anchor testCommentAnchor
+		if err := rows.Scan(
+			&body,
+			&anchor.ReviewBlock,
+			&anchor.SelectedText,
+			&anchor.StartOffset,
+			&anchor.EndOffset,
+			&anchor.Status,
+		); err != nil {
+			t.Fatalf("failed to scan comment anchor: %v", err)
+		}
+		anchors[body] = anchor
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("failed to read comment anchors: %v", err)
+	}
+
+	return anchors
+}
+
+func assertCommentAnchor(
+	t *testing.T,
+	anchors map[string]testCommentAnchor,
+	body string,
+	reviewBlock string,
+	selectedText string,
+	startOffset int,
+	endOffset int,
+	status string,
+) {
+	t.Helper()
+
+	anchor, ok := anchors[body]
+	if !ok {
+		t.Fatalf("expected comment %q, got %#v", body, anchors)
+	}
+	if anchor.ReviewBlock != reviewBlock ||
+		anchor.SelectedText != selectedText ||
+		anchor.StartOffset != startOffset ||
+		anchor.EndOffset != endOffset ||
+		anchor.Status != status {
+		t.Fatalf(
+			"unexpected anchor for %q: got %#v, want block=%q selected=%q start=%d end=%d status=%q",
+			body,
+			anchor,
+			reviewBlock,
+			selectedText,
+			startOffset,
+			endOffset,
+			status,
+		)
 	}
 }
 

@@ -151,6 +151,7 @@ function EmailFieldsEditor({
       setRenderedHTML(rendered.html);
       void queryClient.invalidateQueries({ queryKey: ["emails"] });
       void queryClient.invalidateQueries({ queryKey: ["emails", email.id] });
+      void queryClient.invalidateQueries({ queryKey: ["email-comments", email.id] });
       notifications.show({
         color: "green",
         message: "Email fields were saved and preview was refreshed.",

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -8,12 +9,14 @@ import (
 	"os"
 	"reflect"
 	"strings"
+	"unicode/utf16"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mickrubashkin/email-review-tool/apps/api/internal/emailedit"
 	"github.com/mickrubashkin/email-review-tool/apps/api/internal/emailtext"
+	xhtml "golang.org/x/net/html"
 )
 
 func registerEmailRoutes(r chi.Router, dbpool *pgxpool.Pool) {
@@ -277,9 +280,10 @@ func updateEmailEditableFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			preheader = request.Preheader
 		}
 
-		if _, err := emailedit.RenderEditableHTMLWithMetadata(templateHTML, request.EditableFields, emailedit.RenderMetadata{
+		renderedHTML, err := emailedit.RenderEditableHTMLWithMetadata(templateHTML, request.EditableFields, emailedit.RenderMetadata{
 			Preheader: stringFromPointer(preheader),
-		}); err != nil {
+		})
+		if err != nil {
 			fmt.Fprintf(os.Stderr, "invalid editable fields for email %s: %v\n", id, err)
 			http.Error(w, "invalid editable fields", http.StatusBadRequest)
 			return
@@ -303,6 +307,22 @@ func updateEmailEditableFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 		}
 
 		changes, err := buildEmailUpdateChanges(
+			currentTitle,
+			currentSubject,
+			currentPreheader,
+			currentEditableFieldsJSON,
+			title,
+			subject,
+			preheader,
+			request.EditableFields,
+		)
+		if err != nil {
+			http.Error(w, "failed to update editable fields", http.StatusInternalServerError)
+			return
+		}
+		commentAnchorTexts, err := changedCommentAnchorTexts(
+			templateHTML,
+			renderedHTML,
 			currentTitle,
 			currentSubject,
 			currentPreheader,
@@ -341,6 +361,10 @@ func updateEmailEditableFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 		}
 		if result.RowsAffected() == 0 {
 			http.Error(w, "email not found", http.StatusNotFound)
+			return
+		}
+		if err := resetCommentAnchorsForReviewBlocks(r.Context(), tx, id, commentAnchorTexts); err != nil {
+			http.Error(w, "failed to update editable fields", http.StatusInternalServerError)
 			return
 		}
 		if err := insertEmailEvent(r.Context(), tx, emailEvent{
@@ -991,6 +1015,166 @@ func addStringChange(changes map[string]any, key string, before *string, after *
 		"before": before,
 		"after":  after,
 	}
+}
+
+func changedCommentAnchorTexts(
+	templateHTML string,
+	renderedHTML string,
+	currentTitle string,
+	currentSubject *string,
+	currentPreheader *string,
+	currentEditableFieldsJSON []byte,
+	nextTitle string,
+	nextSubject *string,
+	nextPreheader *string,
+	nextEditableFields emailedit.EditableFields,
+) (map[string]string, error) {
+	currentFields := emailedit.EditableFields{}
+	if len(currentEditableFieldsJSON) > 0 {
+		if err := json.Unmarshal(currentEditableFieldsJSON, &currentFields); err != nil {
+			return nil, err
+		}
+	}
+
+	textFieldBlocks, err := editableTextFieldReviewBlocks(templateHTML)
+	if err != nil {
+		return nil, err
+	}
+
+	changedBlocks := map[string]bool{}
+	for key, reviewBlock := range textFieldBlocks {
+		currentField, currentOK := currentFields[key]
+		nextField, nextOK := nextEditableFields[key]
+		if !nextOK || nextField.Type != emailedit.FieldTypeText {
+			continue
+		}
+		if !currentOK || currentField.Type != emailedit.FieldTypeText || !reflect.DeepEqual(currentField.Value, nextField.Value) {
+			changedBlocks[reviewBlock] = true
+		}
+	}
+
+	anchorTexts := map[string]string{}
+	if len(changedBlocks) > 0 {
+		renderedBlockTexts, err := reviewBlockTexts(renderedHTML, changedBlocks)
+		if err != nil {
+			return nil, err
+		}
+		for reviewBlock := range changedBlocks {
+			if text, ok := renderedBlockTexts[reviewBlock]; ok {
+				anchorTexts[reviewBlock] = text
+			}
+		}
+	}
+
+	if stringFromPointer(currentSubject) != stringFromPointer(nextSubject) {
+		anchorTexts["subject"] = stringFromPointer(nextSubject)
+	} else if currentSubject == nil && nextSubject == nil && currentTitle != nextTitle {
+		anchorTexts["subject"] = nextTitle
+	}
+	if stringFromPointer(currentPreheader) != stringFromPointer(nextPreheader) {
+		anchorTexts["preheader"] = stringFromPointer(nextPreheader)
+	}
+
+	return anchorTexts, nil
+}
+
+func resetCommentAnchorsForReviewBlocks(
+	ctx context.Context,
+	db emailEventExecutor,
+	emailID string,
+	anchorTexts map[string]string,
+) error {
+	for reviewBlock, text := range anchorTexts {
+		_, err := db.Exec(ctx, `
+			UPDATE comments
+			SET selected_text = $3,
+				start_offset = 0,
+				end_offset = $4
+			WHERE email_id = $1
+				AND review_block = $2;
+		`, emailID, reviewBlock, text, jsStringLength(text))
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func editableTextFieldReviewBlocks(templateHTML string) (map[string]string, error) {
+	root, err := xhtml.Parse(strings.NewReader(templateHTML))
+	if err != nil {
+		return nil, err
+	}
+
+	blocks := map[string]string{}
+	collectEditableTextFieldReviewBlocks(root, "", blocks)
+	return blocks, nil
+}
+
+func collectEditableTextFieldReviewBlocks(node *xhtml.Node, currentReviewBlock string, blocks map[string]string) {
+	if node.Type == xhtml.ElementNode {
+		if reviewBlock := htmlAttrValue(node, "data-review-block"); reviewBlock != "" {
+			currentReviewBlock = reviewBlock
+		}
+		if key := htmlAttrValue(node, "data-edit-text"); key != "" && currentReviewBlock != "" {
+			blocks[key] = currentReviewBlock
+		}
+	}
+
+	for child := node.FirstChild; child != nil; child = child.NextSibling {
+		collectEditableTextFieldReviewBlocks(child, currentReviewBlock, blocks)
+	}
+}
+
+func reviewBlockTexts(renderedHTML string, targetBlocks map[string]bool) (map[string]string, error) {
+	root, err := xhtml.Parse(strings.NewReader(renderedHTML))
+	if err != nil {
+		return nil, err
+	}
+
+	texts := map[string]string{}
+	collectReviewBlockTexts(root, targetBlocks, texts)
+	return texts, nil
+}
+
+func collectReviewBlockTexts(node *xhtml.Node, targetBlocks map[string]bool, texts map[string]string) {
+	if node.Type == xhtml.ElementNode {
+		reviewBlock := htmlAttrValue(node, "data-review-block")
+		if targetBlocks[reviewBlock] {
+			texts[reviewBlock] = strings.TrimSpace(htmlTextContent(node))
+		}
+	}
+
+	for child := node.FirstChild; child != nil; child = child.NextSibling {
+		collectReviewBlockTexts(child, targetBlocks, texts)
+	}
+}
+
+func htmlAttrValue(node *xhtml.Node, key string) string {
+	for _, attr := range node.Attr {
+		if strings.EqualFold(attr.Key, key) {
+			return attr.Val
+		}
+	}
+
+	return ""
+}
+
+func htmlTextContent(node *xhtml.Node) string {
+	if node.Type == xhtml.TextNode {
+		return node.Data
+	}
+
+	var builder strings.Builder
+	for child := node.FirstChild; child != nil; child = child.NextSibling {
+		builder.WriteString(htmlTextContent(child))
+	}
+	return builder.String()
+}
+
+func jsStringLength(value string) int {
+	return len(utf16.Encode([]rune(value)))
 }
 
 func duplicateEmailSlug(sourceSlug string, sourceLanguage string, targetLanguage string, targetVariant string) string {
