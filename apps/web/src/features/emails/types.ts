@@ -26,6 +26,21 @@ export type EmailDetail = EmailListItem & {
 
 export type EmailVariant = string;
 
+export type Board = {
+  id: string;
+  key: string;
+  name: string;
+  stages: string[];
+  created_at: string;
+  updated_at: string;
+};
+
+export type CreateBoardPayload = {
+  name: string;
+  key?: string;
+  source_board_key?: string;
+};
+
 export type CreateEmailPayload = {
   sequence?: string;
   title: string;

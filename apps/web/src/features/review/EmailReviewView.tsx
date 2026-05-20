@@ -144,16 +144,17 @@ export function EmailReviewView({
     refetchInterval: 5000,
     refetchIntervalInBackground: false,
   });
+  const email = emailQuery.data;
   const emailsQuery = useQuery({
-    queryKey: ["emails"],
-    queryFn: fetchEmails,
+    queryKey: ["emails", email?.sequence ?? "all"],
+    queryFn: () => fetchEmails(email?.sequence),
+    enabled: Boolean(email?.sequence),
   });
   const sharedAnalysisQuery = useQuery({
     queryKey: ["emails", emailId, "ai-analysis"],
     queryFn: () => fetchSharedEmailAnalysis(emailId),
     enabled: emailId.trim() !== "",
   });
-  const email = emailQuery.data;
   const stageColumns = useMemo(
     () => buildStageColumns(emailsQuery.data ?? []),
     [emailsQuery.data]
@@ -288,6 +289,22 @@ export function EmailReviewView({
           : currentEmail
       );
     });
+    if (email?.sequence) {
+      queryClient.setQueryData<EmailListItem[]>(
+        ["emails", email.sequence],
+        (currentEmails) => {
+          if (!currentEmails) {
+            return currentEmails;
+          }
+
+          return currentEmails.map((currentEmail) =>
+            currentEmail.id === emailId
+              ? { ...currentEmail, open_comment_count: openCommentCount }
+              : currentEmail
+          );
+        }
+      );
+    }
 
     queryClient.setQueryData<EmailDetail>(
       ["emails", emailId, "review"],
@@ -296,7 +313,7 @@ export function EmailReviewView({
           ? { ...currentEmail, open_comment_count: openCommentCount }
           : currentEmail
     );
-  }, [commentsQuery.data, emailId, openCommentCount, queryClient]);
+  }, [commentsQuery.data, email?.sequence, emailId, openCommentCount, queryClient]);
 
   const duplicateEmailMutation = useMutation({
     mutationFn: ({
@@ -414,7 +431,7 @@ export function EmailReviewView({
   }
 
   const handleBackToBoard = () => {
-    navigate("/");
+    navigate(email?.sequence ? `/boards/${encodeURIComponent(email.sequence)}` : "/");
   };
 
   const navigateToReview = (nextEmailId: string) => {

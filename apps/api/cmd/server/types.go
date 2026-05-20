@@ -52,6 +52,15 @@ type EmailDetail struct {
 type EmailContentParts = emailtext.ContentParts
 type LinkGroups = emailtext.LinkGroups
 
+type BoardItem struct {
+	ID        string    `json:"id"`
+	Key       string    `json:"key"`
+	Name      string    `json:"name"`
+	Stages    []string  `json:"stages"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
 type EmailAnalysis struct {
 	Summary         string                `json:"summary"`
 	Score           int                   `json:"score"`

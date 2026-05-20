@@ -36,6 +36,14 @@ func registerEmailRoutes(r chi.Router, dbpool *pgxpool.Pool) {
 
 func listEmailsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		boardKey := strings.TrimSpace(r.URL.Query().Get("board"))
+		args := []any{}
+		boardFilter := ""
+		if boardKey != "" {
+			args = append(args, boardKey)
+			boardFilter = "AND sequence = $1"
+		}
+
 		rows, err := dbpool.Query(r.Context(), `
 			SELECT
 				id,
@@ -58,8 +66,9 @@ func listEmailsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 					) AS open_comment_count
 			FROM emails
 			WHERE archived_at IS NULL
+			`+boardFilter+`
 			ORDER BY sort_order, created_at;
-		`)
+		`, args...)
 		if err != nil {
 			http.Error(w, "failed to load emails", http.StatusInternalServerError)
 			return
@@ -249,6 +258,15 @@ func createEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 
 		if title == "" || stage == "" || originalHTML == "" {
 			http.Error(w, "title, stage, and original_html are required", http.StatusBadRequest)
+			return
+		}
+		exists, err := boardExists(r.Context(), dbpool, sequence)
+		if err != nil {
+			http.Error(w, "failed to validate board", http.StatusInternalServerError)
+			return
+		}
+		if !exists {
+			http.Error(w, "board not found", http.StatusBadRequest)
 			return
 		}
 

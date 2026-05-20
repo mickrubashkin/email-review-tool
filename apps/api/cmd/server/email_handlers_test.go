@@ -99,15 +99,61 @@ func TestListEmailsExcludesArchivedEmails(t *testing.T) {
 	}
 }
 
+func TestListEmailsFiltersByBoard(t *testing.T) {
+	dbpool := testDBPool(t)
+	firstEmailID := createTestEmail(t, dbpool)
+	secondEmailID := createTestEmailWithSlug(t, dbpool, "comment-test-email-other-board")
+	firstBoard := createTestBoard(t, dbpool, "first-board", []string{"test"})
+	secondBoard := createTestBoard(t, dbpool, "second-board", []string{"test"})
+
+	_, err := dbpool.Exec(context.Background(), `
+		UPDATE emails SET sequence = $2 WHERE id = $1;
+	`, firstEmailID, firstBoard)
+	if err != nil {
+		t.Fatalf("failed to assign first email board: %v", err)
+	}
+	_, err = dbpool.Exec(context.Background(), `
+		UPDATE emails SET sequence = $2 WHERE id = $1;
+	`, secondEmailID, secondBoard)
+	if err != nil {
+		t.Fatalf("failed to assign second email board: %v", err)
+	}
+
+	router := chi.NewRouter()
+	registerEmailRoutes(router, dbpool)
+
+	request := httptest.NewRequest(http.MethodGet, "/api/emails?board="+firstBoard, nil)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected GET status 200, got %d: %s", response.Code, response.Body.String())
+	}
+
+	var emails []EmailListItem
+	if err := json.NewDecoder(response.Body).Decode(&emails); err != nil {
+		t.Fatalf("failed to decode emails: %v", err)
+	}
+	for _, email := range emails {
+		if email.ID == secondEmailID {
+			t.Fatalf("email from another board should not be returned: %#v", email)
+		}
+	}
+	if !emailListContains(emails, firstEmailID) {
+		t.Fatalf("expected filtered email %s in %#v", firstEmailID, emails)
+	}
+}
+
 func TestCreateEmail(t *testing.T) {
 	dbpool := testDBPool(t)
 	user := createTestUserWithRole(t, dbpool, "admin")
+	boardKey := createTestBoard(t, dbpool, "upload-board", []string{"uploaded"})
 
 	router := chi.NewRouter()
 	registerEmailRoutes(router, dbpool)
 
 	requestBody := []byte(`{
-		"sequence": "onboarding",
+		"sequence": "upload-board",
 		"title": "Uploaded Email",
 		"subject": "Uploaded subject",
 		"preheader": "Uploaded preheader",
@@ -138,10 +184,10 @@ func TestCreateEmail(t *testing.T) {
 	t.Cleanup(func() {
 		_, _ = dbpool.Exec(context.Background(), `DELETE FROM emails WHERE id = $1;`, created.ID)
 	})
-	if created.Slug != "onboarding-uploaded-uploaded-email-en-candidate--promo" {
+	if created.Slug != "upload-board-uploaded-uploaded-email-en-candidate--promo" {
 		t.Fatalf("expected generated slug, got %q", created.Slug)
 	}
-	if created.Sequence != "onboarding" ||
+	if created.Sequence != boardKey ||
 		created.Title != "Uploaded Email" ||
 		created.Stage != "uploaded" ||
 		created.SortOrder != 321 ||
@@ -179,6 +225,31 @@ func TestCreateEmail(t *testing.T) {
 	}
 	if actorEmail != user.Email {
 		t.Fatalf("expected actor %s, got %s", user.Email, actorEmail)
+	}
+}
+
+func TestCreateEmailRejectsUnknownBoard(t *testing.T) {
+	dbpool := testDBPool(t)
+	user := createTestUserWithRole(t, dbpool, "admin")
+
+	router := chi.NewRouter()
+	registerEmailRoutes(router, dbpool)
+
+	requestBody := []byte(`{
+		"sequence": "unknown-board",
+		"title": "Uploaded Email",
+		"stage": "uploaded",
+		"language": "en",
+		"variant": "v1",
+		"original_html": "<html><body><p>Hello upload</p></body></html>"
+	}`)
+	request := httptest.NewRequest(http.MethodPost, "/api/emails", bytes.NewReader(requestBody))
+	request = withAuthUser(request, user)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("expected POST status 400, got %d: %s", response.Code, response.Body.String())
 	}
 }
 
@@ -1361,6 +1432,16 @@ func loadTestEmailEditableFields(t *testing.T, dbpool *pgxpool.Pool, emailID str
 	}
 
 	return fields
+}
+
+func emailListContains(emails []EmailListItem, emailID string) bool {
+	for _, email := range emails {
+		if email.ID == emailID {
+			return true
+		}
+	}
+
+	return false
 }
 
 func assertEditableField(

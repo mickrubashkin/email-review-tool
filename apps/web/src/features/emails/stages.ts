@@ -194,7 +194,10 @@ export function getVersionForVariant(
   );
 }
 
-export function buildStageColumns(emails: EmailListItem[]): StageColumn[] {
+export function buildStageColumns(
+  emails: EmailListItem[],
+  stageOrder: string[] = []
+): StageColumn[] {
   const groupsByKey = new Map<string, EmailVersionGroup>();
 
   for (const email of emails) {
@@ -212,6 +215,13 @@ export function buildStageColumns(emails: EmailListItem[]): StageColumn[] {
   }
 
   const groupsByStage = new Map<string, EmailVersionGroup[]>();
+  const explicitStageOrder = new Map(
+    stageOrder.map((stage, index) => [stage, index])
+  );
+
+  for (const stage of stageOrder) {
+    groupsByStage.set(stage, []);
+  }
 
   for (const group of groupsByKey.values()) {
     const stageGroups = groupsByStage.get(group.stage) ?? [];
@@ -231,9 +241,23 @@ export function buildStageColumns(emails: EmailListItem[]): StageColumn[] {
       return {
         stage,
         title: formatStageName(stage),
-        sortOrder: sortedGroups[0]?.sortOrder ?? 0,
+        sortOrder:
+          sortedGroups[0]?.sortOrder ??
+          explicitStageOrder.get(stage) ??
+          0,
         emailGroups: sortedGroups,
       };
     })
-    .sort((first, second) => first.sortOrder - second.sortOrder);
+    .sort((first, second) => {
+      const firstIndex = explicitStageOrder.get(first.stage);
+      const secondIndex = explicitStageOrder.get(second.stage);
+      if (firstIndex !== undefined || secondIndex !== undefined) {
+        return (
+          (firstIndex ?? Number.MAX_SAFE_INTEGER) -
+          (secondIndex ?? Number.MAX_SAFE_INTEGER)
+        );
+      }
+
+      return first.sortOrder - second.sortOrder;
+    });
 }

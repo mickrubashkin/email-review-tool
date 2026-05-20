@@ -4,6 +4,8 @@ import type {
   AuthEventFilters,
   AuthEventItem,
   AuthUser,
+  Board,
+  CreateBoardPayload,
   EmailAnalysis,
   EmailDetail,
   EmailEventFilters,
@@ -120,8 +122,23 @@ export function logout(): Promise<{ ok: boolean }> {
   );
 }
 
-export function fetchEmails(): Promise<EmailListItem[]> {
-  return fetchJson<EmailListItem[]>("/api/emails");
+export function fetchBoards(): Promise<Board[]> {
+  return fetchJson<Board[]>("/api/boards");
+}
+
+export function createBoard(payload: CreateBoardPayload): Promise<Board> {
+  return fetchJson<Board>("/api/boards", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function fetchEmails(boardKey?: string): Promise<EmailListItem[]> {
+  const query = boardKey ? `?board=${encodeURIComponent(boardKey)}` : "";
+  return fetchJson<EmailListItem[]>(`/api/emails${query}`);
 }
 
 export function fetchEmailDetail(emailId: string): Promise<EmailDetail> {

@@ -24,7 +24,7 @@ import {
   UploadSimpleIcon,
 } from "@phosphor-icons/react";
 
-import { createEmail, fetchEmails, inspectEmailHTML } from "./api";
+import { createEmail, fetchBoards, fetchEmails, inspectEmailHTML } from "./api";
 import type { AuthUser, CreateEmailPayload, EmailVariant } from "./types";
 import styles from "./EmailFieldsEditorView.module.css";
 
@@ -71,7 +71,12 @@ export function EmailCreateView({ currentUserRole }: EmailCreateViewProps) {
   const [sortOrderAuto, setSortOrderAuto] = useState(true);
   const emailsQuery = useQuery({
     queryKey: ["emails"],
-    queryFn: fetchEmails,
+    queryFn: () => fetchEmails(),
+    enabled: canCreate,
+  });
+  const boardsQuery = useQuery({
+    queryKey: ["boards"],
+    queryFn: fetchBoards,
     enabled: canCreate,
   });
   const htmlInspectionQuery = useQuery({
@@ -100,28 +105,17 @@ export function EmailCreateView({ currentUserRole }: EmailCreateViewProps) {
   });
 
   const emails = useMemo(() => emailsQuery.data ?? [], [emailsQuery.data]);
+  const boards = useMemo(() => boardsQuery.data ?? [], [boardsQuery.data]);
   const boardOptions = useMemo(
-    () =>
-      uniqueSorted(
-        emails
-          .map((email) => email.sequence)
-          .filter((sequence) => sequence.trim().length > 0)
-      ),
-    [emails]
+    () => boards.map((board) => ({ label: board.name, value: board.key })),
+    [boards]
   );
-  const selectedBoard = boardOptions.includes(formState.sequence)
+  const boardKeys = useMemo(() => boards.map((board) => board.key), [boards]);
+  const selectedBoard = boardKeys.includes(formState.sequence)
     ? formState.sequence
-    : boardOptions[0] ?? "";
-  const stageOptions = useMemo(
-    () =>
-      uniqueSorted(
-        emails
-          .filter((email) => email.sequence === selectedBoard)
-          .map((email) => email.stage ?? "")
-          .filter((stage) => stage.trim().length > 0)
-      ),
-    [emails, selectedBoard]
-  );
+    : boards.find((board) => board.key === "onboarding")?.key ?? boardKeys[0] ?? "";
+  const activeBoard = boards.find((board) => board.key === selectedBoard);
+  const stageOptions = activeBoard?.stages ?? [];
   const selectedStage = stageOptions.includes(formState.stage)
     ? formState.stage
     : stageOptions[0] ?? "";
@@ -178,6 +172,7 @@ export function EmailCreateView({ currentUserRole }: EmailCreateViewProps) {
     trimmedTitle.length > 0 &&
     selectedBoard.length > 0 &&
     trimmedStage.length > 0 &&
+    stageOptions.length > 0 &&
     formState.language.trim().length > 0 &&
     formState.variant.trim().length > 0 &&
     formState.adaptationLabel.trim().length > 0 &&
@@ -220,12 +215,8 @@ export function EmailCreateView({ currentUserRole }: EmailCreateViewProps) {
   };
   const handleBoardChange = (value: string | null) => {
     const nextBoard = value ?? "";
-    const nextStageOptions = uniqueSorted(
-      emails
-        .filter((email) => email.sequence === nextBoard)
-        .map((email) => email.stage ?? "")
-        .filter((stage) => stage.trim().length > 0)
-    );
+    const nextStageOptions =
+      boards.find((board) => board.key === nextBoard)?.stages ?? [];
     const nextStage = nextStageOptions.includes(formState.stage)
       ? formState.stage
       : nextStageOptions[0] ?? "";
@@ -257,9 +248,9 @@ export function EmailCreateView({ currentUserRole }: EmailCreateViewProps) {
         <Select
           allowDeselect={false}
           data={boardOptions}
-          disabled={emailsQuery.isLoading}
+          disabled={boardsQuery.isLoading}
           label="Board"
-          placeholder={emailsQuery.isLoading ? "Loading boards" : "Select board"}
+          placeholder={boardsQuery.isLoading ? "Loading boards" : "Select board"}
           required
           value={selectedBoard || null}
           onChange={handleBoardChange}
@@ -281,6 +272,11 @@ export function EmailCreateView({ currentUserRole }: EmailCreateViewProps) {
           }}
         />
       </Group>
+      {selectedBoard && stageOptions.length === 0 ? (
+        <Alert color="yellow" title="No stages">
+          This board has no stages yet, so a new email cannot be placed on it.
+        </Alert>
+      ) : null}
 
       <TextInput
         label="Title"

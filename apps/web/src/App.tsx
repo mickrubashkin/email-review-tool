@@ -1,5 +1,6 @@
 import {
   type Dispatch,
+  type FormEvent,
   type SetStateAction,
   useEffect,
   useMemo,
@@ -15,9 +16,12 @@ import {
   Group,
   Loader,
   Menu,
+  Modal,
   SegmentedControl,
+  Select,
   Stack,
   Text,
+  TextInput,
   Title,
 } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
@@ -29,12 +33,19 @@ import { AdminUsersView } from "./features/admin-users/AdminUsersView";
 import { AuthEventsView } from "./features/auth-events/AuthEventsView";
 import { LoginView } from "./features/auth/LoginView";
 import { EmailEventsView } from "./features/email-events/EmailEventsView";
-import { fetchCurrentUser, fetchEmails, logout } from "./features/emails/api";
+import {
+  ApiError,
+  createBoard,
+  fetchBoards,
+  fetchCurrentUser,
+  fetchEmails,
+  logout,
+} from "./features/emails/api";
 import { EmailBoard } from "./features/emails/EmailBoard";
 import { EmailCreateView } from "./features/emails/EmailCreateView";
 import { EmailFieldsEditorView } from "./features/emails/EmailFieldsEditorView";
 import { buildStageColumns } from "./features/emails/stages";
-import type { AuthUser } from "./features/emails/types";
+import type { AuthUser, Board, CreateBoardPayload } from "./features/emails/types";
 import { EmailReviewView } from "./features/review/EmailReviewView";
 import styles from "./App.module.css";
 
@@ -118,8 +129,12 @@ function AuthenticatedApp() {
       />
       <Route
         path="/"
+        element={<BoardHomeRedirect />}
+      />
+      <Route
+        path="/boards/:boardKey"
         element={
-          <EmailBoardApp
+          <EmailBoardRoute
             boardFilter={boardFilter}
             boardScrollPosition={boardScrollPosition}
             currentUser={currentUserQuery.data}
@@ -163,7 +178,39 @@ function EmailFieldsEditorRoute({
   );
 }
 
-function EmailBoardApp({
+function BoardHomeRedirect() {
+  const boardsQuery = useQuery({
+    queryKey: ["boards"],
+    queryFn: fetchBoards,
+  });
+
+  if (boardsQuery.isLoading) {
+    return (
+      <Stack align="center" justify="center" h="100dvh">
+        <Loader />
+        <Text c="dimmed">Loading boards</Text>
+      </Stack>
+    );
+  }
+
+  if (boardsQuery.isError || !boardsQuery.data || boardsQuery.data.length === 0) {
+    return (
+      <Stack align="center" justify="center" h="100dvh" p="md">
+        <Alert color="red" title="Failed to load boards">
+          Check that the API server is reachable.
+        </Alert>
+      </Stack>
+    );
+  }
+
+  const preferredBoard =
+    boardsQuery.data.find((board) => board.key === "onboarding") ??
+    boardsQuery.data[0];
+
+  return <Navigate replace to={`/boards/${encodeURIComponent(preferredBoard.key)}`} />;
+}
+
+function EmailBoardRoute({
   boardFilter,
   boardScrollPosition,
   currentUser,
@@ -186,20 +233,81 @@ function EmailBoardApp({
     SetStateAction<Record<string, string>>
   >;
 }) {
+  const { boardKey } = useParams();
+  return boardKey ? (
+    <EmailBoardApp
+      boardFilter={boardFilter}
+      boardKey={boardKey}
+      boardScrollPosition={boardScrollPosition}
+      currentUser={currentUser}
+      isLoggingOut={isLoggingOut}
+      selectedVersionByGroup={selectedVersionByGroup}
+      onLogout={onLogout}
+      onBoardScrollPositionChange={onBoardScrollPositionChange}
+      onBoardFilterChange={onBoardFilterChange}
+      onSelectedVersionByGroupChange={onSelectedVersionByGroupChange}
+    />
+  ) : (
+    <Navigate replace to="/" />
+  );
+}
+
+function EmailBoardApp({
+  boardFilter,
+  boardKey,
+  boardScrollPosition,
+  currentUser,
+  isLoggingOut,
+  selectedVersionByGroup,
+  onLogout,
+  onBoardScrollPositionChange,
+  onBoardFilterChange,
+  onSelectedVersionByGroupChange,
+}: {
+  boardFilter: BoardFilter;
+  boardKey: string;
+  boardScrollPosition: { x: number; y: number };
+  currentUser: AuthUser;
+  isLoggingOut: boolean;
+  selectedVersionByGroup: Record<string, string>;
+  onLogout: () => void;
+  onBoardScrollPositionChange: (position: { x: number; y: number }) => void;
+  onBoardFilterChange: (filter: BoardFilter) => void;
+  onSelectedVersionByGroupChange: Dispatch<
+    SetStateAction<Record<string, string>>
+  >;
+}) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [userMenuOpened, setUserMenuOpened] = useState(false);
+  const [createBoardModalOpened, setCreateBoardModalOpened] = useState(false);
   const isCompactHeader = useMediaQuery("(max-width: 64em)");
   const isAdmin =
     currentUser.role === "admin" || currentUser.role === "super_admin";
 
-  const emailsQuery = useQuery({
-    queryKey: ["emails"],
-    queryFn: fetchEmails,
+  const boardsQuery = useQuery({
+    queryKey: ["boards"],
+    queryFn: fetchBoards,
   });
+  const emailsQuery = useQuery({
+    queryKey: ["emails", boardKey],
+    queryFn: () => fetchEmails(boardKey),
+    enabled: boardKey.trim() !== "",
+  });
+  const createBoardMutation = useMutation({
+    mutationFn: (payload: CreateBoardPayload) => createBoard(payload),
+    onSuccess: (board) => {
+      void queryClient.invalidateQueries({ queryKey: ["boards"] });
+      setCreateBoardModalOpened(false);
+      navigate(`/boards/${encodeURIComponent(board.key)}`);
+    },
+  });
+  const boards = boardsQuery.data ?? [];
+  const activeBoard = boards.find((board) => board.key === boardKey);
 
   const columns = useMemo(
-    () => buildStageColumns(emailsQuery.data ?? []),
-    [emailsQuery.data]
+    () => buildStageColumns(emailsQuery.data ?? [], activeBoard?.stages ?? []),
+    [activeBoard?.stages, emailsQuery.data]
   );
   const openCommentEmailCount = useMemo(
     () =>
@@ -224,6 +332,11 @@ function EmailBoardApp({
             .filter((column) => column.emailGroups.length > 0),
     [boardFilter, columns]
   );
+  const preferredBoard =
+    boards.find((board) => board.key === "onboarding") ?? boards[0];
+  if (boardsQuery.isSuccess && !activeBoard && preferredBoard) {
+    return <Navigate replace to={`/boards/${encodeURIComponent(preferredBoard.key)}`} />;
+  }
 
   const handleSelectVersion = (groupKey: string, emailId: string) => {
     onSelectedVersionByGroupChange((current) => ({
@@ -235,6 +348,11 @@ function EmailBoardApp({
   const handleOpenVersionGroup = (_groupKey: string, emailId: string) => {
     navigate(`/emails/${encodeURIComponent(emailId)}/review`);
   };
+  const handleBoardChange = (value: string | null) => {
+    if (value) {
+      navigate(`/boards/${encodeURIComponent(value)}`);
+    }
+  };
 
   return (
     <AppShell header={{ height: 56 }} padding={0}>
@@ -245,7 +363,7 @@ function EmailBoardApp({
               <Title order={4}>ReviewDesk</Title>
             </Group>
             <Text size="xs" c="dimmed">
-              Onboarding sequence review
+              {activeBoard?.name ?? "Board review"}
             </Text>
           </Stack>
 
@@ -270,6 +388,19 @@ function EmailBoardApp({
                   />
                 </Menu.Target>
                 <Menu.Dropdown>
+                  <Menu.Label>Board</Menu.Label>
+                  <div className={styles.boardFilterMenuControl}>
+                    <Select
+                      data={boards.map((board) => ({
+                        label: board.name,
+                        value: board.key,
+                      }))}
+                      disabled={boardsQuery.isLoading}
+                      size="xs"
+                      value={activeBoard?.key ?? null}
+                      onChange={handleBoardChange}
+                    />
+                  </div>
                   <Menu.Label>Board filter</Menu.Label>
                   <div className={styles.boardFilterMenuControl}>
                     <SegmentedControl
@@ -305,6 +436,9 @@ function EmailBoardApp({
                   {isAdmin ? (
                     <>
                       <Menu.Divider />
+                      <Menu.Item onClick={() => setCreateBoardModalOpened(true)}>
+                        New board
+                      </Menu.Item>
                       <Menu.Item component={Link} to="/emails/new">
                         New email
                       </Menu.Item>
@@ -334,6 +468,18 @@ function EmailBoardApp({
               </Menu>
             ) : (
               <>
+                <Select
+                  allowDeselect={false}
+                  data={boards.map((board) => ({
+                    label: board.name,
+                    value: board.key,
+                  }))}
+                  disabled={boardsQuery.isLoading}
+                  size="xs"
+                  value={activeBoard?.key ?? null}
+                  w={180}
+                  onChange={handleBoardChange}
+                />
                 <SegmentedControl
                   data={[
                     { label: "All", value: "all" },
@@ -347,14 +493,23 @@ function EmailBoardApp({
                   onChange={(value) => onBoardFilterChange(value as BoardFilter)}
                 />
                 {isAdmin ? (
-                  <Button
-                    component={Link}
-                    to="/emails/new"
-                    size="xs"
-                    variant="white"
-                  >
-                    New email
-                  </Button>
+                  <>
+                    <Button
+                      size="xs"
+                      variant="white"
+                      onClick={() => setCreateBoardModalOpened(true)}
+                    >
+                      New board
+                    </Button>
+                    <Button
+                      component={Link}
+                      to="/emails/new"
+                      size="xs"
+                      variant="white"
+                    >
+                      New email
+                    </Button>
+                  </>
                 ) : null}
                 <Group gap={6} wrap="nowrap">
                   <Text className={styles.headerUser} size="sm" c="dimmed">
@@ -421,14 +576,14 @@ function EmailBoardApp({
 
       <AppShell.Main>
         <Box className={styles.boardPage}>
-          {emailsQuery.isLoading ? (
+          {emailsQuery.isLoading || boardsQuery.isLoading ? (
             <Stack align="center" justify="center" h="100%">
               <Loader />
               <Text c="dimmed">Loading emails</Text>
             </Stack>
           ) : null}
 
-          {emailsQuery.isError ? (
+          {emailsQuery.isError || boardsQuery.isError ? (
             <Alert color="red" title="Failed to load emails">
               Check that the API server is reachable.
             </Alert>
@@ -456,7 +611,118 @@ function EmailBoardApp({
         </Box>
       </AppShell.Main>
 
+      {createBoardModalOpened && activeBoard ? (
+        <CreateBoardModal
+          error={createBoardMutation.error}
+          isSubmitting={createBoardMutation.isPending}
+          sourceBoard={activeBoard}
+          onClose={() => {
+            createBoardMutation.reset();
+            setCreateBoardModalOpened(false);
+          }}
+          onResetError={() => createBoardMutation.reset()}
+          onSubmit={(payload) => createBoardMutation.mutateAsync(payload)}
+        />
+      ) : null}
     </AppShell>
+  );
+}
+
+function CreateBoardModal({
+  error,
+  isSubmitting,
+  sourceBoard,
+  onClose,
+  onResetError,
+  onSubmit,
+}: {
+  error: Error | null;
+  isSubmitting: boolean;
+  sourceBoard: Board;
+  onClose: () => void;
+  onResetError: () => void;
+  onSubmit: (payload: CreateBoardPayload) => Promise<Board>;
+}) {
+  const [name, setName] = useState("");
+  const [key, setKey] = useState("");
+  const [nameError, setNameError] = useState<string | null>(null);
+  const isConflict = error instanceof ApiError && error.status === 409;
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      setNameError("Name is required");
+      return;
+    }
+
+    setNameError(null);
+    try {
+      await onSubmit({
+        key: key.trim() || undefined,
+        name: trimmedName,
+        source_board_key: sourceBoard.key,
+      });
+    } catch {
+      // React Query stores the error; keep the modal open and show it inline.
+    }
+  };
+
+  return (
+    <Modal centered opened title="New board" onClose={onClose}>
+      <form onSubmit={handleSubmit}>
+        <Stack gap="sm">
+          {error ? (
+            <Alert color="red" title="Could not create board">
+              {isConflict
+                ? "A board with this key already exists."
+                : "Try again or check that the API server is reachable."}
+            </Alert>
+          ) : null}
+          <Text size="sm" c="dimmed">
+            Stages will be copied from {sourceBoard.name}.
+          </Text>
+          <TextInput
+            data-autofocus
+            disabled={isSubmitting}
+            error={nameError}
+            label="Name"
+            placeholder="Activation"
+            value={name}
+            onChange={(event) => {
+              onResetError();
+              setName(event.currentTarget.value);
+              if (nameError) {
+                setNameError(null);
+              }
+            }}
+          />
+          <TextInput
+            disabled={isSubmitting}
+            label="Key"
+            placeholder="activation"
+            value={key}
+            onChange={(event) => {
+              onResetError();
+              setKey(event.currentTarget.value);
+            }}
+          />
+          <Group justify="flex-end" mt="xs">
+            <Button
+              disabled={isSubmitting}
+              type="button"
+              variant="default"
+              onClick={onClose}
+            >
+              Cancel
+            </Button>
+            <Button loading={isSubmitting} type="submit">
+              Create board
+            </Button>
+          </Group>
+        </Stack>
+      </form>
+    </Modal>
   );
 }
 

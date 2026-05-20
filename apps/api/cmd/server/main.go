@@ -44,6 +44,7 @@ func main() {
 
 	registerHealthRoute(r, dbpool)
 	registerAuthRoutes(r, dbpool, newLoginCodeEmailSender())
+	registerBoardRoutes(r, dbpool)
 	registerEmailRoutes(r, dbpool)
 	registerCommentRoutes(r, dbpool)
 	registerAIRoutes(r, dbpool, aiService)
