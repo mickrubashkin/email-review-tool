@@ -918,14 +918,16 @@ func archiveEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 		}
 		defer tx.Rollback(r.Context())
 
+		archivedSlug := archivedEmailSlug(snapshot.Slug, snapshot.ID)
 		result, err := tx.Exec(r.Context(), `
 			UPDATE emails
 			SET archived_at = now(),
 				archived_by = $2,
+				slug = $3,
 				updated_at = now()
 			WHERE id = $1
 				AND archived_at IS NULL;
-		`, id, user.ID)
+		`, id, user.ID, archivedSlug)
 		if err != nil {
 			http.Error(w, "failed to archive email", http.StatusInternalServerError)
 			return
@@ -1593,6 +1595,10 @@ func newEmailSlug(sequence string, stage string, title string, language string, 
 	}
 
 	return strings.Join(filteredParts, "-")
+}
+
+func archivedEmailSlug(slug string, id string) string {
+	return fmt.Sprintf("%s--archived-%s", slug, id)
 }
 
 func trimmedOptionalString(value *string) *string {

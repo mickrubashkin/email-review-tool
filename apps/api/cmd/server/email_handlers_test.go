@@ -253,6 +253,87 @@ func TestCreateEmailRejectsUnknownBoard(t *testing.T) {
 	}
 }
 
+func TestCreateEmailAllowsReusingArchivedSlug(t *testing.T) {
+	dbpool := testDBPool(t)
+	user := createTestUserWithRole(t, dbpool, "admin")
+	boardKey := createTestBoard(t, dbpool, "recreate-board", []string{"uploaded"})
+
+	router := chi.NewRouter()
+	registerEmailRoutes(router, dbpool)
+
+	requestBody := []byte(`{
+		"sequence": "recreate-board",
+		"title": "Recreated Email",
+		"subject": "Uploaded subject",
+		"preheader": "Uploaded preheader",
+		"send_timing": "day 3",
+		"stage": "uploaded",
+		"sort_order": 321,
+		"language": "es",
+		"variant": "v1",
+		"adaptation_label": "Default",
+		"original_html": "<html><body><p data-edit-text=\"intro_text\">Hello upload</p></body></html>"
+	}`)
+
+	firstRequest := httptest.NewRequest(http.MethodPost, "/api/emails", bytes.NewReader(requestBody))
+	firstRequest = withAuthUser(firstRequest, user)
+	firstResponse := httptest.NewRecorder()
+	router.ServeHTTP(firstResponse, firstRequest)
+	if firstResponse.Code != http.StatusCreated {
+		t.Fatalf("expected first POST status 201, got %d: %s", firstResponse.Code, firstResponse.Body.String())
+	}
+
+	var firstCreated EmailDetail
+	if err := json.NewDecoder(firstResponse.Body).Decode(&firstCreated); err != nil {
+		t.Fatalf("failed to decode first created email: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = dbpool.Exec(context.Background(), `DELETE FROM emails WHERE sequence = $1 AND title = 'Recreated Email';`, boardKey)
+	})
+
+	archiveRequest := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/emails/"+firstCreated.ID+"/archive",
+		nil,
+	)
+	archiveRequest = withAuthUser(archiveRequest, user)
+	archiveResponse := httptest.NewRecorder()
+	router.ServeHTTP(archiveResponse, archiveRequest)
+	if archiveResponse.Code != http.StatusNoContent {
+		t.Fatalf("expected archive status 204, got %d: %s", archiveResponse.Code, archiveResponse.Body.String())
+	}
+
+	secondRequest := httptest.NewRequest(http.MethodPost, "/api/emails", bytes.NewReader(requestBody))
+	secondRequest = withAuthUser(secondRequest, user)
+	secondResponse := httptest.NewRecorder()
+	router.ServeHTTP(secondResponse, secondRequest)
+	if secondResponse.Code != http.StatusCreated {
+		t.Fatalf("expected second POST status 201, got %d: %s", secondResponse.Code, secondResponse.Body.String())
+	}
+
+	var secondCreated EmailDetail
+	if err := json.NewDecoder(secondResponse.Body).Decode(&secondCreated); err != nil {
+		t.Fatalf("failed to decode second created email: %v", err)
+	}
+	if secondCreated.Slug != firstCreated.Slug {
+		t.Fatalf("expected recreated email slug %q, got %q", firstCreated.Slug, secondCreated.Slug)
+	}
+
+	var archivedSlug string
+	err := dbpool.QueryRow(context.Background(), `
+		SELECT slug
+		FROM emails
+		WHERE id = $1
+			AND archived_at IS NOT NULL;
+	`, firstCreated.ID).Scan(&archivedSlug)
+	if err != nil {
+		t.Fatalf("failed to load archived email slug: %v", err)
+	}
+	if archivedSlug == firstCreated.Slug {
+		t.Fatalf("expected archived email slug to be released, got %q", archivedSlug)
+	}
+}
+
 func TestInspectEmailHTML(t *testing.T) {
 	dbpool := testDBPool(t)
 	user := createTestUserWithRole(t, dbpool, "admin")
