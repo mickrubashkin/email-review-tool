@@ -21,7 +21,7 @@ export const stageColors = [
 ];
 
 const preferredVersionOrder = ["en", "es", "br", "pl", "de", "old"];
-const preferredVariantOrder: EmailVariant[] = ["new", "old"];
+const legacyVariantOrder: EmailVariant[] = ["new", "old"];
 
 export function formatStageName(stage: string): string {
   return stage
@@ -69,7 +69,11 @@ export function sortEmailVersions(versions: EmailListItem[]): EmailListItem[] {
 }
 
 export function getDefaultVersion(versions: EmailListItem[]): EmailListItem {
-  return getDefaultVersionForVariant(versions, "new") ?? sortEmailVersions(versions)[0];
+  return (
+    getDefaultVersionForVariant(versions, "v1") ??
+    getDefaultVersionForVariant(versions, "new") ??
+    sortEmailVersions(versions)[0]
+  );
 }
 
 export function getAvailableVariants(versions: EmailListItem[]): EmailVariant[] {
@@ -96,8 +100,17 @@ export function getVersionsForVariant(
 }
 
 function variantSortIndex(variant: EmailVariant) {
-  const index = preferredVariantOrder.indexOf(variant);
-  return index === -1 ? preferredVariantOrder.length : index;
+  const versionMatch = /^v(\d+)$/i.exec(variant);
+  if (versionMatch) {
+    return Number(versionMatch[1]);
+  }
+
+  const legacyIndex = legacyVariantOrder.indexOf(variant);
+  if (legacyIndex >= 0) {
+    return 10_000 + legacyIndex;
+  }
+
+  return 5_000;
 }
 
 export function getAvailableAdaptations(

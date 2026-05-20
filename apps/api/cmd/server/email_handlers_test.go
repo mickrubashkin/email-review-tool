@@ -116,6 +116,7 @@ func TestCreateEmail(t *testing.T) {
 		"sort_order": 321,
 		"language": "en",
 		"variant": "candidate",
+		"adaptation_label": "Promo",
 		"original_html": "<html><body><p data-edit-text=\"intro_text\">Hello upload</p><a href=\"https://example.com\" data-edit-attr-href=\"cta_url\">Start</a></body></html>"
 	}`)
 	request := httptest.NewRequest(http.MethodPost, "/api/emails", bytes.NewReader(requestBody))
@@ -137,7 +138,7 @@ func TestCreateEmail(t *testing.T) {
 	t.Cleanup(func() {
 		_, _ = dbpool.Exec(context.Background(), `DELETE FROM emails WHERE id = $1;`, created.ID)
 	})
-	if created.Slug != "onboarding-uploaded-uploaded-email-en" {
+	if created.Slug != "onboarding-uploaded-uploaded-email-en-candidate--promo" {
 		t.Fatalf("expected generated slug, got %q", created.Slug)
 	}
 	if created.Sequence != "onboarding" ||
@@ -145,7 +146,9 @@ func TestCreateEmail(t *testing.T) {
 		created.Stage != "uploaded" ||
 		created.SortOrder != 321 ||
 		created.Language != "en" ||
-		created.Variant != "candidate" {
+		created.Variant != "candidate" ||
+		created.AdaptationKey != "promo" ||
+		created.AdaptationLabel != "Promo" {
 		t.Fatalf("unexpected created email: %#v", created)
 	}
 	if created.ReviewHTML == nil || !strings.Contains(*created.ReviewHTML, "data-review-block") {
@@ -176,6 +179,51 @@ func TestCreateEmail(t *testing.T) {
 	}
 	if actorEmail != user.Email {
 		t.Fatalf("expected actor %s, got %s", user.Email, actorEmail)
+	}
+}
+
+func TestInspectEmailHTML(t *testing.T) {
+	dbpool := testDBPool(t)
+	user := createTestUserWithRole(t, dbpool, "admin")
+
+	router := chi.NewRouter()
+	registerEmailRoutes(router, dbpool)
+
+	requestBody := []byte(`{
+		"original_html": "<html><body><p data-edit-text=\"intro_text\">Hello upload content that is long enough for review</p><a href=\"https://example.com\" data-edit-attr-href=\"cta_url\">Start now</a></body></html>"
+	}`)
+	request := httptest.NewRequest(http.MethodPost, "/api/emails/inspect-html", bytes.NewReader(requestBody))
+	request = withAuthUser(request, user)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected POST status 200, got %d: %s", response.Code, response.Body.String())
+	}
+
+	var inspection emailHTMLInspection
+	if err := json.NewDecoder(response.Body).Decode(&inspection); err != nil {
+		t.Fatalf("failed to decode inspection: %v", err)
+	}
+	if inspection.ReviewBlockCount == 0 {
+		t.Fatalf("expected generated review blocks, got %#v", inspection)
+	}
+	if inspection.OriginalReviewBlockCount != 0 {
+		t.Fatalf("expected no original review blocks, got %d", inspection.OriginalReviewBlockCount)
+	}
+	if inspection.EditableFieldCount != 2 {
+		t.Fatalf("expected 2 editable fields, got %#v", inspection.EditableFields)
+	}
+	if len(inspection.EditableFields) != 2 ||
+		inspection.EditableFields[0].Key != "intro_text" ||
+		inspection.EditableFields[1].Key != "cta_url" {
+		t.Fatalf("expected ordered editable fields, got %#v", inspection.EditableFields)
+	}
+	if !strings.Contains(inspection.ReviewHTML, "data-review-block") {
+		t.Fatalf("expected generated review html, got %q", inspection.ReviewHTML)
+	}
+	if len(inspection.Warnings) != 1 {
+		t.Fatalf("expected warning about generated review blocks, got %#v", inspection.Warnings)
 	}
 }
 
@@ -763,7 +811,7 @@ func TestDuplicateEmailRejectsMissingLanguage(t *testing.T) {
 	}
 }
 
-func TestDuplicateEmailRejectsInvalidVariant(t *testing.T) {
+func TestDuplicateEmailAllowsCustomVersion(t *testing.T) {
 	dbpool := testDBPool(t)
 	emailID := createTestEmail(t, dbpool)
 	user := createTestUserWithRole(t, dbpool, "admin")
@@ -780,8 +828,72 @@ func TestDuplicateEmailRejectsInvalidVariant(t *testing.T) {
 	response := httptest.NewRecorder()
 	router.ServeHTTP(response, request)
 
-	if response.Code != http.StatusBadRequest {
-		t.Fatalf("expected POST status 400, got %d: %s", response.Code, response.Body.String())
+	if response.Code != http.StatusCreated {
+		t.Fatalf("expected POST status 201, got %d: %s", response.Code, response.Body.String())
+	}
+
+	var created EmailDetail
+	if err := json.NewDecoder(response.Body).Decode(&created); err != nil {
+		t.Fatalf("failed to decode duplicated email: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = dbpool.Exec(context.Background(), `DELETE FROM emails WHERE id = $1;`, created.ID)
+	})
+	if created.Variant != "draft" {
+		t.Fatalf("expected duplicated variant draft, got %q", created.Variant)
+	}
+	if created.Slug != "comment-test-email-es-draft" {
+		t.Fatalf("expected duplicated slug comment-test-email-es-draft, got %q", created.Slug)
+	}
+}
+
+func TestDuplicateEmailPreservesAdaptation(t *testing.T) {
+	dbpool := testDBPool(t)
+	emailID := createTestEmail(t, dbpool)
+	user := createTestUserWithRole(t, dbpool, "admin")
+	setTestEmailForDuplicate(t, dbpool, emailID)
+	_, err := dbpool.Exec(context.Background(), `
+		UPDATE emails
+		SET slug = 'comment-test-email-en--uae',
+			adaptation_key = 'uae',
+			adaptation_label = 'UAE'
+		WHERE id = $1;
+	`, emailID)
+	if err != nil {
+		t.Fatalf("failed to prepare adaptation source email: %v", err)
+	}
+
+	router := chi.NewRouter()
+	registerEmailRoutes(router, dbpool)
+
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/api/emails/"+emailID+"/duplicate",
+		bytes.NewReader([]byte(`{ "language": "es", "variant": "v2" }`)),
+	)
+	request = withAuthUser(request, user)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusCreated {
+		t.Fatalf("expected POST status 201, got %d: %s", response.Code, response.Body.String())
+	}
+
+	var created EmailDetail
+	if err := json.NewDecoder(response.Body).Decode(&created); err != nil {
+		t.Fatalf("failed to decode duplicated email: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = dbpool.Exec(context.Background(), `DELETE FROM emails WHERE id = $1;`, created.ID)
+	})
+	if created.Slug != "comment-test-email-es-v2--uae" {
+		t.Fatalf("expected duplicated adaptation slug comment-test-email-es-v2--uae, got %q", created.Slug)
+	}
+	if created.Language != "es" || created.Variant != "v2" {
+		t.Fatalf("expected duplicated es/v2, got %s/%s", created.Language, created.Variant)
+	}
+	if created.AdaptationKey != "uae" || created.AdaptationLabel != "UAE" {
+		t.Fatalf("expected duplicated UAE adaptation, got %s/%s", created.AdaptationKey, created.AdaptationLabel)
 	}
 }
 

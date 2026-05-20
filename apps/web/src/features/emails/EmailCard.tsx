@@ -283,11 +283,10 @@ export function EmailCard({
 
           <Group className={styles.variantRow} gap={6} wrap="nowrap">
             <Group className={styles.variantSwitch} gap={2} wrap="nowrap">
-              {(["new", "old"] as const).map((variant) => (
+              {availableVariants.map((variant) => (
                 <button
                   className={styles.variantButton}
                   data-active={variant === selectedVariant || undefined}
-                  disabled={!availableVariants.includes(variant)}
                   key={variant}
                   type="button"
                   onClick={(event) => handleVariantClick(event, variant)}

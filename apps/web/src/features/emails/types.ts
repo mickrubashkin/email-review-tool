@@ -36,7 +36,21 @@ export type CreateEmailPayload = {
   sort_order: number;
   language: string;
   variant: EmailVariant;
+  adaptation_label?: string;
   original_html: string;
+};
+
+export type EmailHTMLInspection = {
+  review_block_count: number;
+  original_review_block_count: number;
+  editable_field_count: number;
+  editable_fields: Array<{
+    key: string;
+    type: EditableFieldType;
+    value_preview: string;
+  }>;
+  warnings: string[];
+  review_html: string;
 };
 
 export type DuplicateEmailPayload = {

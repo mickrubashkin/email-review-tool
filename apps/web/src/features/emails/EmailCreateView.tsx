@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Autocomplete,
@@ -24,7 +24,7 @@ import {
   UploadSimpleIcon,
 } from "@phosphor-icons/react";
 
-import { createEmail, fetchEmails } from "./api";
+import { createEmail, fetchEmails, inspectEmailHTML } from "./api";
 import type { AuthUser, CreateEmailPayload, EmailVariant } from "./types";
 import styles from "./EmailFieldsEditorView.module.css";
 
@@ -42,6 +42,7 @@ type CreateEmailFormState = {
   sortOrder: number;
   language: string;
   variant: EmailVariant;
+  adaptationLabel: string;
   originalHTML: string;
 };
 
@@ -54,7 +55,8 @@ const initialFormState: CreateEmailFormState = {
   stage: "",
   sortOrder: 0,
   language: "en",
-  variant: "new",
+  variant: "v1",
+  adaptationLabel: "Default",
   originalHTML: "",
 };
 
@@ -65,10 +67,19 @@ export function EmailCreateView({ currentUserRole }: EmailCreateViewProps) {
   const queryClient = useQueryClient();
   const [formState, setFormState] = useState<CreateEmailFormState>(initialFormState);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [debouncedHTML, setDebouncedHTML] = useState("");
+  const [sortOrderAuto, setSortOrderAuto] = useState(true);
   const emailsQuery = useQuery({
     queryKey: ["emails"],
     queryFn: fetchEmails,
     enabled: canCreate,
+  });
+  const htmlInspectionQuery = useQuery({
+    queryKey: ["email-html-inspection", debouncedHTML],
+    queryFn: () => inspectEmailHTML(debouncedHTML),
+    enabled: canCreate && debouncedHTML.trim().length > 0,
+    retry: false,
+    staleTime: 30_000,
   });
   const createMutation = useMutation({
     mutationFn: (payload: CreateEmailPayload) => createEmail(payload),
@@ -111,6 +122,17 @@ export function EmailCreateView({ currentUserRole }: EmailCreateViewProps) {
       ),
     [emails, selectedBoard]
   );
+  const selectedStage = stageOptions.includes(formState.stage)
+    ? formState.stage
+    : stageOptions[0] ?? "";
+  const suggestedSortOrder = getNextSortOrder(
+    emails,
+    selectedBoard,
+    selectedStage
+  );
+  const selectedSortOrder = sortOrderAuto
+    ? suggestedSortOrder
+    : formState.sortOrder;
   const languageOptions = useMemo(
     () => uniqueSorted(emails.map((email) => email.language)),
     [emails]
@@ -119,6 +141,17 @@ export function EmailCreateView({ currentUserRole }: EmailCreateViewProps) {
     () => uniqueSorted(emails.map((email) => email.variant)),
     [emails]
   );
+  const adaptationOptions = useMemo(
+    () => uniqueSorted(["Default", ...emails.map((email) => email.adaptation_label)]),
+    [emails]
+  );
+  useEffect(() => {
+    const timeoutID = window.setTimeout(() => {
+      setDebouncedHTML(formState.originalHTML.trim());
+    }, 500);
+
+    return () => window.clearTimeout(timeoutID);
+  }, [formState.originalHTML]);
 
   if (!canCreate) {
     return (
@@ -136,14 +169,18 @@ export function EmailCreateView({ currentUserRole }: EmailCreateViewProps) {
   }
 
   const trimmedTitle = formState.title.trim();
-  const trimmedStage = formState.stage.trim();
+  const trimmedStage = selectedStage.trim();
   const trimmedHTML = formState.originalHTML.trim();
+  const htmlInspection = htmlInspectionQuery.data;
+  const htmlInspectionWarnings = htmlInspection?.warnings ?? [];
+  const previewHTML = htmlInspection?.review_html ?? trimmedHTML;
   const canSubmit =
     trimmedTitle.length > 0 &&
     selectedBoard.length > 0 &&
     trimmedStage.length > 0 &&
     formState.language.trim().length > 0 &&
     formState.variant.trim().length > 0 &&
+    formState.adaptationLabel.trim().length > 0 &&
     trimmedHTML.length > 0 &&
     !createMutation.isPending;
   const submit = () => {
@@ -153,11 +190,12 @@ export function EmailCreateView({ currentUserRole }: EmailCreateViewProps) {
 
     createMutation.mutate({
       language: formState.language.trim() || "en",
+      adaptation_label: formState.adaptationLabel.trim() || "Default",
       original_html: trimmedHTML,
       preheader: optionalString(formState.preheader),
       send_timing: optionalString(formState.sendTiming),
       sequence: selectedBoard,
-      sort_order: formState.sortOrder,
+      sort_order: selectedSortOrder,
       stage: trimmedStage,
       subject: optionalString(formState.subject),
       title: trimmedTitle,
@@ -188,14 +226,16 @@ export function EmailCreateView({ currentUserRole }: EmailCreateViewProps) {
         .map((email) => email.stage ?? "")
         .filter((stage) => stage.trim().length > 0)
     );
+    const nextStage = nextStageOptions.includes(formState.stage)
+      ? formState.stage
+      : nextStageOptions[0] ?? "";
 
     setFormState((current) => ({
       ...current,
       sequence: nextBoard,
-      stage: nextStageOptions.includes(current.stage)
-        ? current.stage
-        : nextStageOptions[0] ?? "",
+      stage: nextStage,
     }));
+    setSortOrderAuto(true);
   };
 
   const editorPanel = (
@@ -231,8 +271,14 @@ export function EmailCreateView({ currentUserRole }: EmailCreateViewProps) {
           label="Stage"
           placeholder={selectedBoard ? "Select stage" : "Select a board first"}
           required
-          value={formState.stage}
-          onChange={(value) => updateField("stage", value ?? "")}
+          value={selectedStage}
+          onChange={(value) => {
+            const nextStage = value ?? "";
+            setFormState((current) => ({
+              ...current,
+              stage: nextStage,
+            }));
+          }}
         />
       </Group>
 
@@ -273,17 +319,33 @@ export function EmailCreateView({ currentUserRole }: EmailCreateViewProps) {
       <Group grow>
         <Autocomplete
           data={variantOptions}
-          label="Variant"
-          placeholder="new"
+          label="Version"
+          placeholder="v1"
           value={formState.variant}
           onChange={(value) => updateField("variant", value)}
         />
+        <Autocomplete
+          data={adaptationOptions}
+          label="Adaptation"
+          placeholder="Default"
+          value={formState.adaptationLabel}
+          onChange={(value) => updateField("adaptationLabel", value)}
+        />
+      </Group>
+
+      <Group grow>
         <NumberInput
-          label="Sort order"
-          value={formState.sortOrder}
-          onChange={(value) =>
-            updateField("sortOrder", typeof value === "number" ? value : 0)
+          description={
+            sortOrderAuto
+              ? "Suggested from selected board/stage."
+              : "Manual order."
           }
+          label="Sort order"
+          value={selectedSortOrder}
+          onChange={(value) => {
+            setSortOrderAuto(false);
+            updateField("sortOrder", typeof value === "number" ? value : 0);
+          }}
         />
       </Group>
 
@@ -316,6 +378,74 @@ export function EmailCreateView({ currentUserRole }: EmailCreateViewProps) {
         value={formState.originalHTML}
         onChange={(event) => updateField("originalHTML", event.currentTarget.value)}
       />
+      {trimmedHTML ? (
+        <Alert
+          color={
+            htmlInspectionQuery.isError || htmlInspectionWarnings.length > 0
+              ? "yellow"
+              : "green"
+          }
+          title="Backend HTML inspection"
+        >
+          <Stack gap={6}>
+            {htmlInspectionQuery.isPending ? (
+              <Text size="sm">Inspecting HTML...</Text>
+            ) : htmlInspectionQuery.isError ? (
+              <Text size="sm">
+                HTML could not be inspected. Check the markup and editable field
+                markers.
+              </Text>
+            ) : htmlInspection ? (
+              <>
+                <Group gap={6} wrap="wrap">
+                  <Badge
+                    color={htmlInspection.review_block_count > 0 ? "green" : "yellow"}
+                    variant="light"
+                  >
+                    {htmlInspection.review_block_count} review blocks
+                  </Badge>
+                  <Badge
+                    color={htmlInspection.editable_field_count > 0 ? "green" : "yellow"}
+                    variant="light"
+                  >
+                    {htmlInspection.editable_field_count} editable fields
+                  </Badge>
+                  {htmlInspection.original_review_block_count === 0 ? (
+                    <Badge color="blue" variant="light">
+                      generated review blocks
+                    </Badge>
+                  ) : null}
+                </Group>
+                {htmlInspectionWarnings.length > 0 ? (
+                  <Stack gap={2}>
+                    {htmlInspectionWarnings.map((warning) => (
+                      <Text key={warning} size="sm">
+                        {warning}
+                      </Text>
+                    ))}
+                  </Stack>
+                ) : (
+                  <Text size="sm">Review and editable markers look usable.</Text>
+                )}
+                {htmlInspection.editable_fields.length > 0 ? (
+                  <Group gap={6} wrap="wrap">
+                    {htmlInspection.editable_fields.slice(0, 8).map((field) => (
+                      <Badge key={field.key} color="gray" variant="light">
+                        {field.key}: {field.type}
+                      </Badge>
+                    ))}
+                    {htmlInspection.editable_fields.length > 8 ? (
+                      <Badge color="gray" variant="light">
+                        +{htmlInspection.editable_fields.length - 8} more
+                      </Badge>
+                    ) : null}
+                  </Group>
+                ) : null}
+              </>
+            ) : null}
+          </Stack>
+        </Alert>
+      ) : null}
 
       <Group justify="flex-end">
         <Button component={Link} to="/" variant="subtle">
@@ -344,14 +474,18 @@ export function EmailCreateView({ currentUserRole }: EmailCreateViewProps) {
             Raw uploaded HTML
           </Text>
         </Stack>
-        <Badge variant="light">{formState.language.toUpperCase() || "EN"}</Badge>
+        <Group gap={6}>
+          <Badge variant="light">{formState.language.toUpperCase() || "EN"}</Badge>
+          <Badge variant="light">{formState.variant || "v1"}</Badge>
+          <Badge variant="light">{formState.adaptationLabel || "Default"}</Badge>
+        </Group>
       </Group>
       <div className={styles.previewFrameWrap}>
         {trimmedHTML ? (
           <iframe
             className={styles.previewFrame}
             sandbox="allow-same-origin"
-            srcDoc={trimmedHTML}
+            srcDoc={previewHTML}
             title="New email preview"
           />
         ) : (
@@ -421,4 +555,20 @@ function uniqueSorted(values: string[]) {
   return Array.from(
     new Set(values.map((value) => value.trim()).filter(Boolean))
   ).sort((first, second) => first.localeCompare(second));
+}
+
+function getNextSortOrder(
+  emails: Array<{ sequence: string; stage: string | null; sort_order: number }>,
+  sequence: string,
+  stage: string
+) {
+  const matchingSortOrders = emails
+    .filter((email) => email.sequence === sequence && (email.stage ?? "") === stage)
+    .map((email) => email.sort_order);
+
+  if (matchingSortOrders.length === 0) {
+    return 0;
+  }
+
+  return Math.max(...matchingSortOrders) + 1;
 }

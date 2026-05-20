@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"reflect"
+	"sort"
 	"strings"
 	"unicode/utf16"
 
@@ -23,6 +24,7 @@ import (
 func registerEmailRoutes(r chi.Router, dbpool *pgxpool.Pool) {
 	r.Get("/api/emails", listEmailsHandler(dbpool))
 	r.Post("/api/emails", createEmailHandler(dbpool))
+	r.Post("/api/emails/inspect-html", inspectEmailHTMLHandler(dbpool))
 	r.Get("/api/emails/{id}", getEmailHandler(dbpool))
 	r.Get("/api/emails/{id}/rendered", getRenderedEmailHandler(dbpool))
 	r.Patch("/api/emails/{id}/editable-fields", updateEmailEditableFieldsHandler(dbpool))
@@ -174,16 +176,36 @@ func getEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 }
 
 type createEmailRequest struct {
-	Sequence     *string `json:"sequence"`
-	Title        string  `json:"title"`
-	Subject      *string `json:"subject"`
-	Preheader    *string `json:"preheader"`
-	SendTiming   *string `json:"send_timing"`
-	Stage        string  `json:"stage"`
-	SortOrder    int     `json:"sort_order"`
-	Language     string  `json:"language"`
-	Variant      string  `json:"variant"`
-	OriginalHTML string  `json:"original_html"`
+	Sequence        *string `json:"sequence"`
+	Title           string  `json:"title"`
+	Subject         *string `json:"subject"`
+	Preheader       *string `json:"preheader"`
+	SendTiming      *string `json:"send_timing"`
+	Stage           string  `json:"stage"`
+	SortOrder       int     `json:"sort_order"`
+	Language        string  `json:"language"`
+	Variant         string  `json:"variant"`
+	AdaptationLabel *string `json:"adaptation_label"`
+	OriginalHTML    string  `json:"original_html"`
+}
+
+type inspectEmailHTMLRequest struct {
+	OriginalHTML string `json:"original_html"`
+}
+
+type emailHTMLInspection struct {
+	ReviewBlockCount         int                       `json:"review_block_count"`
+	OriginalReviewBlockCount int                       `json:"original_review_block_count"`
+	EditableFieldCount       int                       `json:"editable_field_count"`
+	EditableFields           []editableFieldInspection `json:"editable_fields"`
+	Warnings                 []string                  `json:"warnings"`
+	ReviewHTML               string                    `json:"review_html"`
+}
+
+type editableFieldInspection struct {
+	Key          string `json:"key"`
+	Type         string `json:"type"`
+	ValuePreview string `json:"value_preview"`
 }
 
 func createEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
@@ -216,7 +238,12 @@ func createEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 		}
 		variant := strings.ToLower(strings.TrimSpace(request.Variant))
 		if variant == "" {
-			variant = "new"
+			variant = "v1"
+		}
+		adaptationKey, adaptationLabel, err := normalizeEmailAdaptation(request.AdaptationLabel)
+		if err != nil {
+			http.Error(w, "adaptation label must contain letters, numbers, spaces, hyphens, or underscores", http.StatusBadRequest)
+			return
 		}
 		originalHTML := strings.TrimSpace(request.OriginalHTML)
 
@@ -254,7 +281,10 @@ func createEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			http.Error(w, "failed to create email", http.StatusInternalServerError)
 			return
 		}
-		slug := newEmailSlug(sequence, stage, title, language, variant)
+		slug := emailSlugWithAdaptation(
+			newEmailSlug(sequence, stage, title, language, variant),
+			adaptationKey,
+		)
 
 		tx, err := dbpool.Begin(r.Context())
 		if err != nil {
@@ -274,8 +304,8 @@ func createEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			SortOrder:       request.SortOrder,
 			Language:        language,
 			Variant:         variant,
-			AdaptationKey:   "default",
-			AdaptationLabel: "Default",
+			AdaptationKey:   adaptationKey,
+			AdaptationLabel: adaptationLabel,
 			ContentParts:    contentPartsJSON,
 			OriginalHTML:    originalHTML,
 			ReviewHTML:      &reviewHTML,
@@ -304,6 +334,7 @@ func createEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 				"stage":      created.Stage,
 				"language":   created.Language,
 				"variant":    created.Variant,
+				"adaptation": created.AdaptationKey,
 				"sort_order": created.SortOrder,
 			},
 		}); err != nil {
@@ -318,6 +349,35 @@ func createEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
 		_ = json.NewEncoder(w).Encode(created)
+	}
+}
+
+func inspectEmailHTMLHandler(_ *pgxpool.Pool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := authUserFromContext(r)
+		if !ok {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		if !isAdminUser(user) {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+
+		var request inspectEmailHTMLRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+
+		inspection, err := inspectEmailHTML(strings.TrimSpace(request.OriginalHTML))
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(inspection)
 	}
 }
 
@@ -610,7 +670,10 @@ func duplicateEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			preheader = request.Preheader
 		}
 
-		slug := duplicateEmailSlug(source.Slug, source.Language, language, variant)
+		slug := emailSlugWithAdaptation(
+			duplicateEmailSlug(source.Slug, source.Language, source.Variant, language, variant),
+			source.AdaptationKey,
+		)
 		contentParts, err := json.Marshal(emailtext.ExtractContentParts(
 			source.OriginalHTML,
 			stringFromPointer(subject),
@@ -640,8 +703,8 @@ func duplicateEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			SortOrder:       source.SortOrder,
 			Language:        language,
 			Variant:         variant,
-			AdaptationKey:   "default",
-			AdaptationLabel: "Default",
+			AdaptationKey:   source.AdaptationKey,
+			AdaptationLabel: source.AdaptationLabel,
 			BodyText:        source.BodyText,
 			ContentParts:    contentParts,
 			OriginalHTML:    source.OriginalHTML,
@@ -673,6 +736,7 @@ func duplicateEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 				"created_email_id": created.ID,
 				"language":         created.Language,
 				"variant":          created.Variant,
+				"adaptation_key":   created.AdaptationKey,
 			},
 		}); err != nil {
 			fmt.Fprintf(os.Stderr, "failed to insert email duplicate event for %s: %v\n", created.ID, err)
@@ -914,6 +978,105 @@ func listEmailEventsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 func isRequestAdmin(r *http.Request) bool {
 	user, ok := authUserFromContext(r)
 	return ok && isAdminUser(user)
+}
+
+func inspectEmailHTML(originalHTML string) (emailHTMLInspection, error) {
+	if originalHTML == "" {
+		return emailHTMLInspection{}, errors.New("original_html is required")
+	}
+
+	originalReviewBlockCount, err := countReviewBlocks(originalHTML)
+	if err != nil {
+		return emailHTMLInspection{}, errors.New("invalid email HTML")
+	}
+
+	reviewHTML, err := emailreview.AddReviewBlocks(originalHTML)
+	if err != nil {
+		return emailHTMLInspection{}, errors.New("invalid email HTML")
+	}
+
+	reviewBlockCount, err := countReviewBlocks(reviewHTML)
+	if err != nil {
+		return emailHTMLInspection{}, errors.New("invalid generated review HTML")
+	}
+
+	editableFields, err := emailedit.ExtractEditableFields(originalHTML)
+	if err != nil {
+		return emailHTMLInspection{}, fmt.Errorf("invalid editable fields: %w", err)
+	}
+
+	warnings := []string{}
+	if originalReviewBlockCount == 0 {
+		warnings = append(warnings, "No data-review-block markers were found; review blocks will be generated automatically.")
+	}
+	if reviewBlockCount == 0 {
+		warnings = append(warnings, "No reviewable content was found. Block comments may be unavailable.")
+	}
+	if len(editableFields) == 0 {
+		warnings = append(warnings, "No editable fields were found. Admin editing will be limited after creation.")
+	}
+
+	return emailHTMLInspection{
+		ReviewBlockCount:         reviewBlockCount,
+		OriginalReviewBlockCount: originalReviewBlockCount,
+		EditableFieldCount:       len(editableFields),
+		EditableFields:           inspectEditableFields(editableFields),
+		Warnings:                 warnings,
+		ReviewHTML:               reviewHTML,
+	}, nil
+}
+
+func countReviewBlocks(htmlValue string) (int, error) {
+	root, err := xhtml.Parse(strings.NewReader(htmlValue))
+	if err != nil {
+		return 0, err
+	}
+
+	return countReviewBlockNodes(root), nil
+}
+
+func countReviewBlockNodes(node *xhtml.Node) int {
+	count := 0
+	if node.Type == xhtml.ElementNode && htmlAttrValue(node, "data-review-block") != "" {
+		count++
+	}
+	for child := node.FirstChild; child != nil; child = child.NextSibling {
+		count += countReviewBlockNodes(child)
+	}
+
+	return count
+}
+
+func inspectEditableFields(fields emailedit.EditableFields) []editableFieldInspection {
+	inspected := make([]editableFieldInspection, 0, len(fields))
+	for key, field := range fields {
+		inspected = append(inspected, editableFieldInspection{
+			Key:          key,
+			Type:         field.Type,
+			ValuePreview: truncateInspectionValue(fmt.Sprintf("%v", field.Value)),
+		})
+	}
+	sort.Slice(inspected, func(i int, j int) bool {
+		firstOrder := fields[inspected[i].Key].Order
+		secondOrder := fields[inspected[j].Key].Order
+		if firstOrder != secondOrder {
+			return firstOrder < secondOrder
+		}
+
+		return inspected[i].Key < inspected[j].Key
+	})
+
+	return inspected
+}
+
+func truncateInspectionValue(value string) string {
+	value = strings.Join(strings.Fields(value), " ")
+	runes := []rune(value)
+	if len(runes) <= 80 {
+		return value
+	}
+
+	return string(runes[:77]) + "..."
 }
 
 type emailDuplicateSource struct {
@@ -1327,17 +1490,20 @@ func jsStringLength(value string) int {
 	return len(utf16.Encode([]rune(value)))
 }
 
-func duplicateEmailSlug(sourceSlug string, sourceLanguage string, targetLanguage string, targetVariant string) string {
+func duplicateEmailSlug(sourceSlug string, sourceLanguage string, sourceVariant string, targetLanguage string, targetVariant string) string {
 	base := strings.Split(sourceSlug, "--")[0]
-	base = strings.TrimSuffix(base, "-old")
+	sourceVariant = normalizeAdaptationKey(sourceVariant)
+	if sourceVariant != "" && sourceVariant != "new" {
+		base = strings.TrimSuffix(base, "-"+sourceVariant)
+	}
 	sourceLanguage = strings.ToLower(strings.TrimSpace(sourceLanguage))
 	if sourceLanguage != "" {
 		base = strings.TrimSuffix(base, "-"+sourceLanguage)
 	}
 
 	slug := base + "-" + targetLanguage
-	if targetVariant == "old" {
-		slug += "-old"
+	if targetVariant != "new" {
+		slug += "-" + normalizeAdaptationKey(targetVariant)
 	}
 
 	return slug
@@ -1346,6 +1512,28 @@ func duplicateEmailSlug(sourceSlug string, sourceLanguage string, targetLanguage
 func adaptationEmailSlug(sourceSlug string, sourceAdaptationKey string, targetAdaptationKey string) string {
 	base := strings.TrimSuffix(sourceSlug, "--"+sourceAdaptationKey)
 	return base + "--" + targetAdaptationKey
+}
+
+func emailSlugWithAdaptation(baseSlug string, adaptationKey string) string {
+	if adaptationKey == "" || adaptationKey == "default" {
+		return baseSlug
+	}
+
+	return baseSlug + "--" + adaptationKey
+}
+
+func normalizeEmailAdaptation(label *string) (string, string, error) {
+	trimmed := strings.TrimSpace(stringFromPointer(label))
+	if trimmed == "" || strings.EqualFold(trimmed, "default") {
+		return "default", "Default", nil
+	}
+
+	key := normalizeAdaptationKey(trimmed)
+	if key == "" {
+		return "", "", errors.New("invalid adaptation label")
+	}
+
+	return key, trimmed, nil
 }
 
 func normalizeAdaptationKey(label string) string {
@@ -1372,8 +1560,8 @@ func newEmailSlug(sequence string, stage string, title string, language string, 
 		normalizeAdaptationKey(title),
 		strings.ToLower(strings.TrimSpace(language)),
 	}
-	if variant == "old" {
-		parts = append(parts, "old")
+	if variant != "new" {
+		parts = append(parts, normalizeAdaptationKey(variant))
 	}
 
 	filteredParts := make([]string, 0, len(parts))

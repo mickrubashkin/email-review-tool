@@ -8,6 +8,7 @@ import type {
   EmailDetail,
   EmailEventFilters,
   EmailEventItem,
+  EmailHTMLInspection,
   EmailListItem,
   CreateEmailPayload,
   CreateEmailCommentPayload,
@@ -134,6 +135,16 @@ export function createEmail(payload: CreateEmailPayload): Promise<EmailDetail> {
       "Content-Type": "application/json",
     },
     body: JSON.stringify(payload),
+  });
+}
+
+export function inspectEmailHTML(originalHTML: string): Promise<EmailHTMLInspection> {
+  return fetchJson<EmailHTMLInspection>("/api/emails/inspect-html", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ original_html: originalHTML }),
   });
 }
 

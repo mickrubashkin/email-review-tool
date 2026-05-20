@@ -9,7 +9,6 @@ import {
   Menu,
   Modal,
   SegmentedControl,
-  Select,
   Skeleton,
   Stack,
   Tabs,
@@ -185,7 +184,7 @@ export function EmailReviewView({
   }, [emailId, stageColumns]);
   const selectedVariant = emailGroup
     ? getSelectedVariant(emailGroup.versions, emailId)
-    : email?.variant ?? "new";
+    : email?.variant ?? "v1";
   const selectedAdaptation = emailGroup
     ? getSelectedAdaptation(emailGroup.versions, emailId)
     : email?.adaptation_key ?? "default";
@@ -1649,7 +1648,7 @@ function DuplicateEmailModal({
           {error ? (
             <Alert color="red" title="Could not duplicate language/version">
               {isConflict
-                ? "This language and variant already exist for the selected email."
+                ? "This language and version already exist for the selected email."
                 : "Try again or check that the API server is reachable."}
             </Alert>
           ) : null}
@@ -1670,18 +1669,14 @@ function DuplicateEmailModal({
             }}
           />
 
-          <Select
-            allowDeselect={false}
-            data={[
-              { label: "New", value: "new" },
-              { label: "Old", value: "old" },
-            ]}
+          <TextInput
             disabled={isSubmitting}
-            label="Variant"
+            label="Version"
+            placeholder="v2"
             value={variant}
-            onChange={(value) => {
+            onChange={(event) => {
               onResetError();
-              setVariant((value as EmailVariant) ?? "new");
+              setVariant(event.currentTarget.value);
             }}
           />
 
@@ -1778,7 +1773,7 @@ function CreateAdaptationModal({
           {error ? (
             <Alert color="red" title="Could not create adaptation">
               {isConflict
-                ? "This adaptation already exists for the selected language and variant."
+                ? "This adaptation already exists for the selected language and version."
                 : "Try again or check that the API server is reachable."}
             </Alert>
           ) : null}
@@ -1917,12 +1912,11 @@ function VariantSwitch({
 }) {
   return (
     <Group className={styles.segmentedControl} gap={0}>
-      {(["new", "old"] as const).map((variant) => (
+      {availableVariants.map((variant) => (
         <button
-          aria-label={`${variant} email variant`}
+          aria-label={`${variant} email version`}
           className={styles.segmentedButton}
           data-active={variant === selectedVariant || undefined}
-          disabled={!availableVariants.includes(variant)}
           key={variant}
           type="button"
           onClick={() => onSelect(variant)}
