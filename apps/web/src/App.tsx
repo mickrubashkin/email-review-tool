@@ -30,9 +30,16 @@ import { useMediaQuery } from "@mantine/hooks";
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
+  CaretDownIcon,
+  EnvelopeSimpleIcon,
+  GearSixIcon,
+  KanbanIcon,
   PencilSimpleIcon,
   PlusIcon,
+  SignOutIcon,
+  SlidersHorizontalIcon,
   TrashIcon,
+  UserCircleIcon,
 } from "@phosphor-icons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
@@ -373,27 +380,24 @@ function EmailBoardApp({
   };
 
   return (
-    <AppShell header={{ height: 56 }} padding={0}>
+    <AppShell header={{ height: 64 }} padding={0}>
       <AppShell.Header className={styles.appHeader}>
-        <Group h="100%" px="md" justify="space-between" wrap="nowrap">
-          <Stack gap={0}>
-            <Group gap="xs">
-              <Title order={4}>ReviewDesk</Title>
-            </Group>
-            <Text size="xs" c="dimmed">
-              {activeBoard?.name ?? "Board review"}
+        <Group className={styles.headerInner} h="100%" px="md" wrap="nowrap">
+          <Stack className={styles.headerBrand} gap={0}>
+            <Title className={styles.headerTitle} order={4}>
+              ReviewDesk
+            </Title>
+            <Text className={styles.headerSubtitle} size="xs">
+              {activeBoard?.name ?? "Board review"} · {emailsQuery.data?.length ?? 0} emails
             </Text>
           </Stack>
 
-          <Group gap="sm" wrap="nowrap">
-            <Text className={styles.headerCount} size="sm" c="dimmed">
-              {emailsQuery.data?.length ?? 0} emails
-            </Text>
-            {isCompactHeader ? (
+          {isCompactHeader ? (
+            <Group className={styles.headerActions} gap="sm" wrap="nowrap">
               <Menu
                 opened={userMenuOpened}
                 position="bottom-end"
-                width={240}
+                width={260}
                 withinPortal
                 onChange={setUserMenuOpened}
               >
@@ -406,7 +410,7 @@ function EmailBoardApp({
                   />
                 </Menu.Target>
                 <Menu.Dropdown>
-                  <Menu.Label>Board</Menu.Label>
+                  <Menu.Label>Current board</Menu.Label>
                   <div className={styles.boardFilterMenuControl}>
                     <Select
                       data={boards.map((board) => ({
@@ -419,7 +423,7 @@ function EmailBoardApp({
                       onChange={handleBoardChange}
                     />
                   </div>
-                  <Menu.Label>Board filter</Menu.Label>
+                  <Menu.Label>Comments</Menu.Label>
                   <div className={styles.boardFilterMenuControl}>
                     <SegmentedControl
                       data={[
@@ -454,15 +458,28 @@ function EmailBoardApp({
                   {isAdmin ? (
                     <>
                       <Menu.Divider />
-                      <Menu.Item onClick={() => setCreateBoardModalOpened(true)}>
+                      <Menu.Label>Create</Menu.Label>
+                      <Menu.Item
+                        leftSection={<KanbanIcon aria-hidden="true" size={16} />}
+                        onClick={() => setCreateBoardModalOpened(true)}
+                      >
                         New board
                       </Menu.Item>
-                      <Menu.Item onClick={() => setManageStagesModalOpened(true)}>
-                        Stages
-                      </Menu.Item>
-                      <Menu.Item component={Link} to="/emails/new">
+                      <Menu.Item
+                        component={Link}
+                        leftSection={<EnvelopeSimpleIcon aria-hidden="true" size={16} />}
+                        to="/emails/new"
+                      >
                         New email
                       </Menu.Item>
+                      <Menu.Item
+                        leftSection={<SlidersHorizontalIcon aria-hidden="true" size={16} />}
+                        onClick={() => setManageStagesModalOpened(true)}
+                      >
+                        Board stages
+                      </Menu.Item>
+                      <Menu.Divider />
+                      <Menu.Label>Admin</Menu.Label>
                       <Menu.Item component={Link} to="/auth-events">
                         Auth events
                       </Menu.Item>
@@ -482,123 +499,158 @@ function EmailBoardApp({
                     </>
                   ) : null}
                   <Menu.Divider />
-                  <Menu.Item color="red" onClick={onLogout}>
+                  <Menu.Item
+                    color="red"
+                    leftSection={<SignOutIcon aria-hidden="true" size={16} />}
+                    onClick={onLogout}
+                  >
                     {isLoggingOut ? "Logging out" : "Logout"}
                   </Menu.Item>
                 </Menu.Dropdown>
               </Menu>
-            ) : (
-              <>
+            </Group>
+          ) : (
+            <>
+              <Group className={styles.boardControls} gap="xs" wrap="nowrap">
                 <Select
                   allowDeselect={false}
+                  className={styles.boardSelect}
                   data={boards.map((board) => ({
                     label: board.name,
                     value: board.key,
                   }))}
                   disabled={boardsQuery.isLoading}
-                  size="xs"
+                  leftSection={<KanbanIcon aria-hidden="true" size={16} />}
+                  size="sm"
                   value={activeBoard?.key ?? null}
-                  w={180}
                   onChange={handleBoardChange}
                 />
                 <SegmentedControl
+                  className={styles.boardFilter}
                   data={[
                     { label: "All", value: "all" },
                     {
-                      label: `Open comments ${openCommentEmailCount}`,
+                      label: `Open ${openCommentEmailCount}`,
                       value: "open",
                     },
                   ]}
-                  size="xs"
+                  size="sm"
                   value={boardFilter}
                   onChange={(value) => onBoardFilterChange(value as BoardFilter)}
                 />
+              </Group>
+
+              <Group className={styles.headerActions} gap="xs" wrap="nowrap">
                 {isAdmin ? (
-                  <>
-                    <Button
-                      size="xs"
-                      variant="white"
-                      onClick={() => setCreateBoardModalOpened(true)}
-                    >
-                      New board
-                    </Button>
-                    <Button
-                      size="xs"
-                      variant="white"
-                      onClick={() => setManageStagesModalOpened(true)}
-                    >
-                      Stages
-                    </Button>
-                    <Button
-                      component={Link}
-                      to="/emails/new"
-                      size="xs"
-                      variant="white"
-                    >
-                      New email
-                    </Button>
-                  </>
+                  <Menu position="bottom-end" width={220} withinPortal>
+                    <Menu.Target>
+                      <Button
+                        className={styles.headerMenuButton}
+                        leftSection={<PlusIcon aria-hidden="true" size={16} />}
+                        rightSection={<CaretDownIcon aria-hidden="true" size={14} />}
+                        variant="white"
+                      >
+                        Create
+                      </Button>
+                    </Menu.Target>
+                    <Menu.Dropdown>
+                      <Menu.Item
+                        leftSection={<KanbanIcon aria-hidden="true" size={16} />}
+                        onClick={() => setCreateBoardModalOpened(true)}
+                      >
+                        New board
+                      </Menu.Item>
+                      <Menu.Item
+                        component={Link}
+                        leftSection={<EnvelopeSimpleIcon aria-hidden="true" size={16} />}
+                        to="/emails/new"
+                      >
+                        New email
+                      </Menu.Item>
+                      <Menu.Divider />
+                      <Menu.Item
+                        leftSection={<SlidersHorizontalIcon aria-hidden="true" size={16} />}
+                        onClick={() => setManageStagesModalOpened(true)}
+                      >
+                        Board stages
+                      </Menu.Item>
+                    </Menu.Dropdown>
+                  </Menu>
                 ) : null}
-                <Group gap={6} wrap="nowrap">
-                  <Text className={styles.headerUser} size="sm" c="dimmed">
-                    {currentUser.email}
-                  </Text>
-                  <Badge color={currentUser.role === "admin" ? "blue" : "gray"}>
-                    {currentUser.role}
-                  </Badge>
-                </Group>
+
                 {isAdmin ? (
-                  <>
-                    <Button
-                      component={Link}
-                      to="/auth-events"
-                      size="xs"
-                      variant="white"
-                    >
-                      Auth events
-                    </Button>
-                    <Button
-                      component={Link}
-                      to="/ai-logs"
-                      size="xs"
-                      variant="white"
-                    >
-                      AI logs
-                    </Button>
-                  </>
+                  <Menu position="bottom-end" width={220} withinPortal>
+                    <Menu.Target>
+                      <Button
+                        className={styles.headerMenuButton}
+                        leftSection={<GearSixIcon aria-hidden="true" size={16} />}
+                        rightSection={<CaretDownIcon aria-hidden="true" size={14} />}
+                        variant="white"
+                      >
+                        Admin
+                      </Button>
+                    </Menu.Target>
+                    <Menu.Dropdown>
+                      <Menu.Item component={Link} to="/auth-events">
+                        Auth events
+                      </Menu.Item>
+                      <Menu.Item component={Link} to="/ai-logs">
+                        AI logs
+                      </Menu.Item>
+                      {currentUser.role === "super_admin" ? (
+                        <>
+                          <Menu.Divider />
+                          <Menu.Item component={Link} to="/admin/email-events">
+                            Email events
+                          </Menu.Item>
+                          <Menu.Item component={Link} to="/admin/users">
+                            Users
+                          </Menu.Item>
+                        </>
+                      ) : null}
+                    </Menu.Dropdown>
+                  </Menu>
                 ) : null}
-                {currentUser.role === "super_admin" ? (
-                  <>
+
+                <Menu position="bottom-end" width={260} withinPortal>
+                  <Menu.Target>
                     <Button
-                      component={Link}
-                      to="/admin/email-events"
-                      size="xs"
+                      className={styles.accountButton}
+                      leftSection={<UserCircleIcon aria-hidden="true" size={18} />}
+                      rightSection={<CaretDownIcon aria-hidden="true" size={14} />}
                       variant="white"
                     >
-                      Email events
+                      <span className={styles.accountEmail}>{currentUser.email}</span>
                     </Button>
-                    <Button
-                      component={Link}
-                      to="/admin/users"
-                      size="xs"
-                      variant="white"
+                  </Menu.Target>
+                  <Menu.Dropdown>
+                    <Menu.Label>
+                      <Stack gap={4}>
+                        <Text className={styles.userMenuEmail} size="sm">
+                          {currentUser.email}
+                        </Text>
+                        <Badge
+                          color={currentUser.role === "admin" ? "blue" : "gray"}
+                          size="sm"
+                        >
+                          {currentUser.role}
+                        </Badge>
+                      </Stack>
+                    </Menu.Label>
+                    <Menu.Divider />
+                    <Menu.Item
+                      color="red"
+                      disabled={isLoggingOut}
+                      leftSection={<SignOutIcon aria-hidden="true" size={16} />}
+                      onClick={onLogout}
                     >
-                      Users
-                    </Button>
-                  </>
-                ) : null}
-                <Button
-                  color="gray"
-                  loading={isLoggingOut}
-                  size="xs"
-                  variant="white"
-                  onClick={onLogout}
-                >
-                  Logout
-                </Button>
-              </>
-            )}
-          </Group>
+                      {isLoggingOut ? "Logging out" : "Logout"}
+                    </Menu.Item>
+                  </Menu.Dropdown>
+                </Menu>
+              </Group>
+            </>
+          )}
         </Group>
       </AppShell.Header>
 

@@ -1,8 +1,65 @@
 .appHeader {
   border-bottom: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(39, 47, 151, 0.86);
-  backdrop-filter: blur(8px);
+  background: rgba(42, 48, 142, 0.9);
+  backdrop-filter: blur(14px);
   color: var(--mantine-color-white);
+}
+
+.headerInner {
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.headerBrand {
+  flex: 0 0 auto;
+  min-width: 168px;
+}
+
+.headerTitle {
+  line-height: 1.08;
+  letter-spacing: 0;
+}
+
+.headerSubtitle {
+  max-width: 210px;
+  color: rgba(255, 255, 255, 0.66);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.boardControls {
+  flex: 1 1 auto;
+  min-width: 360px;
+  justify-content: center;
+}
+
+.boardSelect {
+  flex: 0 1 260px;
+}
+
+.boardFilter {
+  flex: 0 0 auto;
+}
+
+.headerActions {
+  flex: 0 0 auto;
+}
+
+.headerMenuButton {
+  min-width: 112px;
+}
+
+.accountButton {
+  max-width: 248px;
+}
+
+.accountEmail {
+  display: block;
+  max-width: 156px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .headerCount {
@@ -64,4 +121,18 @@
 .stageManagerName {
   flex: 1 1 auto;
   min-width: 0;
+}
+
+@media (max-width: 64em) {
+  .headerInner {
+    gap: 12px;
+  }
+
+  .headerBrand {
+    min-width: 0;
+  }
+
+  .headerSubtitle {
+    max-width: 52vw;
+  }
 }
