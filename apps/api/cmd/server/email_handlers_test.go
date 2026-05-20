@@ -56,6 +56,9 @@ func TestListEmailsIncludesOpenCommentCount(t *testing.T) {
 			if email.OpenCommentCount != 1 {
 				t.Fatalf("expected open comment count 1, got %d", email.OpenCommentCount)
 			}
+			if email.ReviewStatus != "in_review" {
+				t.Fatalf("expected default review status in_review, got %q", email.ReviewStatus)
+			}
 			return
 		}
 	}
@@ -180,6 +183,9 @@ func TestCreateEmail(t *testing.T) {
 	}
 	if created.ID == "" {
 		t.Fatal("expected created email id")
+	}
+	if created.ReviewStatus != "in_review" {
+		t.Fatalf("expected default review status in_review, got %q", created.ReviewStatus)
 	}
 	t.Cleanup(func() {
 		_, _ = dbpool.Exec(context.Background(), `DELETE FROM emails WHERE id = $1;`, created.ID)
@@ -331,6 +337,162 @@ func TestCreateEmailAllowsReusingArchivedSlug(t *testing.T) {
 	}
 	if archivedSlug == firstCreated.Slug {
 		t.Fatalf("expected archived email slug to be released, got %q", archivedSlug)
+	}
+}
+
+func TestGetEmailIncludesReviewStatus(t *testing.T) {
+	dbpool := testDBPool(t)
+	emailID := createTestEmail(t, dbpool)
+
+	router := chi.NewRouter()
+	registerEmailRoutes(router, dbpool)
+
+	request := httptest.NewRequest(http.MethodGet, "/api/emails/"+emailID, nil)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected GET status 200, got %d: %s", response.Code, response.Body.String())
+	}
+
+	var email EmailDetail
+	if err := json.NewDecoder(response.Body).Decode(&email); err != nil {
+		t.Fatalf("failed to decode email: %v", err)
+	}
+	if email.ReviewStatus != "in_review" {
+		t.Fatalf("expected default review status in_review, got %q", email.ReviewStatus)
+	}
+}
+
+func TestUpdateEmailReviewStatus(t *testing.T) {
+	dbpool := testDBPool(t)
+	emailID := createTestEmail(t, dbpool)
+	user := createTestUserWithRole(t, dbpool, "admin")
+
+	router := chi.NewRouter()
+	registerEmailRoutes(router, dbpool)
+
+	request := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/emails/"+emailID+"/review-status",
+		bytes.NewReader([]byte(`{"review_status":"approved"}`)),
+	)
+	request = withAuthUser(request, user)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected PATCH status 200, got %d: %s", response.Code, response.Body.String())
+	}
+
+	var payload updateEmailReviewStatusResponse
+	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
+		t.Fatalf("failed to decode review status response: %v", err)
+	}
+	if payload.ReviewStatus != "approved" {
+		t.Fatalf("expected approved status, got %q", payload.ReviewStatus)
+	}
+
+	var storedStatus string
+	if err := dbpool.QueryRow(context.Background(), `
+		SELECT review_status
+		FROM emails
+		WHERE id = $1;
+	`, emailID).Scan(&storedStatus); err != nil {
+		t.Fatalf("failed to load stored review status: %v", err)
+	}
+	if storedStatus != "approved" {
+		t.Fatalf("expected stored approved status, got %q", storedStatus)
+	}
+
+	var changes []byte
+	if err := dbpool.QueryRow(context.Background(), `
+		SELECT changes
+		FROM email_events
+		WHERE email_id = $1
+			AND action = 'email_review_status_updated'
+		ORDER BY created_at DESC
+		LIMIT 1;
+	`, emailID).Scan(&changes); err != nil {
+		t.Fatalf("failed to load review status event: %v", err)
+	}
+	if !strings.Contains(string(changes), `"before": "in_review"`) ||
+		!strings.Contains(string(changes), `"after": "approved"`) {
+		t.Fatalf("expected review status changes, got %s", string(changes))
+	}
+}
+
+func TestUpdateEmailReviewStatusRejectsReviewer(t *testing.T) {
+	dbpool := testDBPool(t)
+	emailID := createTestEmail(t, dbpool)
+	user := createTestUserWithRole(t, dbpool, "reviewer")
+
+	router := chi.NewRouter()
+	registerEmailRoutes(router, dbpool)
+
+	request := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/emails/"+emailID+"/review-status",
+		bytes.NewReader([]byte(`{"review_status":"approved"}`)),
+	)
+	request = withAuthUser(request, user)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("expected PATCH status 403, got %d: %s", response.Code, response.Body.String())
+	}
+}
+
+func TestUpdateEmailReviewStatusRejectsInvalidStatus(t *testing.T) {
+	dbpool := testDBPool(t)
+	emailID := createTestEmail(t, dbpool)
+	user := createTestUserWithRole(t, dbpool, "admin")
+
+	router := chi.NewRouter()
+	registerEmailRoutes(router, dbpool)
+
+	request := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/emails/"+emailID+"/review-status",
+		bytes.NewReader([]byte(`{"review_status":"ready"}`)),
+	)
+	request = withAuthUser(request, user)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("expected PATCH status 400, got %d: %s", response.Code, response.Body.String())
+	}
+}
+
+func TestUpdateEmailReviewStatusRejectsArchivedEmail(t *testing.T) {
+	dbpool := testDBPool(t)
+	emailID := createTestEmail(t, dbpool)
+	user := createTestUserWithRole(t, dbpool, "admin")
+
+	if _, err := dbpool.Exec(context.Background(), `
+		UPDATE emails
+		SET archived_at = now()
+		WHERE id = $1;
+	`, emailID); err != nil {
+		t.Fatalf("failed to archive test email: %v", err)
+	}
+
+	router := chi.NewRouter()
+	registerEmailRoutes(router, dbpool)
+
+	request := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/emails/"+emailID+"/review-status",
+		bytes.NewReader([]byte(`{"review_status":"approved"}`)),
+	)
+	request = withAuthUser(request, user)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusNotFound {
+		t.Fatalf("expected PATCH status 404, got %d: %s", response.Code, response.Body.String())
 	}
 }
 
@@ -830,6 +992,9 @@ func TestDuplicateEmail(t *testing.T) {
 	if created.Variant != "new" {
 		t.Fatalf("expected duplicated variant new, got %q", created.Variant)
 	}
+	if created.ReviewStatus != "in_review" {
+		t.Fatalf("expected duplicated review status in_review, got %q", created.ReviewStatus)
+	}
 	if created.Title != "Duplicated Email" {
 		t.Fatalf("expected duplicated title override, got %q", created.Title)
 	}
@@ -1108,6 +1273,9 @@ func TestCreateEmailAdaptation(t *testing.T) {
 	}
 	if created.AdaptationKey != "uae" || created.AdaptationLabel != "UAE" {
 		t.Fatalf("expected uae/UAE adaptation, got %s/%s", created.AdaptationKey, created.AdaptationLabel)
+	}
+	if created.ReviewStatus != "in_review" {
+		t.Fatalf("expected adaptation review status in_review, got %q", created.ReviewStatus)
 	}
 	assertJSONContainsField(t, created.EditableFields, "primary_cta_text")
 

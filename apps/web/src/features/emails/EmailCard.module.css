@@ -47,6 +47,11 @@
   cursor: pointer;
 }
 
+.reviewStatusBadge {
+  flex: 0 0 auto;
+  max-width: 112px;
+}
+
 .openCommentButton {
   padding: 0;
   border: 0;

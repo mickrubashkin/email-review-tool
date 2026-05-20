@@ -18,6 +18,7 @@ import { HouseIcon } from "@phosphor-icons/react";
 import { Link } from "react-router-dom";
 
 import { fetchEmailEvents } from "../emails/api";
+import { formatEmailReviewStatus } from "../emails/reviewStatus";
 import type {
   EmailEventAction,
   EmailEventFilters,
@@ -32,6 +33,7 @@ const actionOptions: { value: EmailEventAction; label: string }[] = [
   { value: "email_adaptation_created", label: "Adaptation created" },
   { value: "email_archived", label: "Archived" },
   { value: "email_created", label: "Created" },
+  { value: "email_review_status_updated", label: "Review status updated" },
 ];
 type SortDirection = "asc" | "desc";
 type EmailEventSortKey =
@@ -305,6 +307,8 @@ function getActionColor(action: EmailEventAction) {
       return "green";
     case "email_updated":
       return "yellow";
+    case "email_review_status_updated":
+      return "violet";
     default:
       return "gray";
   }
@@ -322,13 +326,15 @@ function formatSummary(event: EmailEventItem) {
       return "Created email";
     case "email_updated":
       return "Updated editable content";
+    case "email_review_status_updated":
+      return `Changed review status to ${formatChangedReviewStatus(event)}`;
     default:
       return "Changed email";
   }
 }
 
 function formatChangedFields(event: EmailEventItem) {
-  if (event.action !== "email_updated") {
+  if (event.action !== "email_updated" && event.action !== "email_review_status_updated") {
     return "-";
   }
 
@@ -345,6 +351,18 @@ function formatChangedFields(event: EmailEventItem) {
   }
 
   return fields.length > 0 ? fields.join(", ") : "-";
+}
+
+function formatChangedReviewStatus(event: EmailEventItem) {
+  const reviewStatus = event.changes.review_status;
+  if (!isRecord(reviewStatus)) {
+    return "new value";
+  }
+
+  const nextStatus = reviewStatus.after;
+  return typeof nextStatus === "string"
+    ? formatEmailReviewStatus(nextStatus)
+    : "new value";
 }
 
 function stringMetadata(event: EmailEventItem, key: string) {

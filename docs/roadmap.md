@@ -17,7 +17,7 @@ This roadmap captures the next production-hardening and workflow improvements fo
 ## Priority 3: Review Workflow
 
 - [x] Add email search on the board.
-- [ ] Add an explicit review status for each email.
+- [x] Add an explicit review status for each email.
 - [ ] Decide whether comments need replies or threads before building threaded discussions.
 
 ## Priority 4: Audit And Operations

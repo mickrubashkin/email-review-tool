@@ -11,6 +11,7 @@ export type EmailListItem = {
   variant: EmailVariant;
   adaptation_key: string;
   adaptation_label: string;
+  review_status: EmailReviewStatus;
   open_comment_count: number;
 };
 
@@ -25,6 +26,12 @@ export type EmailDetail = EmailListItem & {
 };
 
 export type EmailVariant = string;
+
+export type EmailReviewStatus =
+  | "draft"
+  | "in_review"
+  | "changes_requested"
+  | "approved";
 
 export type Board = {
   id: string;
@@ -108,6 +115,14 @@ export type UpdateEditableFieldsPayload = {
   subject: string;
   preheader: string;
   editable_fields: EditableFields;
+};
+
+export type UpdateEmailReviewStatusPayload = {
+  review_status: EmailReviewStatus;
+};
+
+export type UpdateEmailReviewStatusResponse = {
+  review_status: EmailReviewStatus;
 };
 
 export type RenderedEmail = {
@@ -228,7 +243,8 @@ export type EmailEventAction =
   | "email_adaptation_created"
   | "email_created"
   | "email_archived"
-  | "email_updated";
+  | "email_updated"
+  | "email_review_status_updated";
 
 export type EmailEventItem = {
   id: string;

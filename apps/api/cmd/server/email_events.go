@@ -12,11 +12,12 @@ import (
 )
 
 const (
-	emailEventDuplicated        = "email_duplicated"
-	emailEventAdaptationCreated = "email_adaptation_created"
-	emailEventCreated           = "email_created"
-	emailEventArchived          = "email_archived"
-	emailEventUpdated           = "email_updated"
+	emailEventDuplicated          = "email_duplicated"
+	emailEventAdaptationCreated   = "email_adaptation_created"
+	emailEventCreated             = "email_created"
+	emailEventArchived            = "email_archived"
+	emailEventUpdated             = "email_updated"
+	emailEventReviewStatusUpdated = "email_review_status_updated"
 )
 
 type emailEventFilters struct {

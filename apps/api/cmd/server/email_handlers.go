@@ -28,6 +28,7 @@ func registerEmailRoutes(r chi.Router, dbpool *pgxpool.Pool) {
 	r.Get("/api/emails/{id}", getEmailHandler(dbpool))
 	r.Get("/api/emails/{id}/rendered", getRenderedEmailHandler(dbpool))
 	r.Patch("/api/emails/{id}/editable-fields", updateEmailEditableFieldsHandler(dbpool))
+	r.Patch("/api/emails/{id}/review-status", updateEmailReviewStatusHandler(dbpool))
 	r.Post("/api/emails/{id}/duplicate", duplicateEmailHandler(dbpool))
 	r.Post("/api/emails/{id}/adaptations", createEmailAdaptationHandler(dbpool))
 	r.Patch("/api/emails/{id}/archive", archiveEmailHandler(dbpool))
@@ -58,6 +59,7 @@ func listEmailsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 				variant,
 				adaptation_key,
 				adaptation_label,
+				review_status,
 				(
 					SELECT count(*)::int
 					FROM comments
@@ -93,6 +95,7 @@ func listEmailsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 				&email.Variant,
 				&email.AdaptationKey,
 				&email.AdaptationLabel,
+				&email.ReviewStatus,
 				&email.OpenCommentCount,
 			)
 			if err != nil {
@@ -135,6 +138,7 @@ func getEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 				variant,
 				adaptation_key,
 				adaptation_label,
+				review_status,
 				(
 					SELECT count(*)::int
 					FROM comments
@@ -163,6 +167,7 @@ func getEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			&email.Variant,
 			&email.AdaptationKey,
 			&email.AdaptationLabel,
+			&email.ReviewStatus,
 			&email.OpenCommentCount,
 			&email.OriginalHTML,
 			&email.ReviewHTML,
@@ -406,6 +411,14 @@ type updateEmailEditableFieldsRequest struct {
 	EditableFields emailedit.EditableFields `json:"editable_fields"`
 }
 
+type updateEmailReviewStatusRequest struct {
+	ReviewStatus string `json:"review_status"`
+}
+
+type updateEmailReviewStatusResponse struct {
+	ReviewStatus string `json:"review_status"`
+}
+
 type renderedEmailResponse struct {
 	HTML string `json:"html"`
 }
@@ -614,6 +627,109 @@ func updateEmailEditableFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 		}
 
 		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+func updateEmailReviewStatusHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := chi.URLParam(r, "id")
+		user, ok := authUserFromContext(r)
+		if !ok {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		if !isAdminUser(user) {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+
+		var request updateEmailReviewStatusRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+
+		nextStatus := strings.TrimSpace(request.ReviewStatus)
+		if !isValidEmailReviewStatus(nextStatus) {
+			http.Error(w, "invalid review_status", http.StatusBadRequest)
+			return
+		}
+
+		tx, err := dbpool.Begin(r.Context())
+		if err != nil {
+			http.Error(w, "failed to update review status", http.StatusInternalServerError)
+			return
+		}
+		defer tx.Rollback(r.Context())
+
+		var slug string
+		var title string
+		var currentStatus string
+		err = tx.QueryRow(r.Context(), `
+			SELECT slug, title, review_status
+			FROM emails
+			WHERE id = $1
+				AND archived_at IS NULL
+			FOR UPDATE;
+		`, id).Scan(&slug, &title, &currentStatus)
+		if err != nil {
+			http.Error(w, "email not found", http.StatusNotFound)
+			return
+		}
+
+		if currentStatus != nextStatus {
+			result, err := tx.Exec(r.Context(), `
+				UPDATE emails
+				SET review_status = $2,
+					updated_at = now()
+				WHERE id = $1
+					AND archived_at IS NULL;
+			`, id, nextStatus)
+			if err != nil {
+				http.Error(w, "failed to update review status", http.StatusInternalServerError)
+				return
+			}
+			if result.RowsAffected() == 0 {
+				http.Error(w, "email not found", http.StatusNotFound)
+				return
+			}
+
+			if err := insertEmailEvent(r.Context(), tx, emailEvent{
+				ActorUserID: user.ID,
+				ActorEmail:  user.Email,
+				Action:      emailEventReviewStatusUpdated,
+				EmailID:     &id,
+				EmailSlug:   &slug,
+				EmailTitle:  &title,
+				Changes: map[string]any{
+					"review_status": map[string]any{
+						"before": currentStatus,
+						"after":  nextStatus,
+					},
+				},
+			}); err != nil {
+				fmt.Fprintf(os.Stderr, "failed to insert email review status event for %s: %v\n", id, err)
+				http.Error(w, "failed to record email event", http.StatusInternalServerError)
+				return
+			}
+		}
+
+		if err := tx.Commit(r.Context()); err != nil {
+			http.Error(w, "failed to update review status", http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(updateEmailReviewStatusResponse{ReviewStatus: nextStatus})
+	}
+}
+
+func isValidEmailReviewStatus(status string) bool {
+	switch status {
+	case "draft", "in_review", "changes_requested", "approved":
+		return true
+	default:
+		return false
 	}
 }
 
@@ -1246,6 +1362,7 @@ func insertDuplicatedEmail(r *http.Request, db emailEventExecutor, email duplica
 			variant,
 			adaptation_key,
 			adaptation_label,
+			review_status,
 			0 AS open_comment_count,
 			original_html,
 			review_html,
@@ -1267,6 +1384,7 @@ func insertDuplicatedEmail(r *http.Request, db emailEventExecutor, email duplica
 		&created.Variant,
 		&created.AdaptationKey,
 		&created.AdaptationLabel,
+		&created.ReviewStatus,
 		&created.OpenCommentCount,
 		&created.OriginalHTML,
 		&created.ReviewHTML,

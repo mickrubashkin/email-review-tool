@@ -20,6 +20,7 @@ type EmailListItem struct {
 	Variant          string  `json:"variant"`
 	AdaptationKey    string  `json:"adaptation_key"`
 	AdaptationLabel  string  `json:"adaptation_label"`
+	ReviewStatus     string  `json:"review_status"`
 	OpenCommentCount int     `json:"open_comment_count"`
 }
 
@@ -37,6 +38,7 @@ type EmailDetail struct {
 	Variant          string          `json:"variant"`
 	AdaptationKey    string          `json:"adaptation_key"`
 	AdaptationLabel  string          `json:"adaptation_label"`
+	ReviewStatus     string          `json:"review_status"`
 	OpenCommentCount int             `json:"open_comment_count"`
 	BodyText         *string         `json:"-"`
 	ContentParts     *string         `json:"-"`

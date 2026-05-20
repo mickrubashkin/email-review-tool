@@ -23,6 +23,8 @@ import type {
   RenderedEmail,
   ReorderBoardStagesPayload,
   UpdateBoardStagePayload,
+  UpdateEmailReviewStatusPayload,
+  UpdateEmailReviewStatusResponse,
   UpdateEditableFieldsPayload,
 } from "./types";
 
@@ -232,6 +234,22 @@ export function updateEmailEditableFields(
 ): Promise<void> {
   return fetchJson<void>(
     `/api/emails/${encodeURIComponent(emailId)}/editable-fields`,
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    }
+  );
+}
+
+export function updateEmailReviewStatus(
+  emailId: string,
+  payload: UpdateEmailReviewStatusPayload
+): Promise<UpdateEmailReviewStatusResponse> {
+  return fetchJson<UpdateEmailReviewStatusResponse>(
+    `/api/emails/${encodeURIComponent(emailId)}/review-status`,
     {
       method: "PATCH",
       headers: {

@@ -9,6 +9,7 @@ import {
   Menu,
   Modal,
   SegmentedControl,
+  Select,
   Skeleton,
   Stack,
   Tabs,
@@ -21,7 +22,12 @@ import { useMediaQuery } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { Link, useNavigate } from "react-router-dom";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  type QueryClient,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 
 import {
   ArchiveIcon,
@@ -64,6 +70,7 @@ import {
   fetchEmails,
   fetchSharedEmailAnalysis,
   resolveComment,
+  updateEmailReviewStatus,
 } from "../emails/api";
 import { copyOriginalHTML, downloadOriginalHTML } from "../emails/exportHtml";
 import {
@@ -71,6 +78,11 @@ import {
   type ReviewTextSelection,
 } from "../emails/MailPreview";
 import type { ReviewCommentTarget } from "../emails/reviewOverlayTypes";
+import {
+  emailReviewStatusColor,
+  emailReviewStatusOptions,
+  formatEmailReviewStatus,
+} from "../emails/reviewStatus";
 import {
   buildStageColumns,
   getAvailableAdaptations,
@@ -88,6 +100,7 @@ import type {
   EmailComment,
   EmailDetail,
   EmailListItem,
+  EmailReviewStatus,
   EmailVariant,
   EmailVersionGroup,
 } from "../emails/types";
@@ -362,6 +375,38 @@ export function EmailReviewView({
       });
     },
   });
+  const reviewStatusMutation = useMutation({
+    mutationFn: ({
+      nextStatus,
+      targetEmailId,
+    }: {
+      nextStatus: EmailReviewStatus;
+      targetEmailId: string;
+    }) =>
+      updateEmailReviewStatus(targetEmailId, {
+        review_status: nextStatus,
+      }),
+    onSuccess: (response, variables) => {
+      applyReviewStatusToCaches(
+        queryClient,
+        variables.targetEmailId,
+        response.review_status,
+        email?.sequence
+      );
+      notifications.show({
+        color: "green",
+        message: `Review status changed to ${formatEmailReviewStatus(response.review_status)}.`,
+        title: "Status updated",
+      });
+    },
+    onError: () => {
+      notifications.show({
+        color: "red",
+        message: "Try again or check that you have admin access.",
+        title: "Status update failed",
+      });
+    },
+  });
   const createCommentMutation = useMutation({
     mutationFn: ({
       body,
@@ -478,6 +523,16 @@ export function EmailReviewView({
     setActivePanelTab("ai");
     setActiveContentTab("ai");
     reanalyze();
+  };
+  const handleReviewStatusChange = (value: string | null) => {
+    if (!email || !value || value === email.review_status) {
+      return;
+    }
+
+    reviewStatusMutation.mutate({
+      nextStatus: value as EmailReviewStatus,
+      targetEmailId: email.id,
+    });
   };
   const handleCreateReviewComment = (
     selection: ReviewTextSelection,
@@ -689,6 +744,15 @@ export function EmailReviewView({
               </Text>
             </Group>
 
+            {!isCompactReview && email ? (
+              <ReviewStatusControl
+                canManage={canManageEmail}
+                isUpdating={reviewStatusMutation.isPending}
+                status={email.review_status}
+                onChange={handleReviewStatusChange}
+              />
+            ) : null}
+
             {!isCompactReview ? (
               <>
                 <div className={styles.actionDivider} aria-hidden="true" />
@@ -738,6 +802,20 @@ export function EmailReviewView({
                   />
                 </Menu.Target>
                 <Menu.Dropdown>
+                  {email ? (
+                    <>
+                      <Menu.Label>Review status</Menu.Label>
+                      <div className={styles.menuControls}>
+                        <ReviewStatusControl
+                          canManage={canManageEmail}
+                          isUpdating={reviewStatusMutation.isPending}
+                          status={email.review_status}
+                          onChange={handleReviewStatusChange}
+                        />
+                      </div>
+                      <Menu.Divider />
+                    </>
+                  ) : null}
                   <Menu.Label>Email version</Menu.Label>
                   <div className={styles.menuControls}>
                     <LanguageSelect
@@ -1256,6 +1334,69 @@ function formatEmailTitle(title: string) {
     default:
       return title;
   }
+}
+
+function ReviewStatusControl({
+  canManage,
+  isUpdating,
+  onChange,
+  status,
+}: {
+  canManage: boolean;
+  isUpdating: boolean;
+  onChange: (value: string | null) => void;
+  status: EmailReviewStatus;
+}) {
+  if (!canManage) {
+    return (
+      <Badge
+        color={emailReviewStatusColor(status)}
+        radius="sm"
+        variant="light"
+      >
+        {formatEmailReviewStatus(status)}
+      </Badge>
+    );
+  }
+
+  return (
+    <Select
+      allowDeselect={false}
+      aria-label="Review status"
+      className={styles.reviewStatusSelect}
+      data={emailReviewStatusOptions}
+      disabled={isUpdating}
+      size="xs"
+      value={status}
+      onChange={onChange}
+    />
+  );
+}
+
+function applyReviewStatusToCaches(
+  queryClient: QueryClient,
+  emailId: string,
+  reviewStatus: EmailReviewStatus,
+  sequence: string | undefined
+) {
+  const updateList = (currentEmails: EmailListItem[] | undefined) =>
+    currentEmails?.map((currentEmail) =>
+      currentEmail.id === emailId
+        ? { ...currentEmail, review_status: reviewStatus }
+        : currentEmail
+    );
+
+  queryClient.setQueryData<EmailListItem[]>(["emails"], updateList);
+  if (sequence) {
+    queryClient.setQueryData<EmailListItem[]>(["emails", sequence], updateList);
+  }
+  queryClient.setQueryData<EmailDetail>(
+    ["emails", emailId, "review"],
+    (currentEmail) =>
+      currentEmail
+        ? { ...currentEmail, review_status: reviewStatus }
+        : currentEmail
+  );
 }
 
 function commentToTarget(comment: EmailComment): ReviewCommentTarget {

@@ -20,6 +20,10 @@ import { useNavigate } from "react-router-dom";
 
 import type { EmailVariant, EmailVersionGroup } from "./types";
 import {
+  emailReviewStatusColor,
+  formatEmailReviewStatus,
+} from "./reviewStatus";
+import {
   getAvailableVariants,
   getAvailableAdaptations,
   getDefaultVersion,
@@ -206,6 +210,15 @@ export function EmailCard({
             >
               {formatEmailTitle(selectedEmail.title)}
             </Text>
+
+            <Badge
+              className={styles.reviewStatusBadge}
+              color={emailReviewStatusColor(selectedEmail.review_status)}
+              size="xs"
+              variant="light"
+            >
+              {formatEmailReviewStatus(selectedEmail.review_status)}
+            </Badge>
 
             {openCommentCount > 0 ? (
               <Popover

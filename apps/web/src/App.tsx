@@ -66,6 +66,7 @@ import {
 import { EmailBoard } from "./features/emails/EmailBoard";
 import { EmailCreateView } from "./features/emails/EmailCreateView";
 import { EmailFieldsEditorView } from "./features/emails/EmailFieldsEditorView";
+import { formatEmailReviewStatus } from "./features/emails/reviewStatus";
 import { buildStageColumns, formatStageName } from "./features/emails/stages";
 import type {
   AuthUser,
@@ -848,6 +849,8 @@ function emailMatchesSearch(
       email.variant,
       email.adaptation_label,
       email.adaptation_key,
+      email.review_status,
+      formatEmailReviewStatus(email.review_status),
       email.sequence,
     ]
       .filter(Boolean)
