@@ -9,6 +9,7 @@ import type {
   EmailEventFilters,
   EmailEventItem,
   EmailListItem,
+  CreateEmailPayload,
   CreateEmailCommentPayload,
   CreateEmailAdaptationPayload,
   DuplicateEmailPayload,
@@ -124,6 +125,16 @@ export function fetchEmails(): Promise<EmailListItem[]> {
 
 export function fetchEmailDetail(emailId: string): Promise<EmailDetail> {
   return fetchJson<EmailDetail>(`/api/emails/${encodeURIComponent(emailId)}`);
+}
+
+export function createEmail(payload: CreateEmailPayload): Promise<EmailDetail> {
+  return fetchJson<EmailDetail>("/api/emails", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
 }
 
 export function fetchRenderedEmail(emailId: string): Promise<RenderedEmail> {

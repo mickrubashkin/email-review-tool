@@ -33,10 +33,13 @@ export function formatStageName(stage: string): string {
 
 export function sortEmailVersions(versions: EmailListItem[]): EmailListItem[] {
   return [...versions].sort((first, second) => {
-    const firstVariantIndex = preferredVariantOrder.indexOf(first.variant);
-    const secondVariantIndex = preferredVariantOrder.indexOf(second.variant);
+    const firstVariantIndex = variantSortIndex(first.variant);
+    const secondVariantIndex = variantSortIndex(second.variant);
     if (firstVariantIndex !== secondVariantIndex) {
       return firstVariantIndex - secondVariantIndex;
+    }
+    if (first.variant !== second.variant) {
+      return first.variant.localeCompare(second.variant);
     }
 
     const firstIndex = preferredVersionOrder.indexOf(first.language);
@@ -70,8 +73,16 @@ export function getDefaultVersion(versions: EmailListItem[]): EmailListItem {
 }
 
 export function getAvailableVariants(versions: EmailListItem[]): EmailVariant[] {
-  return preferredVariantOrder.filter((variant) =>
-    versions.some((version) => version.variant === variant)
+  return Array.from(new Set(versions.map((version) => version.variant))).sort(
+    (first, second) => {
+      const firstIndex = variantSortIndex(first);
+      const secondIndex = variantSortIndex(second);
+      if (firstIndex !== secondIndex) {
+        return firstIndex - secondIndex;
+      }
+
+      return first.localeCompare(second);
+    }
   );
 }
 
@@ -82,6 +93,11 @@ export function getVersionsForVariant(
   return sortEmailVersions(
     versions.filter((version) => version.variant === variant)
   );
+}
+
+function variantSortIndex(variant: EmailVariant) {
+  const index = preferredVariantOrder.indexOf(variant);
+  return index === -1 ? preferredVariantOrder.length : index;
 }
 
 export function getAvailableAdaptations(

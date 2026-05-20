@@ -31,6 +31,7 @@ import { LoginView } from "./features/auth/LoginView";
 import { EmailEventsView } from "./features/email-events/EmailEventsView";
 import { fetchCurrentUser, fetchEmails, logout } from "./features/emails/api";
 import { EmailBoard } from "./features/emails/EmailBoard";
+import { EmailCreateView } from "./features/emails/EmailCreateView";
 import { EmailFieldsEditorView } from "./features/emails/EmailFieldsEditorView";
 import { buildStageColumns } from "./features/emails/stages";
 import type { AuthUser } from "./features/emails/types";
@@ -103,6 +104,10 @@ function AuthenticatedApp() {
       <Route path="/auth-events" element={<AuthEventsView />} />
       <Route path="/admin/users" element={<AdminUsersView />} />
       <Route path="/admin/email-events" element={<EmailEventsView />} />
+      <Route
+        path="/emails/new"
+        element={<EmailCreateView currentUserRole={currentUserQuery.data.role} />}
+      />
       <Route
         path="/emails/:emailId/edit"
         element={<EmailFieldsEditorRoute currentUserRole={currentUserQuery.data.role} />}
@@ -300,6 +305,9 @@ function EmailBoardApp({
                   {isAdmin ? (
                     <>
                       <Menu.Divider />
+                      <Menu.Item component={Link} to="/emails/new">
+                        New email
+                      </Menu.Item>
                       <Menu.Item component={Link} to="/auth-events">
                         Auth events
                       </Menu.Item>
@@ -338,6 +346,16 @@ function EmailBoardApp({
                   value={boardFilter}
                   onChange={(value) => onBoardFilterChange(value as BoardFilter)}
                 />
+                {isAdmin ? (
+                  <Button
+                    component={Link}
+                    to="/emails/new"
+                    size="xs"
+                    variant="white"
+                  >
+                    New email
+                  </Button>
+                ) : null}
                 <Group gap={6} wrap="nowrap">
                   <Text className={styles.headerUser} size="sm" c="dimmed">
                     {currentUser.email}

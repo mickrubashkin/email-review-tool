@@ -99,6 +99,86 @@ func TestListEmailsExcludesArchivedEmails(t *testing.T) {
 	}
 }
 
+func TestCreateEmail(t *testing.T) {
+	dbpool := testDBPool(t)
+	user := createTestUserWithRole(t, dbpool, "admin")
+
+	router := chi.NewRouter()
+	registerEmailRoutes(router, dbpool)
+
+	requestBody := []byte(`{
+		"sequence": "onboarding",
+		"title": "Uploaded Email",
+		"subject": "Uploaded subject",
+		"preheader": "Uploaded preheader",
+		"send_timing": "day 3",
+		"stage": "uploaded",
+		"sort_order": 321,
+		"language": "en",
+		"variant": "candidate",
+		"original_html": "<html><body><p data-edit-text=\"intro_text\">Hello upload</p><a href=\"https://example.com\" data-edit-attr-href=\"cta_url\">Start</a></body></html>"
+	}`)
+	request := httptest.NewRequest(http.MethodPost, "/api/emails", bytes.NewReader(requestBody))
+	request = withAuthUser(request, user)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusCreated {
+		t.Fatalf("expected POST status 201, got %d: %s", response.Code, response.Body.String())
+	}
+
+	var created EmailDetail
+	if err := json.NewDecoder(response.Body).Decode(&created); err != nil {
+		t.Fatalf("failed to decode created email: %v", err)
+	}
+	if created.ID == "" {
+		t.Fatal("expected created email id")
+	}
+	t.Cleanup(func() {
+		_, _ = dbpool.Exec(context.Background(), `DELETE FROM emails WHERE id = $1;`, created.ID)
+	})
+	if created.Slug != "onboarding-uploaded-uploaded-email-en" {
+		t.Fatalf("expected generated slug, got %q", created.Slug)
+	}
+	if created.Sequence != "onboarding" ||
+		created.Title != "Uploaded Email" ||
+		created.Stage != "uploaded" ||
+		created.SortOrder != 321 ||
+		created.Language != "en" ||
+		created.Variant != "candidate" {
+		t.Fatalf("unexpected created email: %#v", created)
+	}
+	if created.ReviewHTML == nil || !strings.Contains(*created.ReviewHTML, "data-review-block") {
+		t.Fatalf("expected generated review html, got %#v", created.ReviewHTML)
+	}
+
+	var fields map[string]map[string]any
+	if err := json.Unmarshal(created.EditableFields, &fields); err != nil {
+		t.Fatalf("failed to decode editable fields: %v", err)
+	}
+	if fields["intro_text"]["value"] != "Hello upload" {
+		t.Fatalf("expected extracted intro text, got %#v", fields)
+	}
+	if fields["cta_url"]["value"] != "https://example.com" {
+		t.Fatalf("expected extracted cta url, got %#v", fields)
+	}
+
+	var actorEmail string
+	err := dbpool.QueryRow(context.Background(), `
+		SELECT actor_email
+		FROM email_events
+		WHERE email_id = $1
+			AND action = 'email_created'
+		LIMIT 1;
+	`, created.ID).Scan(&actorEmail)
+	if err != nil {
+		t.Fatalf("failed to load created email event: %v", err)
+	}
+	if actorEmail != user.Email {
+		t.Fatalf("expected actor %s, got %s", user.Email, actorEmail)
+	}
+}
+
 func TestUpdateEmailEditableFields(t *testing.T) {
 	dbpool := testDBPool(t)
 	emailID := createTestEmail(t, dbpool)

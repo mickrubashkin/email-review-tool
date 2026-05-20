@@ -15,12 +15,14 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mickrubashkin/email-review-tool/apps/api/internal/emailedit"
+	"github.com/mickrubashkin/email-review-tool/apps/api/internal/emailreview"
 	"github.com/mickrubashkin/email-review-tool/apps/api/internal/emailtext"
 	xhtml "golang.org/x/net/html"
 )
 
 func registerEmailRoutes(r chi.Router, dbpool *pgxpool.Pool) {
 	r.Get("/api/emails", listEmailsHandler(dbpool))
+	r.Post("/api/emails", createEmailHandler(dbpool))
 	r.Get("/api/emails/{id}", getEmailHandler(dbpool))
 	r.Get("/api/emails/{id}/rendered", getRenderedEmailHandler(dbpool))
 	r.Patch("/api/emails/{id}/editable-fields", updateEmailEditableFieldsHandler(dbpool))
@@ -168,6 +170,154 @@ func getEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 		email.EditableFields = json.RawMessage(editableFields)
 
 		_ = json.NewEncoder(w).Encode(email)
+	}
+}
+
+type createEmailRequest struct {
+	Sequence     *string `json:"sequence"`
+	Title        string  `json:"title"`
+	Subject      *string `json:"subject"`
+	Preheader    *string `json:"preheader"`
+	SendTiming   *string `json:"send_timing"`
+	Stage        string  `json:"stage"`
+	SortOrder    int     `json:"sort_order"`
+	Language     string  `json:"language"`
+	Variant      string  `json:"variant"`
+	OriginalHTML string  `json:"original_html"`
+}
+
+func createEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := authUserFromContext(r)
+		if !ok {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		if !isAdminUser(user) {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+
+		var request createEmailRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+
+		sequence := strings.TrimSpace(stringFromPointer(request.Sequence))
+		if sequence == "" {
+			sequence = "onboarding"
+		}
+		title := strings.TrimSpace(request.Title)
+		stage := strings.TrimSpace(request.Stage)
+		language := strings.ToLower(strings.TrimSpace(request.Language))
+		if language == "" {
+			language = "en"
+		}
+		variant := strings.ToLower(strings.TrimSpace(request.Variant))
+		if variant == "" {
+			variant = "new"
+		}
+		originalHTML := strings.TrimSpace(request.OriginalHTML)
+
+		if title == "" || stage == "" || originalHTML == "" {
+			http.Error(w, "title, stage, and original_html are required", http.StatusBadRequest)
+			return
+		}
+
+		subject := trimmedOptionalString(request.Subject)
+		preheader := trimmedOptionalString(request.Preheader)
+		sendTiming := trimmedOptionalString(request.SendTiming)
+		reviewHTML, err := emailreview.AddReviewBlocks(originalHTML)
+		if err != nil {
+			http.Error(w, "invalid email HTML", http.StatusBadRequest)
+			return
+		}
+		editableFields, err := emailedit.ExtractEditableFields(originalHTML)
+		if err != nil {
+			http.Error(w, "invalid editable fields in HTML", http.StatusBadRequest)
+			return
+		}
+		editableFieldsJSON, err := editableFields.JSON()
+		if err != nil {
+			http.Error(w, "invalid editable fields in HTML", http.StatusBadRequest)
+			return
+		}
+		contentParts := emailtext.ExtractContentParts(
+			originalHTML,
+			stringFromPointer(subject),
+			stringFromPointer(preheader),
+			"",
+		)
+		contentPartsJSON, err := json.Marshal(contentParts)
+		if err != nil {
+			http.Error(w, "failed to create email", http.StatusInternalServerError)
+			return
+		}
+		slug := newEmailSlug(sequence, stage, title, language, variant)
+
+		tx, err := dbpool.Begin(r.Context())
+		if err != nil {
+			http.Error(w, "failed to create email", http.StatusInternalServerError)
+			return
+		}
+		defer tx.Rollback(r.Context())
+
+		created, err := insertDuplicatedEmail(r, tx, duplicateEmailInsert{
+			Slug:            slug,
+			Sequence:        sequence,
+			Title:           title,
+			Subject:         subject,
+			Preheader:       preheader,
+			SendTiming:      sendTiming,
+			Stage:           stage,
+			SortOrder:       request.SortOrder,
+			Language:        language,
+			Variant:         variant,
+			AdaptationKey:   "default",
+			AdaptationLabel: "Default",
+			ContentParts:    contentPartsJSON,
+			OriginalHTML:    originalHTML,
+			ReviewHTML:      &reviewHTML,
+			TemplateHTML:    originalHTML,
+			EditableFields:  editableFieldsJSON,
+		})
+		if err != nil {
+			if isEmailCreationConflict(err) {
+				http.Error(w, "email already exists", http.StatusConflict)
+				return
+			}
+			fmt.Fprintf(os.Stderr, "failed to create email: %v\n", err)
+			http.Error(w, "failed to create email", http.StatusInternalServerError)
+			return
+		}
+		if err := insertEmailEvent(r.Context(), tx, emailEvent{
+			ActorUserID: user.ID,
+			ActorEmail:  user.Email,
+			Action:      emailEventCreated,
+			EmailID:     &created.ID,
+			EmailSlug:   &created.Slug,
+			EmailTitle:  &created.Title,
+			Metadata: map[string]any{
+				"slug":       created.Slug,
+				"sequence":   created.Sequence,
+				"stage":      created.Stage,
+				"language":   created.Language,
+				"variant":    created.Variant,
+				"sort_order": created.SortOrder,
+			},
+		}); err != nil {
+			http.Error(w, "failed to record email event", http.StatusInternalServerError)
+			return
+		}
+		if err := tx.Commit(r.Context()); err != nil {
+			http.Error(w, "failed to create email", http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(w).Encode(created)
 	}
 }
 
@@ -436,8 +586,8 @@ func duplicateEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 		if request.Variant != nil {
 			variant = strings.ToLower(strings.TrimSpace(*request.Variant))
 		}
-		if variant != "new" && variant != "old" {
-			http.Error(w, "variant must be new or old", http.StatusBadRequest)
+		if variant == "" {
+			http.Error(w, "variant is required", http.StatusBadRequest)
 			return
 		}
 
@@ -1213,6 +1363,42 @@ func normalizeAdaptationKey(label string) string {
 		}
 	}, key)
 	return strings.Trim(strings.Join(strings.FieldsFunc(key, func(r rune) bool { return r == '-' }), "-"), "-")
+}
+
+func newEmailSlug(sequence string, stage string, title string, language string, variant string) string {
+	parts := []string{
+		normalizeAdaptationKey(sequence),
+		normalizeAdaptationKey(stage),
+		normalizeAdaptationKey(title),
+		strings.ToLower(strings.TrimSpace(language)),
+	}
+	if variant == "old" {
+		parts = append(parts, "old")
+	}
+
+	filteredParts := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if part != "" {
+			filteredParts = append(filteredParts, part)
+		}
+	}
+	if len(filteredParts) == 0 {
+		return "email"
+	}
+
+	return strings.Join(filteredParts, "-")
+}
+
+func trimmedOptionalString(value *string) *string {
+	if value == nil {
+		return nil
+	}
+	trimmed := strings.TrimSpace(*value)
+	if trimmed == "" {
+		return nil
+	}
+
+	return &trimmed
 }
 
 func isEmailSlugConflict(err error) bool {

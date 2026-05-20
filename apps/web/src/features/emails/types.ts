@@ -24,7 +24,20 @@ export type EmailDetail = EmailListItem & {
   editable_fields: EditableFields;
 };
 
-export type EmailVariant = "new" | "old";
+export type EmailVariant = string;
+
+export type CreateEmailPayload = {
+  sequence?: string;
+  title: string;
+  subject?: string;
+  preheader?: string;
+  send_timing?: string;
+  stage: string;
+  sort_order: number;
+  language: string;
+  variant: EmailVariant;
+  original_html: string;
+};
 
 export type DuplicateEmailPayload = {
   language: string;
