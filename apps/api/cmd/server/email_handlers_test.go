@@ -594,11 +594,13 @@ func TestUpdateEmailEditableFields(t *testing.T) {
 	var title string
 	var subject *string
 	var preheader *string
+	var bodyText string
+	var reviewHTML string
 	err := dbpool.QueryRow(context.Background(), `
-		SELECT title, subject, preheader
+		SELECT title, subject, preheader, body_text, review_html
 		FROM emails
 		WHERE id = $1;
-	`, emailID).Scan(&title, &subject, &preheader)
+	`, emailID).Scan(&title, &subject, &preheader, &bodyText, &reviewHTML)
 	if err != nil {
 		t.Fatalf("failed to load updated metadata: %v", err)
 	}
@@ -610,6 +612,15 @@ func TestUpdateEmailEditableFields(t *testing.T) {
 	}
 	if preheader == nil || *preheader != "Updated preheader" {
 		t.Fatalf("expected updated preheader, got %#v", preheader)
+	}
+	if !strings.Contains(reviewHTML, "Start now") {
+		t.Fatalf("expected review html to include rendered editable text, got %s", reviewHTML)
+	}
+	if !strings.Contains(reviewHTML, "https://example.com/start") {
+		t.Fatalf("expected review html to include rendered editable URL, got %s", reviewHTML)
+	}
+	if !strings.Contains(bodyText, "Start now") {
+		t.Fatalf("expected body text to include rendered editable text, got %s", bodyText)
 	}
 
 	var actorEmail string

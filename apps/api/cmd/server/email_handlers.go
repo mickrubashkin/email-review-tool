@@ -488,16 +488,14 @@ func updateEmailEditableFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 		var currentTitle string
 		var currentSubject *string
 		var currentPreheader *string
-		var bodyText *string
-		var originalHTML string
 		var currentEditableFieldsJSON []byte
 		var slug string
 		err := dbpool.QueryRow(r.Context(), `
-			SELECT slug, template_html, title, subject, preheader, body_text, original_html, editable_fields
+			SELECT slug, template_html, title, subject, preheader, editable_fields
 			FROM emails
 			WHERE id = $1
 				AND archived_at IS NULL;
-		`, id).Scan(&slug, &templateHTML, &currentTitle, &currentSubject, &currentPreheader, &bodyText, &originalHTML, &currentEditableFieldsJSON)
+		`, id).Scan(&slug, &templateHTML, &currentTitle, &currentSubject, &currentPreheader, &currentEditableFieldsJSON)
 		if err != nil {
 			http.Error(w, "email not found", http.StatusNotFound)
 			return
@@ -535,11 +533,12 @@ func updateEmailEditableFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			http.Error(w, "invalid editable fields", http.StatusBadRequest)
 			return
 		}
+		renderedBodyText := emailtext.HTMLToText(renderedHTML)
 		contentParts := emailtext.ExtractContentParts(
-			originalHTML,
+			renderedHTML,
 			stringFromPointer(subject),
 			stringFromPointer(preheader),
-			stringFromPointer(bodyText),
+			renderedBodyText,
 		)
 		contentPartsJSON, err := json.Marshal(contentParts)
 		if err != nil {
@@ -592,10 +591,12 @@ func updateEmailEditableFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 				preheader = $4,
 				editable_fields = $5::jsonb,
 				content_parts = $6::jsonb,
+				review_html = $7,
+				body_text = $8,
 				updated_at = now()
 			WHERE id = $1
 				AND archived_at IS NULL;
-		`, id, title, subject, preheader, fieldsJSON, contentPartsJSON)
+		`, id, title, subject, preheader, fieldsJSON, contentPartsJSON, renderedHTML, renderedBodyText)
 		if err != nil {
 			http.Error(w, "failed to update editable fields", http.StatusInternalServerError)
 			return
