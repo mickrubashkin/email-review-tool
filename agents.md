@@ -5,7 +5,7 @@ ReviewDesk is an internal tool for reviewing HTML email sequences.
 
 ## Repo layout
 - `apps/web/src/main.tsx` boots Mantine + TanStack Query.
-- `apps/web/src/App.tsx` is the real route switcher; it uses `window.location.pathname`, not React Router.
+- `apps/web/src/App.tsx` is the real route switcher; it uses `react-router-dom`.
 - `apps/api/cmd/server` is the HTTP API entrypoint.
 - `apps/api/cmd/seed` seeds from `db/seeds/emails`.
 - `apps/api/cmd/syncmeta` regenerates `db/seeds/emails/meta.json`.
@@ -22,7 +22,7 @@ ReviewDesk is an internal tool for reviewing HTML email sequences.
 - `apps/api/cmd/server/main.go` and `apps/api/cmd/seed/main.go` both load `../../.env`.
 - `DATABASE_URL` is required for API, seed, and migration commands.
 - `goose` must be available on PATH; the Makefile and Docker entrypoint call it directly.
-- Docker starts migrations, then seed, then the server via `apps/api/entrypoint.sh`.
+- Docker starts migrations, conditionally runs seed when `RUN_DB_SEED=true`, then starts the server via `apps/api/entrypoint.sh`.
 - The seed tree is `db/seeds/emails/{stage}/{email}/{language[-old]}.html`; `meta.json` lives beside it.
 
 ## Product rules

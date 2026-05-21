@@ -32,6 +32,7 @@ Internal tool for reviewing HTML email sequences.
 - `/auth-events` admin auth events
 - `/ai-logs` AI analysis logs
 - `/admin/email-events` super-admin email events
+- `/admin/operational-events` admin operational events
 - `/admin/users` super-admin user management
 
 ## Repo layout
@@ -62,18 +63,46 @@ Internal tool for reviewing HTML email sequences.
 - `cd apps/api && go run ./cmd/server`.
 
 ## API
+- `GET /health` returns service and database health.
+- `POST /api/auth/request-code` sends or logs an OTP code for an allowed domain.
+- `POST /api/auth/verify-code` verifies an OTP code and creates the session cookie.
+- `GET /api/auth/me` returns the current user.
+- `POST /api/auth/logout` clears the current session.
+- `GET /api/auth/events` lists admin-only auth audit events.
+- `GET /api/admin/users` lists users for super admins.
+- `PATCH /api/admin/users/{id}/role` updates a user role for super admins.
 - `GET /api/boards` lists boards and their ordered stages.
 - `POST /api/boards` creates a board by copying stages from a source board.
 - `POST /api/boards/{boardKey}/stages` adds a stage.
 - `PATCH /api/boards/{boardKey}/stages/{stage}` renames a stage and updates emails in that board.
 - `PATCH /api/boards/{boardKey}/stages` reorders stages; the payload must contain the same stages exactly once.
 - `DELETE /api/boards/{boardKey}/stages/{stage}` deletes an empty stage.
+- `GET /api/emails?board={boardKey}` lists active emails for a board.
+- `POST /api/emails/inspect-html` inspects uploaded HTML before creation.
+- `POST /api/emails` creates an email from uploaded/pasted HTML for admins.
+- `GET /api/emails/{id}` returns email detail, original HTML, review HTML, template HTML, and editable fields.
+- `GET /api/emails/{id}/rendered` returns the rendered HTML after template-backed edits.
+- `PATCH /api/emails/{id}/editable-fields` updates template-backed fields and metadata for admins.
+- `PATCH /api/emails/{id}/review-status` updates the review status.
+- `POST /api/emails/{id}/duplicate` creates a new version/adaptation from an email for admins.
+- `POST /api/emails/{id}/adaptations` creates a delivery adaptation for admins.
+- `PATCH /api/emails/{id}/archive` archives an email for admins.
+- `GET /api/emails/{id}/comments` lists comments.
+- `POST /api/emails/{id}/comments` creates a comment anchored to a review block and text range.
+- `PATCH /api/comments/{id}/resolve` resolves a comment.
+- `GET /api/emails/{id}/ai-analysis` returns cached shared AI analysis.
+- `POST /api/emails/{id}/ai-analysis` runs shared AI analysis.
+- `GET /api/emails/{id}/ai-analysis-stream` streams shared AI analysis over SSE/EventSource.
+- `GET /api/emails/{id}/ai-analysis-debug` returns admin-only prompt/debug payloads when debug mode is enabled.
+- `GET /api/ai-analysis-logs` lists admin-only AI analysis logs.
+- `GET /api/admin/email-events` lists super-admin email audit events.
+- `GET /api/admin/operational-events` lists admin-only operational events.
 
 ## Environment
 - `apps/api/cmd/server/main.go` and `apps/api/cmd/seed/main.go` both load `../../.env`.
 - `DATABASE_URL` is required for API, seed, and migration commands.
 - `goose` must be available on `PATH`.
-- Docker runs migrations, then seed, then the server via `apps/api/entrypoint.sh`.
+- Docker runs migrations, conditionally runs seed when `RUN_DB_SEED=true`, then starts the server via `apps/api/entrypoint.sh`.
 
 ## Notes
 - Backend is the source of truth.
