@@ -31,3 +31,11 @@ This roadmap captures the next production-hardening and workflow improvements fo
 - [ ] Decide whether stages need stable IDs with editable display names.
 - [ ] Add board archive/hide behavior.
 - [ ] Consider workspaces if the product expands beyond one team workflow.
+
+## Future Feature: Workspace Setup Assistant
+
+- [ ] Add board-scoped AI instruction documents so each board can define its own sequence logic and email review rules.
+- [ ] Add a manual setup flow for creating a workspace, boards, stages, and AI instruction documents from a clean start.
+- [ ] Add an AI-assisted setup flow that drafts boards, stages, and instruction documents from a short super-admin brief.
+- [ ] Keep AI-assisted setup as draft-first: generate a preview, allow manual edits, then apply only after super-admin confirmation.
+- [ ] Plan the feature around future `workspaces`, stable stage IDs, and board-specific prompt documents instead of the current temporary `boards.stages` JSON shape.

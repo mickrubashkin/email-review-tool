@@ -8,7 +8,7 @@ This document captures the production wiring and the minimum checks to run after
 - Cloudflare Pages functions proxy `/api/*` and `/health` to the API backend.
 - API runs on Railway from the root `Dockerfile`.
 - PostgreSQL is provided through `DATABASE_URL`.
-- The API container entrypoint runs migrations, then seed, then starts the server.
+- The API container entrypoint runs migrations, skips seed by default, then starts the server.
 
 ## Cloudflare Pages
 
@@ -35,6 +35,8 @@ Required environment variables:
 - `AUTH_COOKIE_SECURE=true` in production.
 - `AUTH_LOG_LOGIN_CODES=false` in production when `RESEND_API_KEY` is configured.
 - `RESEND_API_KEY`: enables email OTP delivery.
+- `RUN_DB_SEED=false`: keep seed disabled in production after the initial import.
+- `SEED_DELETE_STALE_EMAILS=false`: keep destructive seed pruning disabled.
 
 Optional AI variables:
 
@@ -46,7 +48,7 @@ Optional AI variables:
 ## Deploy Flow
 
 1. Deploy the Railway API image.
-2. Confirm Railway logs show migrations completed, seed completed, and server started.
+2. Confirm Railway logs show migrations completed, seed skipped, and server started.
 3. Deploy Cloudflare Pages frontend.
 4. Run the smoke check against the public frontend origin:
 
@@ -72,6 +74,12 @@ With `SMOKE_SESSION_COOKIE`, `GET /api/boards` must return HTTP 200 and a JSON a
 If `/health` passes but `/api/boards` returns neither unauthenticated 401 nor authenticated 200, check Cloudflare `BACKEND_ORIGIN`, Railway API logs, and auth/origin middleware changes.
 
 If `/health` fails, check Railway service health, `DATABASE_URL`, and migration logs.
+
+## Seed Policy
+
+Seed data is a local-development and one-time-import tool. Production deploys must not run seed automatically because ReviewDesk stores user-created emails in the same `emails` table.
+
+For an intentional one-time import, set `RUN_DB_SEED=true` for that run only, then set it back to `false`. Do not set `SEED_DELETE_STALE_EMAILS=true` in production unless a backup exists and the seed files are intentionally the complete source of truth.
 
 ## Rollback Notes
 

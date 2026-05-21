@@ -93,12 +93,20 @@ func main() {
 		}
 	}
 
-	if err := deleteStaleSeedEmails(ctx, dbpool, emails); err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to delete stale seed emails: %v\n", err)
-		os.Exit(1)
+	if shouldDeleteStaleSeedEmails() {
+		if err := deleteStaleSeedEmails(ctx, dbpool, emails); err != nil {
+			fmt.Fprintf(os.Stderr, "Unable to delete stale seed emails: %v\n", err)
+			os.Exit(1)
+		}
+	} else {
+		fmt.Println("Skipped deleting stale seed emails; set SEED_DELETE_STALE_EMAILS=true to prune seed-owned data")
 	}
 
 	fmt.Printf("Seeded %d emails\n", len(emails))
+}
+
+func shouldDeleteStaleSeedEmails() bool {
+	return os.Getenv("SEED_DELETE_STALE_EMAILS") == "true"
 }
 
 func findSeedDir() (string, error) {

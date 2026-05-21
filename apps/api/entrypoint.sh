@@ -15,8 +15,12 @@ until goose -dir /app/db/migrations postgres "$DATABASE_URL" up; do
   sleep 5
 done
 
-echo "Running seed"
-/app/seed
+if [ "$RUN_DB_SEED" = "true" ]; then
+  echo "Running seed"
+  /app/seed
+else
+  echo "Skipping seed; set RUN_DB_SEED=true to seed initial email data"
+fi
 
 echo "Starting server"
 exec /app/server
