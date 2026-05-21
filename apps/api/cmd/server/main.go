@@ -36,7 +36,9 @@ func main() {
 
 	r := chi.NewRouter()
 	r.Use(sameOriginMutationMiddleware)
+	r.Use(requestIDMiddleware)
 	r.Use(authMiddleware(dbpool))
+	r.Use(operationalEventMiddleware(dbpool))
 	aiService, err := newAIAnalysisService()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to create AI analysis service: %v\n", err)
@@ -45,6 +47,7 @@ func main() {
 
 	registerHealthRoute(r, dbpool)
 	registerAuthRoutes(r, dbpool, newLoginCodeEmailSender())
+	registerOperationalRoutes(r, dbpool)
 	registerBoardRoutes(r, dbpool)
 	registerEmailRoutes(r, dbpool)
 	registerCommentRoutes(r, dbpool)
@@ -61,6 +64,14 @@ func main() {
 	addr := ":" + port
 
 	fmt.Printf("API server listening on %s\n", addr)
+	logOperationalEvent(ctx, dbpool, operationalEvent{
+		Level:     "info",
+		EventType: "server_starting",
+		Message:   "API server starting",
+		Metadata: map[string]any{
+			"port": port,
+		},
+	})
 	err = http.ListenAndServe(addr, r)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "API server failed: %v\n", err)

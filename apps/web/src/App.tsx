@@ -51,6 +51,7 @@ import { AdminUsersView } from "./features/admin-users/AdminUsersView";
 import { AuthEventsView } from "./features/auth-events/AuthEventsView";
 import { LoginView } from "./features/auth/LoginView";
 import { EmailEventsView } from "./features/email-events/EmailEventsView";
+import { OperationalEventsView } from "./features/ops-events/OperationalEventsView";
 import {
   ApiError,
   createBoard,
@@ -149,6 +150,7 @@ function AuthenticatedApp() {
       <Route path="/auth-events" element={<AuthEventsView />} />
       <Route path="/admin/users" element={<AdminUsersView />} />
       <Route path="/admin/email-events" element={<EmailEventsView />} />
+      <Route path="/admin/operational-events" element={<OperationalEventsView />} />
       <Route
         path="/emails/new"
         element={<EmailCreateView currentUserRole={currentUserQuery.data.role} />}
@@ -552,6 +554,9 @@ function EmailBoardApp({
                       <Menu.Item component={Link} to="/ai-logs">
                         AI logs
                       </Menu.Item>
+                      <Menu.Item component={Link} to="/admin/operational-events">
+                        Operational events
+                      </Menu.Item>
                     </>
                   ) : null}
                   {currentUser.role === "super_admin" ? (
@@ -684,6 +689,9 @@ function EmailBoardApp({
                       </Menu.Item>
                       <Menu.Item component={Link} to="/ai-logs">
                         AI logs
+                      </Menu.Item>
+                      <Menu.Item component={Link} to="/admin/operational-events">
+                        Operational events
                       </Menu.Item>
                       {currentUser.role === "super_admin" ? (
                         <>

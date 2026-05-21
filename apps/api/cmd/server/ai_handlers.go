@@ -267,6 +267,7 @@ func cachedAnalysisOrLogError(r *http.Request, dbpool *pgxpool.Pool, email Email
 	cachedAnalysis, ok, err := getCachedAIAnalysis(r.Context(), dbpool, email, aiService)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to read ai analysis cache for email %s: %v\n", email.ID, err)
+		logAIOperationalError(r, dbpool, "ai_cache_read_failed", "Failed to read AI analysis cache", email.ID, err)
 		return EmailAnalysis{}, false
 	}
 
@@ -285,13 +286,35 @@ func logAIAnalysisResult(r *http.Request, dbpool *pgxpool.Pool, emailID string, 
 			status = "error"
 		}
 		fmt.Fprintf(os.Stderr, "failed to log ai analysis %s for email %s: %v\n", status, emailID, logErr)
+		logAIOperationalError(r, dbpool, "ai_analysis_log_failed", "Failed to write AI analysis log", emailID, logErr)
+	}
+	if analysisErr != nil {
+		logAIOperationalError(r, dbpool, "ai_analysis_failed", "AI analysis failed", emailID, analysisErr)
 	}
 }
 
 func cacheAIAnalysisResult(r *http.Request, dbpool *pgxpool.Pool, emailID string, aiService AIAnalysisService, analysis EmailAnalysis) {
 	if err := upsertAIAnalysisCache(r.Context(), dbpool, emailID, aiService, analysis); err != nil {
 		fmt.Fprintf(os.Stderr, "failed to cache ai analysis result for email %s: %v\n", emailID, err)
+		logAIOperationalError(r, dbpool, "ai_cache_write_failed", "Failed to write AI analysis cache", emailID, err)
 	}
+}
+
+func logAIOperationalError(r *http.Request, dbpool *pgxpool.Pool, eventType string, message string, emailID string, err error) {
+	userID, userEmail := operationalEventUser(r)
+	requestID := requestIDFromContext(r.Context())
+	logOperationalEvent(r.Context(), dbpool, operationalEvent{
+		Level:     "error",
+		EventType: eventType,
+		Message:   message,
+		UserID:    userID,
+		UserEmail: userEmail,
+		RequestID: stringPointerIfNotEmpty(requestID),
+		Metadata: map[string]any{
+			"email_id": emailID,
+			"error":    err.Error(),
+		},
+	})
 }
 
 func writeAIStreamResult(w http.ResponseWriter, flusher http.Flusher, analysis EmailAnalysis) {

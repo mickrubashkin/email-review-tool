@@ -75,6 +75,19 @@ If `/health` passes but `/api/boards` returns neither unauthenticated 401 nor au
 
 If `/health` fails, check Railway service health, `DATABASE_URL`, and migration logs.
 
+## Operational Events
+
+ReviewDesk stores selected system events in `operational_events` so incidents can be investigated without relying only on Railway logs. Admins can view them in the app at `/admin/operational-events`.
+
+Stored events include:
+
+- API requests that return `403` or `5xx`.
+- API server startup.
+- Seed lifecycle events when seed is intentionally run.
+- AI analysis/cache/logging failures.
+
+Operational events intentionally avoid storing cookies, OTP codes, email HTML, full AI prompts, or request bodies.
+
 ## Seed Policy
 
 Seed data is a local-development and one-time-import tool. Production deploys must not run seed automatically because ReviewDesk stores user-created emails in the same `emails` table.

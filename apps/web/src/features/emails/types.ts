@@ -238,6 +238,31 @@ export type AuthEventFilters = {
   limit?: string;
 };
 
+export type OperationalEventItem = {
+  id: string;
+  level: "info" | "warn" | "error";
+  event_type: string;
+  message: string;
+  user_id: string | null;
+  user_email: string | null;
+  request_id: string | null;
+  method: string | null;
+  path: string | null;
+  status_code: number | null;
+  duration_ms: number | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+};
+
+export type OperationalEventFilters = {
+  level?: string;
+  event_type?: string;
+  user_email?: string;
+  request_id?: string;
+  path?: string;
+  limit?: string;
+};
+
 export type EmailEventAction =
   | "email_duplicated"
   | "email_adaptation_created"

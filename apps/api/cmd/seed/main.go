@@ -73,6 +73,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Unable to ping database: %v\n", err)
 		os.Exit(1)
 	}
+	logSeedOperationalEvent(ctx, dbpool, "info", "seed_started", "Email seed started", nil)
 
 	seedDir, err := findSeedDir()
 	if err != nil {
@@ -93,7 +94,9 @@ func main() {
 		}
 	}
 
-	if shouldDeleteStaleSeedEmails() {
+	deleteStaleEmails := shouldDeleteStaleSeedEmails()
+	if deleteStaleEmails {
+		logSeedOperationalEvent(ctx, dbpool, "warn", "seed_delete_stale_enabled", "Seed stale email deletion enabled", nil)
 		if err := deleteStaleSeedEmails(ctx, dbpool, emails); err != nil {
 			fmt.Fprintf(os.Stderr, "Unable to delete stale seed emails: %v\n", err)
 			os.Exit(1)
@@ -102,6 +105,10 @@ func main() {
 		fmt.Println("Skipped deleting stale seed emails; set SEED_DELETE_STALE_EMAILS=true to prune seed-owned data")
 	}
 
+	logSeedOperationalEvent(ctx, dbpool, "info", "seed_completed", "Email seed completed", map[string]any{
+		"seeded_email_count":   len(emails),
+		"delete_stale_enabled": deleteStaleEmails,
+	})
 	fmt.Printf("Seeded %d emails\n", len(emails))
 }
 
@@ -411,6 +418,30 @@ func deleteStaleSeedEmails(ctx context.Context, dbpool *pgxpool.Pool, emails []s
 	`, sequence, slugs)
 
 	return err
+}
+
+func logSeedOperationalEvent(ctx context.Context, dbpool *pgxpool.Pool, level string, eventType string, message string, metadata map[string]any) {
+	if metadata == nil {
+		metadata = map[string]any{}
+	}
+	metadataBytes, err := json.Marshal(metadata)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to encode seed operational event metadata: %v\n", err)
+		return
+	}
+
+	_, err = dbpool.Exec(ctx, `
+		INSERT INTO operational_events (
+			level,
+			event_type,
+			message,
+			metadata
+		)
+		VALUES ($1, $2, $3, $4::jsonb);
+	`, level, eventType, message, metadataBytes)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to write seed operational event %s: %v\n", eventType, err)
+	}
 }
 
 func extractEmailContentParts(originalHTML string, emailMeta seedEmailMeta, bodyText string) EmailContentParts {
