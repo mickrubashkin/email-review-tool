@@ -110,7 +110,7 @@ func replaceChildrenWithText(node *xhtml.Node, value string) {
 	node.FirstChild = nil
 	node.LastChild = nil
 
-	lines := strings.Split(value, "\n")
+	lines := strings.Split(normalizeRenderedEditableText(value), "\n")
 	for i, line := range lines {
 		if i > 0 {
 			node.AppendChild(&xhtml.Node{
@@ -126,6 +126,22 @@ func replaceChildrenWithText(node *xhtml.Node, value string) {
 			})
 		}
 	}
+}
+
+func normalizeRenderedEditableText(value string) string {
+	lines := strings.Split(value, "\n")
+	normalizedLines := make([]string, 0, len(lines))
+
+	for _, line := range lines {
+		line = strings.TrimRight(line, " \t\r")
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+
+		normalizedLines = append(normalizedLines, line)
+	}
+
+	return strings.Join(normalizedLines, "\n")
 }
 
 func setAttr(node *xhtml.Node, key string, value string) {
