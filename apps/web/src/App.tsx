@@ -73,7 +73,6 @@ import {
 } from "./features/emails/api";
 import { EmailBoard } from "./features/emails/EmailBoard";
 import { EmailCreateView } from "./features/emails/EmailCreateView";
-import { EmailFieldsEditorView } from "./features/emails/EmailFieldsEditorView";
 import {
   emailReviewStatusOptions,
   formatEmailReviewStatus,
@@ -185,7 +184,7 @@ function AuthenticatedApp() {
       />
       <Route
         path="/emails/:emailId/edit"
-        element={<EmailFieldsEditorRoute currentUserRole={currentUserQuery.data.role} />}
+        element={<EmailFieldsEditorRoute />}
       />
       <Route
         path="/emails/:emailId/review"
@@ -231,14 +230,10 @@ function EmailReviewRoute({
   );
 }
 
-function EmailFieldsEditorRoute({
-  currentUserRole,
-}: {
-  currentUserRole: AuthUser["role"];
-}) {
+function EmailFieldsEditorRoute() {
   const { emailId } = useParams();
   return emailId ? (
-    <EmailFieldsEditorView currentUserRole={currentUserRole} emailId={emailId} />
+    <Navigate replace to={`/emails/${encodeURIComponent(emailId)}/review`} />
   ) : (
     <Navigate replace to="/" />
   );

@@ -21,7 +21,7 @@ import {
 } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 
 import {
   type QueryClient,
@@ -43,7 +43,6 @@ import {
   DownloadSimpleIcon,
   HouseIcon,
   MonitorIcon,
-  PencilSimpleIcon,
   SparkleIcon,
   StackPlusIcon,
 } from "@phosphor-icons/react";
@@ -72,11 +71,13 @@ import {
   fetchEmails,
   fetchSharedEmailAnalysis,
   resolveComment,
+  updateEmailEditableFields,
   updateEmailReviewStatus,
 } from "../emails/api";
 import { copyOriginalHTML, downloadOriginalHTML } from "../emails/exportHtml";
 import {
   MailPreview,
+  type InlineEditUpdate,
   type ReviewTextSelection,
 } from "../emails/MailPreview";
 import type { ReviewCommentTarget } from "../emails/reviewOverlayTypes";
@@ -105,6 +106,7 @@ import type {
   EmailReviewStatus,
   EmailVariant,
   EmailVersionGroup,
+  UpdateEditableFieldsPayload,
 } from "../emails/types";
 import { useEmailAnalysisStream } from "../emails/useEmailAnalysisStream";
 import styles from "./EmailReviewView.module.css";
@@ -134,6 +136,8 @@ export function EmailReviewView({
   const [archiveModalOpened, setArchiveModalOpened] = useState(false);
   const [duplicateModalOpened, setDuplicateModalOpened] = useState(false);
   const [adaptationModalOpened, setAdaptationModalOpened] = useState(false);
+  const [sourceHTMLModalOpened, setSourceHTMLModalOpened] = useState(false);
+  const [sourceHTMLDraft, setSourceHTMLDraft] = useState("");
   const [rightPanelPercent, setRightPanelPercent] = useState(30);
   const [activePanelTab, setActivePanelTab] =
     useState<ReviewPanelTab>("comments");
@@ -432,6 +436,32 @@ export function EmailReviewView({
       });
     },
   });
+  const inlineEditMutation = useMutation({
+    mutationFn: (payload: UpdateEditableFieldsPayload) =>
+      updateEmailEditableFields(emailId, payload),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ["emails", emailId, "review"],
+      });
+      await queryClient.invalidateQueries({ queryKey: ["emails"] });
+      if (email?.sequence) {
+        await queryClient.invalidateQueries({ queryKey: ["emails", email.sequence] });
+      }
+      setSourceHTMLModalOpened(false);
+      notifications.show({
+        color: "green",
+        message: "Email content was updated.",
+        title: "Saved",
+      });
+    },
+    onError: () => {
+      notifications.show({
+        color: "red",
+        message: "Try again or check the editable markers.",
+        title: "Save failed",
+      });
+    },
+  });
   const resolveMutation = useMutation({
     mutationFn: resolveComment,
     onSuccess: () => {
@@ -570,6 +600,30 @@ export function EmailReviewView({
   ) => {
     createCommentMutation.mutate({ body, selection });
   };
+  const handleApplyInlineEdit = (update: InlineEditUpdate) => {
+    if (!email) {
+      return;
+    }
+
+    inlineEditMutation.mutate(buildEditableFieldsPayload(email, update));
+  };
+  const openSourceHTMLModal = () => {
+    if (!email) {
+      return;
+    }
+
+    setSourceHTMLDraft(email.original_html);
+    setSourceHTMLModalOpened(true);
+  };
+  const saveSourceHTML = () => {
+    if (!email) {
+      return;
+    }
+
+    inlineEditMutation.mutate(
+      buildEditableFieldsPayload(email, {}, sourceHTMLDraft)
+    );
+  };
   const handleHoverComment = (comment: EmailComment | null) => {
     setHoveredCommentId(comment?.id ?? null);
   };
@@ -636,16 +690,22 @@ export function EmailReviewView({
     email ? (
       <MailPreview
         activeCommentId={activeCommentId}
+        canEditContent={canManageEmail}
+        canEditHTML={currentUserRole === "super_admin"}
         commentTargets={commentTargets}
         createCommentError={createCommentMutation.isError}
         email={email}
         enableReviewSelectionComposer
         hoveredCommentId={hoveredCommentId}
+        inlineEditError={inlineEditMutation.isError}
+        isApplyingInlineEdit={inlineEditMutation.isPending}
         isCreatingComment={createCommentMutation.isPending}
         isScanning={isAnalyzingCurrentEmail}
+        onApplyInlineEdit={handleApplyInlineEdit}
         onCommentBadgeClick={handleSelectCommentIds}
         onCommentBadgeHover={handleHoverCommentIds}
         onCreateReviewComment={handleCreateReviewComment}
+        onEditSourceHTML={openSourceHTMLModal}
         viewport={isCompactReview ? "mobile" : viewport}
       />
     ) : (
@@ -902,16 +962,6 @@ export function EmailReviewView({
                         Duplicate language/version
                       </Menu.Item>
                       <Menu.Item
-                        component={Link}
-                        disabled={!email}
-                        to={email ? `/emails/${encodeURIComponent(email.id)}/edit` : "#"}
-                        leftSection={
-                          <PencilSimpleIcon aria-hidden="true" size={15} />
-                        }
-                      >
-                        Edit fields
-                      </Menu.Item>
-                      <Menu.Item
                         color="red"
                         disabled={!email}
                         leftSection={
@@ -1020,33 +1070,6 @@ export function EmailReviewView({
                         >
                           <CopyIcon aria-hidden="true" size={16} />
                         </ActionIcon>
-                      </Tooltip>
-
-                      <Tooltip label="Edit fields">
-                        {email ? (
-                          <ActionIcon
-                            aria-label="Edit fields"
-                            className={styles.headerIconButton}
-                            component={Link}
-                            to={`/emails/${encodeURIComponent(email.id)}/edit`}
-                            radius="md"
-                            size="lg"
-                            variant="light"
-                          >
-                            <PencilSimpleIcon aria-hidden="true" size={16} />
-                          </ActionIcon>
-                        ) : (
-                          <ActionIcon
-                            aria-label="Edit fields"
-                            className={styles.headerIconButton}
-                            disabled
-                            radius="md"
-                            size="lg"
-                            variant="light"
-                          >
-                            <PencilSimpleIcon aria-hidden="true" size={16} />
-                          </ActionIcon>
-                        )}
                       </Tooltip>
 
                       <Tooltip label="Archive email">
@@ -1217,6 +1240,40 @@ export function EmailReviewView({
             setArchiveModalOpened(false);
           }}
         />
+      ) : null}
+
+      {email && currentUserRole === "super_admin" ? (
+        <Modal
+          opened={sourceHTMLModalOpened}
+          size="xl"
+          title="Edit source HTML"
+          onClose={() => setSourceHTMLModalOpened(false)}
+        >
+          <Stack gap="sm">
+            <Textarea
+              autosize
+              disabled={inlineEditMutation.isPending}
+              minRows={18}
+              value={sourceHTMLDraft}
+              onChange={(event) => setSourceHTMLDraft(event.currentTarget.value)}
+            />
+            <Group justify="flex-end" gap="xs">
+              <Button
+                disabled={inlineEditMutation.isPending}
+                variant="subtle"
+                onClick={() => setSourceHTMLModalOpened(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                loading={inlineEditMutation.isPending}
+                onClick={saveSourceHTML}
+              >
+                Save HTML
+              </Button>
+            </Group>
+          </Stack>
+        </Modal>
       ) : null}
 
       {isCompactReview ? (
@@ -1435,6 +1492,23 @@ function applyReviewStatusToCaches(
         ? { ...currentEmail, review_status: reviewStatus }
         : currentEmail
   );
+}
+
+function buildEditableFieldsPayload(
+  email: EmailDetail,
+  update: InlineEditUpdate,
+  originalHTML?: string
+): UpdateEditableFieldsPayload {
+  return {
+    title: email.title,
+    subject: update.subject ?? email.subject ?? "",
+    preheader: update.preheader ?? email.preheader ?? "",
+    editable_fields: {
+      ...email.editable_fields,
+      ...(update.editableFields ?? {}),
+    },
+    ...(originalHTML !== undefined ? { original_html: originalHTML } : {}),
+  };
 }
 
 function commentToTarget(comment: EmailComment): ReviewCommentTarget {
