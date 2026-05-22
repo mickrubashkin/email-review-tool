@@ -27,6 +27,7 @@ apps/web/coverage/
 
 # Backend: Go
 apps/api/bin/
+apps/api/.gocache/
 apps/api/tmp/
 apps/api/*.test
 apps/api/coverage.out

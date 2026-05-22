@@ -66,6 +66,7 @@ Internal tool for reviewing HTML email sequences.
 - `GET /health` returns service and database health.
 - `POST /api/auth/request-code` sends or logs an OTP code for an allowed domain.
 - `POST /api/auth/verify-code` verifies an OTP code and creates the session cookie.
+- `POST /api/auth/dev-login` creates a session without OTP only when `AUTH_DEV_LOGIN_ENABLED=true`.
 - `GET /api/auth/me` returns the current user.
 - `POST /api/auth/logout` clears the current session.
 - `GET /api/auth/events` lists admin-only auth audit events.
@@ -103,6 +104,7 @@ Internal tool for reviewing HTML email sequences.
 - `DATABASE_URL` is required for API, seed, and migration commands.
 - `goose` must be available on `PATH`.
 - Docker runs migrations, conditionally runs seed when `RUN_DB_SEED=true`, then starts the server via `apps/api/entrypoint.sh`.
+- Local development can enable OTP bypass with `AUTH_DEV_LOGIN_ENABLED=true` on the API and `VITE_AUTH_DEV_LOGIN_ENABLED=true` on the web app. Keep both unset or `false` in production.
 
 ## Notes
 - Backend is the source of truth.

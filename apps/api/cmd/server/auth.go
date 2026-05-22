@@ -40,6 +40,7 @@ type otpCodeRequest struct {
 func registerAuthRoutes(r chi.Router, dbpool *pgxpool.Pool, emailSender EmailSender) {
 	r.Post("/api/auth/request-code", requestOTPCodeHandler(dbpool, emailSender))
 	r.Post("/api/auth/verify-code", verifyOTPCodeHandler(dbpool))
+	r.Post("/api/auth/dev-login", devLoginHandler(dbpool))
 	r.Get("/api/auth/events", listAuthEventsHandler(dbpool))
 	r.Get("/api/auth/me", meHandler(dbpool))
 	r.Post("/api/auth/logout", logoutHandler(dbpool))
@@ -248,6 +249,48 @@ func verifyOTPCodeHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 
 		if err := createSessionCookie(r.Context(), dbpool, w, user); err != nil {
 			fmt.Fprintf(os.Stderr, "failed to create OTP session for %s: %v\n", user.Email, err)
+			http.Error(w, "failed to sign in", http.StatusInternalServerError)
+			return
+		}
+
+		writeAuthOK(w)
+	}
+}
+
+func devLoginHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !devLoginEnabled() {
+			http.NotFound(w, r)
+			return
+		}
+
+		var payload authRequest
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			http.Error(w, "invalid request", http.StatusBadRequest)
+			return
+		}
+
+		email := normalizeEmail(payload.Email)
+		if !isAllowedAuthEmail(email) {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		user, err := upsertAuthUser(r.Context(), dbpool, email)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "failed to upsert dev auth user %s: %v\n", email, err)
+			http.Error(w, "failed to sign in", http.StatusInternalServerError)
+			return
+		}
+		logAuthEvent(r.Context(), dbpool, r, AuthEvent{
+			UserID:    &user.ID,
+			Email:     user.Email,
+			EventType: "dev_login",
+			Success:   true,
+		})
+
+		if err := createSessionCookie(r.Context(), dbpool, w, user); err != nil {
+			fmt.Fprintf(os.Stderr, "failed to create dev session for %s: %v\n", user.Email, err)
 			http.Error(w, "failed to sign in", http.StatusInternalServerError)
 			return
 		}
@@ -703,6 +746,10 @@ func expiredSessionCookie() *http.Cookie {
 
 func authCookieSecure() bool {
 	return strings.EqualFold(strings.TrimSpace(os.Getenv("AUTH_COOKIE_SECURE")), "true")
+}
+
+func devLoginEnabled() bool {
+	return strings.EqualFold(strings.TrimSpace(os.Getenv("AUTH_DEV_LOGIN_ENABLED")), "true")
 }
 
 func writeAuthOK(w http.ResponseWriter) {

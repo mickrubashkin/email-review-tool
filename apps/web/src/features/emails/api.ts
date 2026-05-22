@@ -81,6 +81,16 @@ export function verifyLoginCode(
   });
 }
 
+export function devLogin(email: string): Promise<{ ok: boolean }> {
+  return fetchJson<{ ok: boolean }>("/api/auth/dev-login", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ email }),
+  });
+}
+
 export function fetchCurrentUser(): Promise<AuthUser> {
   return fetchJson<AuthUser>("/api/auth/me");
 }

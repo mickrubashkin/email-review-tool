@@ -33,10 +33,12 @@ Required environment variables:
 - `AUTH_BOOTSTRAP_SUPER_ADMIN_EMAIL`: first super admin email.
 - `AUTH_ALLOWED_ORIGINS`: Cloudflare frontend origin, for example `https://reviewdesk.rubashkin.xyz`.
 - `AUTH_COOKIE_SECURE=true` in production.
+- `AUTH_DEV_LOGIN_ENABLED=false` or unset in production.
 - `AUTH_LOG_LOGIN_CODES=false` in production when `RESEND_API_KEY` is configured.
 - `RESEND_API_KEY`: enables email OTP delivery.
 - `RUN_DB_SEED=false`: keep seed disabled in production after the initial import.
 - `SEED_DELETE_STALE_EMAILS=false`: keep destructive seed pruning disabled.
+- Do not set `VITE_AUTH_DEV_LOGIN_ENABLED=true` on the production frontend.
 
 Optional AI variables:
 

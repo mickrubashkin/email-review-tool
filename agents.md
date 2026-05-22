@@ -32,6 +32,7 @@ ReviewDesk is an internal tool for reviewing HTML email sequences.
 - Preview untrusted HTML in isolation and do not execute scripts.
 - AI analysis streaming is SSE/EventSource on `/api/emails/{id}/ai-analysis-stream`, not WebSocket.
 - Auth is OTP + session cookies; `/api/auth/events` is admin-only.
+- Local dev may enable `AUTH_DEV_LOGIN_ENABLED=true`, but production must keep dev login disabled.
 
 ## Code conventions
 - Keep handlers thin; put logic in helpers/services.

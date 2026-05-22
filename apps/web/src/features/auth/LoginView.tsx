@@ -10,12 +10,13 @@ import {
 } from "@mantine/core";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { requestLoginCode, verifyLoginCode } from "../emails/api";
+import { devLogin, requestLoginCode, verifyLoginCode } from "../emails/api";
 import styles from "./LoginView.module.css";
 
 const allowedDomains = getAllowedDomains();
 const allowedDomainsLabel = allowedDomains.map((domain) => `@${domain}`).join(", ");
 const storedEmailKey = "reviewdesk_login_email";
+const devLoginEnabled = import.meta.env.VITE_AUTH_DEV_LOGIN_ENABLED === "true";
 
 export function LoginView() {
   const queryClient = useQueryClient();
@@ -29,6 +30,12 @@ export function LoginView() {
   const verifyCodeMutation = useMutation({
     mutationFn: ({ email, code }: { email: string; code: string }) =>
       verifyLoginCode(email, code),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
+    },
+  });
+  const devLoginMutation = useMutation({
+    mutationFn: devLogin,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
     },
@@ -88,6 +95,35 @@ export function LoginView() {
               <Alert color="yellow" title="Email domain is not allowed">
                 {domainError}
               </Alert>
+            ) : null}
+
+            {devLoginEnabled ? (
+              <Alert color="blue" title="Local development login">
+                Email delivery is bypassed for this local environment.
+              </Alert>
+            ) : null}
+
+            {devLoginEnabled ? (
+              <Button
+                loading={devLoginMutation.isPending}
+                type="button"
+                variant="light"
+                fullWidth
+                onClick={() => {
+                  const normalizedEmail = email.trim().toLowerCase();
+                  if (!isAllowedEmailDomain(normalizedEmail)) {
+                    setDomainError(
+                      `Access is only available for ${allowedDomainsLabel} emails.`
+                    );
+                    return;
+                  }
+
+                  setDomainError(null);
+                  devLoginMutation.mutate(normalizedEmail);
+                }}
+              >
+                Continue locally
+              </Button>
             ) : null}
 
             <Button
@@ -154,6 +190,12 @@ export function LoginView() {
             {verifyCodeMutation.isError ? (
               <Alert color="red" title="Could not sign in">
                 Check your email and one-time code.
+              </Alert>
+            ) : null}
+
+            {devLoginMutation.isError ? (
+              <Alert color="red" title="Could not sign in locally">
+                Check that dev login is enabled on the API server.
               </Alert>
             ) : null}
           </Stack>

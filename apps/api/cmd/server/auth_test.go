@@ -88,6 +88,58 @@ func TestIsValidOTPCodeFormat(t *testing.T) {
 	}
 }
 
+func TestDevLoginDisabledByDefault(t *testing.T) {
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/api/auth/dev-login",
+		strings.NewReader(`{"email":"user@alaio.com"}`),
+	)
+	response := httptest.NewRecorder()
+
+	devLoginHandler(nil).ServeHTTP(response, request)
+
+	if response.Code != http.StatusNotFound {
+		t.Fatalf("expected status 404, got %d", response.Code)
+	}
+}
+
+func TestDevLoginCreatesSessionWhenEnabled(t *testing.T) {
+	t.Setenv("AUTH_DEV_LOGIN_ENABLED", "true")
+	t.Setenv("AUTH_ALLOWED_DOMAINS", "alaio.com")
+	t.Setenv("AUTH_BOOTSTRAP_SUPER_ADMIN_EMAIL", "dev@alaio.com")
+	dbpool := testDBPool(t)
+
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/api/auth/dev-login",
+		strings.NewReader(`{"email":"dev@alaio.com"}`),
+	)
+	response := httptest.NewRecorder()
+
+	devLoginHandler(dbpool).ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", response.Code, response.Body.String())
+	}
+	cookies := response.Result().Cookies()
+	if len(cookies) != 1 || cookies[0].Name != sessionCookieName {
+		t.Fatalf("expected one session cookie, got %#v", cookies)
+	}
+
+	var role string
+	err := dbpool.QueryRow(
+		context.Background(),
+		`SELECT role FROM users WHERE email = $1`,
+		"dev@alaio.com",
+	).Scan(&role)
+	if err != nil {
+		t.Fatalf("expected dev user to be created: %v", err)
+	}
+	if role != "super_admin" {
+		t.Fatalf("expected bootstrap dev user to be super_admin, got %q", role)
+	}
+}
+
 func TestIsAllowedRequestOrigin(t *testing.T) {
 	t.Setenv("CORS_ORIGIN", "")
 	t.Setenv("AUTH_ALLOWED_ORIGINS", "https://reviewdesk.example.com")

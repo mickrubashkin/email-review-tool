@@ -105,6 +105,40 @@ function formatEmailTitle(title: string) {
   }
 }
 
+function formatVariantLabel(variant: EmailVariant) {
+  const normalizedVariant = variant.trim().toLowerCase();
+  if (normalizedVariant === "old") {
+    return "v0";
+  }
+  if (normalizedVariant === "new") {
+    return "v1";
+  }
+
+  return variant;
+}
+
+function isLegacyVariant(variant: EmailVariant) {
+  const normalizedVariant = variant.trim().toLowerCase();
+  return normalizedVariant === "old" || normalizedVariant === "new";
+}
+
+function formatVariantOptionLabel(
+  variant: EmailVariant,
+  variants: EmailVariant[]
+) {
+  const label = formatVariantLabel(variant);
+  const hasLabelCollision = variants.some(
+    (otherVariant) =>
+      otherVariant !== variant && formatVariantLabel(otherVariant) === label
+  );
+
+  if (hasLabelCollision && isLegacyVariant(variant)) {
+    return `${label} legacy`;
+  }
+
+  return label;
+}
+
 export function EmailCard({
   emailGroup,
   selectedEmailId,
@@ -150,14 +184,11 @@ export function EmailCard({
     onSelectVersion(emailGroup.key, emailId);
   };
 
-  const handleVariantClick = (
-    event: MouseEvent<HTMLButtonElement>,
-    variant: EmailVariant
-  ) => {
+  const handleVariantChange = (event: ChangeEvent<HTMLSelectElement>) => {
     event.stopPropagation();
     const nextEmail = getVersionForVariant(
       emailGroup.versions,
-      variant,
+      event.currentTarget.value,
       selectedEmail.language,
       selectedAdaptation
     );
@@ -273,7 +304,11 @@ export function EmailCard({
                             <Group justify="space-between" gap={8} wrap="nowrap">
                               <Stack gap={0} className={styles.commentVersionText}>
                                 <Text size="sm" fw={600} lineClamp={1}>
-                                  {email.language.toUpperCase()} {email.variant}
+                                  {email.language.toUpperCase()}{" "}
+                                  {formatVariantOptionLabel(
+                                    email.variant,
+                                    availableVariants
+                                  )}
                                 </Text>
                                 <Text size="xs" c="dimmed" lineClamp={1}>
                                   {email.subject ?? "No subject"}
@@ -294,55 +329,68 @@ export function EmailCard({
             ) : null}
           </Group>
 
-          <Group className={styles.variantRow} gap={6} wrap="nowrap">
-            <Group className={styles.variantSwitch} gap={2} wrap="nowrap">
-              {availableVariants.map((variant) => (
+          <Group className={styles.cardMetaRow} gap={6} wrap="nowrap">
+            <Group className={styles.languageSwitch} gap={3} wrap="wrap">
+              {variantVersions.map((email) => (
                 <button
-                  className={styles.variantButton}
-                  data-active={variant === selectedVariant || undefined}
-                  key={variant}
+                  className={styles.languageButton}
+                  data-active={email.id === selectedEmail.id || undefined}
+                  key={email.id}
                   type="button"
-                  onClick={(event) => handleVariantClick(event, variant)}
+                  onClick={(event) => handleVersionClick(event, email.id)}
                 >
-                  {variant}
+                  {email.language}
                 </button>
               ))}
             </Group>
 
-            <label
-              className={styles.adaptationSelectWrap}
-              onClick={(event) => event.stopPropagation()}
-            >
-            <select
-              aria-label="Email adaptation"
-              className={styles.adaptationSelect}
-              value={selectedAdaptation}
-              onChange={handleAdaptationChange}
-            >
-              {availableAdaptations.map((adaptation) => (
-                <option
-                  key={adaptation.adaptation_key}
-                  value={adaptation.adaptation_key}
+            <Group className={styles.selectorGroup} gap={4} wrap="nowrap">
+              {availableVariants.length > 1 ? (
+                <label
+                  className={styles.variantSelectWrap}
+                  onClick={(event) => event.stopPropagation()}
                 >
-                  {adaptation.adaptation_label}
-                </option>
-              ))}
-            </select>
-            </label>
-          </Group>
+                  <select
+                    aria-label="Email version"
+                    className={styles.variantSelect}
+                    value={selectedVariant}
+                    onChange={handleVariantChange}
+                  >
+                    {availableVariants.map((variant) => (
+                      <option key={variant} value={variant}>
+                        {formatVariantOptionLabel(variant, availableVariants)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : (
+                <Text className={styles.singleVariantLabel} size="xs">
+                  {formatVariantOptionLabel(selectedVariant, availableVariants)}
+                </Text>
+              )}
 
-          <Group gap={3} wrap="wrap">
-            {variantVersions.map((email) => (
-              <button
-                className={styles.versionButton}
-                data-active={email.id === selectedEmail.id || undefined}
-                key={email.id}
-                type="button"
-                onClick={(event) => handleVersionClick(event, email.id)}
+              <label
+                className={styles.adaptationSelectWrap}
+                onClick={(event) => event.stopPropagation()}
               >
-                {email.language}
-              </button>
-            ))}
+                <select
+                  aria-label="Email adaptation"
+                  className={styles.adaptationSelect}
+                  data-custom={selectedAdaptation !== "default" || undefined}
+                  value={selectedAdaptation}
+                  onChange={handleAdaptationChange}
+                >
+                  {availableAdaptations.map((adaptation) => (
+                    <option
+                      key={adaptation.adaptation_key}
+                      value={adaptation.adaptation_key}
+                    >
+                      {adaptation.adaptation_label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </Group>
           </Group>
 
           {selectedEmail.subject ? (
