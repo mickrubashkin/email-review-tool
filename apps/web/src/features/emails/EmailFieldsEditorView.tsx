@@ -136,6 +136,7 @@ export function EmailFieldsEditorView({
     <EmailFieldsEditor
       currentUserRole={currentUserRole}
       email={emailQuery.data}
+      key={emailQuery.data.id}
       initialRenderedHTML={renderedQuery.data?.html ?? ""}
     />
   );
