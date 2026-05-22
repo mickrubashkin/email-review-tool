@@ -7,6 +7,7 @@ import type {
   Board,
   CreateBoardPayload,
   CreateBoardStagePayload,
+  CreateCommentMessagePayload,
   EmailAnalysis,
   EmailDetail,
   EmailEventFilters,
@@ -20,6 +21,7 @@ import type {
   CreateEmailAdaptationPayload,
   DuplicateEmailPayload,
   EmailComment,
+  EmailCommentMessage,
   UserAdminItem,
   UserRole,
   RenderedEmail,
@@ -468,6 +470,22 @@ export function createEmailComment(
 ): Promise<EmailComment> {
   return fetchJson<EmailComment>(
     `/api/emails/${encodeURIComponent(emailId)}/comments`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    }
+  );
+}
+
+export function createCommentMessage(
+  commentId: string,
+  payload: CreateCommentMessagePayload
+): Promise<EmailCommentMessage> {
+  return fetchJson<EmailCommentMessage>(
+    `/api/comments/${encodeURIComponent(commentId)}/messages`,
     {
       method: "POST",
       headers: {

@@ -1,13 +1,16 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -19,9 +22,14 @@ type createEmailCommentRequest struct {
 	Body         string `json:"body"`
 }
 
+type createCommentMessageRequest struct {
+	Body string `json:"body"`
+}
+
 func registerCommentRoutes(r chi.Router, dbpool *pgxpool.Pool) {
 	r.Get("/api/emails/{id}/comments", listEmailCommentsHandler(dbpool))
 	r.Post("/api/emails/{id}/comments", createEmailCommentHandler(dbpool))
+	r.Post("/api/comments/{id}/messages", createCommentMessageHandler(dbpool))
 	r.Patch("/api/comments/{id}/resolve", resolveCommentHandler(dbpool))
 }
 
@@ -91,6 +99,11 @@ func listEmailCommentsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			return
 		}
 
+		if err := attachCommentMessages(r.Context(), dbpool, comments); err != nil {
+			http.Error(w, "failed to read email comment messages", http.StatusInternalServerError)
+			return
+		}
+
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(comments)
 	}
@@ -124,8 +137,15 @@ func createEmailCommentHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			return
 		}
 
+		tx, err := dbpool.Begin(r.Context())
+		if err != nil {
+			http.Error(w, "failed to create comment", http.StatusInternalServerError)
+			return
+		}
+		defer tx.Rollback(r.Context())
+
 		var comment EmailComment
-		err := dbpool.QueryRow(r.Context(), `
+		err = tx.QueryRow(r.Context(), `
 			INSERT INTO comments (
 				email_id,
 				user_id,
@@ -172,10 +192,108 @@ func createEmailCommentHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			return
 		}
 
+		var message EmailCommentMessage
+		err = tx.QueryRow(r.Context(), `
+			INSERT INTO comment_messages (
+				comment_id,
+				user_id,
+				body
+			)
+				VALUES ($1, $2, $3)
+				RETURNING id, comment_id, user_id, body, created_at, updated_at;
+		`, comment.ID, user.ID, payload.Body).Scan(
+			&message.ID,
+			&message.CommentID,
+			&message.UserID,
+			&message.Body,
+			&message.CreatedAt,
+			&message.UpdatedAt,
+		)
+		if err != nil {
+			http.Error(w, "failed to create comment", http.StatusInternalServerError)
+			return
+		}
+
+		if err := tx.Commit(r.Context()); err != nil {
+			http.Error(w, "failed to create comment", http.StatusInternalServerError)
+			return
+		}
+
 		comment.AuthorEmail = &user.Email
+		message.AuthorEmail = &user.Email
+		comment.Messages = []EmailCommentMessage{message}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
 		_ = json.NewEncoder(w).Encode(comment)
+	}
+}
+
+func createCommentMessageHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		commentID := chi.URLParam(r, "id")
+		user, ok := authUserFromContext(r)
+		if !ok {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		var payload createCommentMessageRequest
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			http.Error(w, "invalid comment message payload", http.StatusBadRequest)
+			return
+		}
+
+		payload.Body = strings.TrimSpace(payload.Body)
+		if payload.Body == "" {
+			http.Error(w, "invalid comment message payload", http.StatusBadRequest)
+			return
+		}
+
+		var status string
+		err := dbpool.QueryRow(r.Context(), `
+			SELECT status
+			FROM comments
+			WHERE id = $1;
+		`, commentID).Scan(&status)
+		if errors.Is(err, pgx.ErrNoRows) {
+			http.Error(w, "comment not found", http.StatusNotFound)
+			return
+		}
+		if err != nil {
+			http.Error(w, "failed to create comment message", http.StatusInternalServerError)
+			return
+		}
+		if status != "open" {
+			http.Error(w, "comment is resolved", http.StatusConflict)
+			return
+		}
+
+		var message EmailCommentMessage
+		err = dbpool.QueryRow(r.Context(), `
+			INSERT INTO comment_messages (
+				comment_id,
+				user_id,
+				body
+			)
+				VALUES ($1, $2, $3)
+				RETURNING id, comment_id, user_id, body, created_at, updated_at;
+		`, commentID, user.ID, payload.Body).Scan(
+			&message.ID,
+			&message.CommentID,
+			&message.UserID,
+			&message.Body,
+			&message.CreatedAt,
+			&message.UpdatedAt,
+		)
+		if err != nil {
+			http.Error(w, "failed to create comment message", http.StatusInternalServerError)
+			return
+		}
+
+		message.AuthorEmail = &user.Email
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(w).Encode(message)
 	}
 }
 
@@ -239,9 +357,71 @@ func resolveCommentHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			return
 		}
 
+		comments := []EmailComment{comment}
+		if err := attachCommentMessages(r.Context(), dbpool, comments); err != nil {
+			http.Error(w, "failed to read comment messages", http.StatusInternalServerError)
+			return
+		}
+		comment = comments[0]
+
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(comment)
 	}
+}
+
+func attachCommentMessages(ctx context.Context, dbpool *pgxpool.Pool, comments []EmailComment) error {
+	if len(comments) == 0 {
+		return nil
+	}
+
+	commentIDs := make([]string, 0, len(comments))
+	commentIndexByID := make(map[string]int, len(comments))
+	for index := range comments {
+		commentIDs = append(commentIDs, comments[index].ID)
+		commentIndexByID[comments[index].ID] = index
+		comments[index].Messages = []EmailCommentMessage{}
+	}
+
+	rows, err := dbpool.Query(ctx, `
+		SELECT
+			comment_messages.id,
+			comment_messages.comment_id,
+			comment_messages.user_id,
+			authors.email AS author_email,
+			comment_messages.body,
+			comment_messages.created_at,
+			comment_messages.updated_at
+		FROM comment_messages
+		LEFT JOIN users AS authors ON authors.id = comment_messages.user_id
+		WHERE comment_messages.comment_id::text = ANY($1)
+		ORDER BY comment_messages.created_at, comment_messages.id;
+	`, commentIDs)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var message EmailCommentMessage
+		if err := rows.Scan(
+			&message.ID,
+			&message.CommentID,
+			&message.UserID,
+			&message.AuthorEmail,
+			&message.Body,
+			&message.CreatedAt,
+			&message.UpdatedAt,
+		); err != nil {
+			return err
+		}
+
+		index, ok := commentIndexByID[message.CommentID]
+		if ok {
+			comments[index].Messages = append(comments[index].Messages, message)
+		}
+	}
+
+	return rows.Err()
 }
 
 func authUserFromContext(r *http.Request) (AuthUser, bool) {

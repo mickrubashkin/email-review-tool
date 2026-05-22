@@ -70,6 +70,89 @@ func TestCommentHandlersCreateListResolve(t *testing.T) {
 	if createdComment.Status != "open" {
 		t.Fatalf("expected open comment status, got %q", createdComment.Status)
 	}
+	if len(createdComment.Messages) != 1 {
+		t.Fatalf("expected one initial message, got %d", len(createdComment.Messages))
+	}
+	if createdComment.Messages[0].Body != "Please clarify this sentence." {
+		t.Fatalf("expected initial message body, got %q", createdComment.Messages[0].Body)
+	}
+	if createdComment.Messages[0].AuthorEmail == nil || *createdComment.Messages[0].AuthorEmail != user.Email {
+		t.Fatalf("expected initial message author email %s, got %#v", user.Email, createdComment.Messages[0].AuthorEmail)
+	}
+
+	replyRequest := httptest.NewRequest(
+		http.MethodPost,
+		"/api/comments/"+createdComment.ID+"/messages",
+		bytes.NewReader([]byte(`{"body":"Agreed, let's tighten it."}`)),
+	)
+	replyRequest = replyRequest.WithContext(
+		context.WithValue(replyRequest.Context(), authUserContextKey, user),
+	)
+	replyResponse := httptest.NewRecorder()
+	router.ServeHTTP(replyResponse, replyRequest)
+
+	if replyResponse.Code != http.StatusCreated {
+		t.Fatalf("expected reply POST status 201, got %d: %s", replyResponse.Code, replyResponse.Body.String())
+	}
+
+	var reply EmailCommentMessage
+	if err := json.NewDecoder(replyResponse.Body).Decode(&reply); err != nil {
+		t.Fatalf("failed to decode reply: %v", err)
+	}
+	if reply.CommentID != createdComment.ID {
+		t.Fatalf("expected reply comment id %s, got %q", createdComment.ID, reply.CommentID)
+	}
+	if reply.Body != "Agreed, let's tighten it." {
+		t.Fatalf("expected reply body, got %q", reply.Body)
+	}
+
+	listRequest := httptest.NewRequest(http.MethodGet, "/api/emails/"+emailID+"/comments", nil)
+	listResponse := httptest.NewRecorder()
+	router.ServeHTTP(listResponse, listRequest)
+
+	if listResponse.Code != http.StatusOK {
+		t.Fatalf("expected list status 200, got %d: %s", listResponse.Code, listResponse.Body.String())
+	}
+
+	var listedComments []EmailComment
+	if err := json.NewDecoder(listResponse.Body).Decode(&listedComments); err != nil {
+		t.Fatalf("failed to decode listed comments: %v", err)
+	}
+	if len(listedComments) != 1 {
+		t.Fatalf("expected one listed comment, got %d", len(listedComments))
+	}
+	if len(listedComments[0].Messages) != 2 {
+		t.Fatalf("expected two listed messages, got %d", len(listedComments[0].Messages))
+	}
+	if listedComments[0].Messages[0].Body != "Please clarify this sentence." ||
+		listedComments[0].Messages[1].Body != "Agreed, let's tighten it." {
+		t.Fatalf("expected listed messages in creation order, got %#v", listedComments[0].Messages)
+	}
+
+	unauthorizedReplyRequest := httptest.NewRequest(
+		http.MethodPost,
+		"/api/comments/"+createdComment.ID+"/messages",
+		bytes.NewReader([]byte(`{"body":"No auth."}`)),
+	)
+	unauthorizedReplyResponse := httptest.NewRecorder()
+	router.ServeHTTP(unauthorizedReplyResponse, unauthorizedReplyRequest)
+	if unauthorizedReplyResponse.Code != http.StatusUnauthorized {
+		t.Fatalf("expected unauthorized reply status 401, got %d", unauthorizedReplyResponse.Code)
+	}
+
+	emptyReplyRequest := httptest.NewRequest(
+		http.MethodPost,
+		"/api/comments/"+createdComment.ID+"/messages",
+		bytes.NewReader([]byte(`{"body":"   "}`)),
+	)
+	emptyReplyRequest = emptyReplyRequest.WithContext(
+		context.WithValue(emptyReplyRequest.Context(), authUserContextKey, user),
+	)
+	emptyReplyResponse := httptest.NewRecorder()
+	router.ServeHTTP(emptyReplyResponse, emptyReplyRequest)
+	if emptyReplyResponse.Code != http.StatusBadRequest {
+		t.Fatalf("expected empty reply status 400, got %d", emptyReplyResponse.Code)
+	}
 
 	resolveRequest := httptest.NewRequest(
 		http.MethodPatch,
@@ -101,6 +184,23 @@ func TestCommentHandlersCreateListResolve(t *testing.T) {
 	}
 	if resolvedComment.ResolvedByEmail == nil || *resolvedComment.ResolvedByEmail != user.Email {
 		t.Fatalf("expected resolved_by_email %s, got %#v", user.Email, resolvedComment.ResolvedByEmail)
+	}
+	if len(resolvedComment.Messages) != 2 {
+		t.Fatalf("expected resolved comment to include two messages, got %d", len(resolvedComment.Messages))
+	}
+
+	resolvedReplyRequest := httptest.NewRequest(
+		http.MethodPost,
+		"/api/comments/"+createdComment.ID+"/messages",
+		bytes.NewReader([]byte(`{"body":"Reopening by reply?"}`)),
+	)
+	resolvedReplyRequest = resolvedReplyRequest.WithContext(
+		context.WithValue(resolvedReplyRequest.Context(), authUserContextKey, user),
+	)
+	resolvedReplyResponse := httptest.NewRecorder()
+	router.ServeHTTP(resolvedReplyResponse, resolvedReplyRequest)
+	if resolvedReplyResponse.Code != http.StatusConflict {
+		t.Fatalf("expected resolved reply status 409, got %d", resolvedReplyResponse.Code)
 	}
 }
 

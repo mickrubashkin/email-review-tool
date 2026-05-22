@@ -300,6 +300,27 @@
   color: var(--mantine-color-gray-7);
 }
 
+.commentMessages {
+  min-width: 0;
+}
+
+.commentMessage {
+  min-width: 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--mantine-color-gray-1);
+}
+
+.commentMessage:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.commentReplyForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mantine-spacing-xs);
+}
+
 .centerState {
   min-height: 100dvh;
 }
