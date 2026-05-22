@@ -136,7 +136,7 @@ func textContentWithBreaks(node *html.Node) string {
 
 func writeTextContentWithBreaks(builder *strings.Builder, node *html.Node) {
 	if node.Type == html.TextNode {
-		builder.WriteString(node.Data)
+		appendTextSegment(builder, strings.Join(strings.Fields(node.Data), " "))
 		return
 	}
 
@@ -148,6 +148,18 @@ func writeTextContentWithBreaks(builder *strings.Builder, node *html.Node) {
 	for child := node.FirstChild; child != nil; child = child.NextSibling {
 		writeTextContentWithBreaks(builder, child)
 	}
+}
+
+func appendTextSegment(builder *strings.Builder, segment string) {
+	if segment == "" {
+		return
+	}
+
+	current := builder.String()
+	if current != "" && !strings.HasSuffix(current, "\n") && !strings.HasSuffix(current, " ") {
+		builder.WriteString(" ")
+	}
+	builder.WriteString(segment)
 }
 
 func normalizeEditableText(value string) string {

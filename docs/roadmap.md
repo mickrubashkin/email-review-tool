@@ -18,7 +18,8 @@ This roadmap captures the next production-hardening and workflow improvements fo
 
 - [x] Add email search on the board.
 - [x] Add an explicit review status for each email.
-- [ ] Decide whether comments need replies or threads before building threaded discussions.
+- [x] Add pragmatic threaded comment replies.
+- [ ] Add rich text editing for email copy changes.
 
 ## Priority 4: Audit And Operations
 

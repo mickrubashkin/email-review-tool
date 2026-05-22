@@ -409,6 +409,7 @@ type updateEmailEditableFieldsRequest struct {
 	Subject        *string                  `json:"subject"`
 	Preheader      *string                  `json:"preheader"`
 	EditableFields emailedit.EditableFields `json:"editable_fields"`
+	OriginalHTML   *string                  `json:"original_html"`
 }
 
 type updateEmailReviewStatusRequest struct {
@@ -483,7 +484,12 @@ func updateEmailEditableFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			http.Error(w, "editable_fields is required", http.StatusBadRequest)
 			return
 		}
+		if request.OriginalHTML != nil && !isSuperAdminUser(user) {
+			http.Error(w, "original_html requires super admin", http.StatusForbidden)
+			return
+		}
 
+		var originalHTML string
 		var templateHTML string
 		var currentTitle string
 		var currentSubject *string
@@ -491,11 +497,11 @@ func updateEmailEditableFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 		var currentEditableFieldsJSON []byte
 		var slug string
 		err := dbpool.QueryRow(r.Context(), `
-			SELECT slug, template_html, title, subject, preheader, editable_fields
+			SELECT slug, original_html, template_html, title, subject, preheader, editable_fields
 			FROM emails
 			WHERE id = $1
 				AND archived_at IS NULL;
-		`, id).Scan(&slug, &templateHTML, &currentTitle, &currentSubject, &currentPreheader, &currentEditableFieldsJSON)
+		`, id).Scan(&slug, &originalHTML, &templateHTML, &currentTitle, &currentSubject, &currentPreheader, &currentEditableFieldsJSON)
 		if err != nil {
 			http.Error(w, "email not found", http.StatusNotFound)
 			return
@@ -519,7 +525,31 @@ func updateEmailEditableFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			preheader = request.Preheader
 		}
 
-		renderedHTML, err := emailedit.RenderEditableHTMLWithMetadata(templateHTML, request.EditableFields, emailedit.RenderMetadata{
+		nextOriginalHTML := originalHTML
+		nextTemplateHTML := templateHTML
+		nextEditableFields := request.EditableFields
+		originalHTMLChanged := false
+		if request.OriginalHTML != nil {
+			nextOriginalHTML = strings.TrimSpace(*request.OriginalHTML)
+			if nextOriginalHTML == "" {
+				http.Error(w, "original_html is required", http.StatusBadRequest)
+				return
+			}
+			if _, err := emailreview.AddReviewBlocks(nextOriginalHTML); err != nil {
+				http.Error(w, "invalid email HTML", http.StatusBadRequest)
+				return
+			}
+			extractedFields, err := emailedit.ExtractEditableFields(nextOriginalHTML)
+			if err != nil {
+				http.Error(w, "invalid editable fields in original_html", http.StatusBadRequest)
+				return
+			}
+			nextEditableFields = mergeEditableFields(extractedFields, request.EditableFields)
+			nextTemplateHTML = nextOriginalHTML
+			originalHTMLChanged = nextOriginalHTML != originalHTML
+		}
+
+		renderedHTML, err := emailedit.RenderEditableHTMLWithMetadata(nextTemplateHTML, nextEditableFields, emailedit.RenderMetadata{
 			Preheader: stringFromPointer(preheader),
 		})
 		if err != nil {
@@ -528,7 +558,13 @@ func updateEmailEditableFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			return
 		}
 
-		fieldsJSON, err := request.EditableFields.JSON()
+		reviewHTML, err := emailreview.AddReviewBlocks(renderedHTML)
+		if err != nil {
+			http.Error(w, "invalid email HTML", http.StatusBadRequest)
+			return
+		}
+
+		fieldsJSON, err := nextEditableFields.JSON()
 		if err != nil {
 			http.Error(w, "invalid editable fields", http.StatusBadRequest)
 			return
@@ -554,14 +590,20 @@ func updateEmailEditableFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			title,
 			subject,
 			preheader,
-			request.EditableFields,
+			nextEditableFields,
 		)
 		if err != nil {
 			http.Error(w, "failed to update editable fields", http.StatusInternalServerError)
 			return
 		}
+		if originalHTMLChanged {
+			changes["original_html"] = map[string]any{
+				"before": originalHTML,
+				"after":  nextOriginalHTML,
+			}
+		}
 		commentAnchorTexts, err := changedCommentAnchorTexts(
-			templateHTML,
+			nextTemplateHTML,
 			renderedHTML,
 			currentTitle,
 			currentSubject,
@@ -570,7 +612,7 @@ func updateEmailEditableFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			title,
 			subject,
 			preheader,
-			request.EditableFields,
+			nextEditableFields,
 		)
 		if err != nil {
 			http.Error(w, "failed to update editable fields", http.StatusInternalServerError)
@@ -593,10 +635,12 @@ func updateEmailEditableFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 				content_parts = $6::jsonb,
 				review_html = $7,
 				body_text = $8,
+				original_html = $9,
+				template_html = $10,
 				updated_at = now()
 			WHERE id = $1
 				AND archived_at IS NULL;
-		`, id, title, subject, preheader, fieldsJSON, contentPartsJSON, renderedHTML, renderedBodyText)
+		`, id, title, subject, preheader, fieldsJSON, contentPartsJSON, reviewHTML, renderedBodyText, nextOriginalHTML, nextTemplateHTML)
 		if err != nil {
 			http.Error(w, "failed to update editable fields", http.StatusInternalServerError)
 			return
@@ -1467,6 +1511,22 @@ func addStringChange(changes map[string]any, key string, before *string, after *
 		"before": before,
 		"after":  after,
 	}
+}
+
+func mergeEditableFields(
+	extractedFields emailedit.EditableFields,
+	submittedFields emailedit.EditableFields,
+) emailedit.EditableFields {
+	mergedFields := emailedit.EditableFields{}
+	for key, extractedField := range extractedFields {
+		if submittedField, ok := submittedFields[key]; ok && submittedField.Type == extractedField.Type {
+			mergedFields[key] = submittedField
+			continue
+		}
+		mergedFields[key] = extractedField
+	}
+
+	return mergedFields
 }
 
 func changedCommentAnchorTexts(

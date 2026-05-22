@@ -21,12 +21,80 @@
   padding: 10px 18px;
 }
 
+.headerMain {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.headerActions {
+  flex: 0 0 auto;
+}
+
 .titleBlock {
   min-width: 0;
 }
 
 .title {
-  max-width: 560px;
+  max-width: 320px;
+  line-height: 1.15;
+}
+
+.breadcrumbs {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.breadcrumbText {
+  flex: 0 0 auto;
+}
+
+.actionDivider {
+  align-self: stretch;
+  width: 1px;
+  background: var(--mantine-color-gray-2);
+}
+
+.versionControls {
+  flex: 0 0 auto;
+}
+
+.languageSelect {
+  width: 92px;
+}
+
+.adaptationSelect {
+  width: 132px;
+}
+
+.versionButton {
+  height: 36px;
+}
+
+.segmentedControl {
+  height: 36px;
+  padding: 3px;
+  border: 1px solid var(--mantine-color-gray-3);
+  border-radius: var(--mantine-radius-md);
+  background: var(--mantine-color-white);
+}
+
+.segmentedButton {
+  min-width: 64px;
+  height: 28px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--mantine-radius-sm);
+  color: var(--mantine-color-gray-6);
+  background: transparent;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.segmentedButton:hover,
+.segmentedButton[data-active] {
+  color: var(--mantine-primary-color-filled);
+  background: var(--mantine-primary-color-light);
 }
 
 .content {
@@ -58,6 +126,13 @@
   border: 1px solid var(--mantine-color-gray-2);
   border-radius: var(--mantine-radius-sm);
   background: var(--mantine-color-gray-0);
+}
+
+.htmlTextarea {
+  min-height: calc(100dvh - 230px);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .previewPanel {

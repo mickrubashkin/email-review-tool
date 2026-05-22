@@ -115,6 +115,7 @@ export type UpdateEditableFieldsPayload = {
   subject: string;
   preheader: string;
   editable_fields: EditableFields;
+  original_html?: string;
 };
 
 export type UpdateEmailReviewStatusPayload = {

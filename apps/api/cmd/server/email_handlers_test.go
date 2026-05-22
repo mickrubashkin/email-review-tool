@@ -841,6 +841,92 @@ func TestUpdateEmailEditableFieldsRejectsReviewer(t *testing.T) {
 	}
 }
 
+func TestUpdateEmailOriginalHTMLRequiresSuperAdmin(t *testing.T) {
+	dbpool := testDBPool(t)
+	emailID := createTestEmail(t, dbpool)
+	user := createTestUserWithRole(t, dbpool, "admin")
+
+	router := chi.NewRouter()
+	registerEmailRoutes(router, dbpool)
+
+	request := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/emails/"+emailID+"/editable-fields",
+		bytes.NewReader([]byte(`{
+			"editable_fields": {},
+			"original_html": "<html><body><p>Updated HTML</p></body></html>"
+		}`)),
+	)
+	request = withAuthUser(request, user)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("expected PATCH status 403, got %d: %s", response.Code, response.Body.String())
+	}
+}
+
+func TestUpdateEmailOriginalHTMLAsSuperAdmin(t *testing.T) {
+	dbpool := testDBPool(t)
+	emailID := createTestEmail(t, dbpool)
+	user := createTestUserWithRole(t, dbpool, "super_admin")
+	setTestEmailTemplate(t, dbpool, emailID, `
+		<html>
+			<body>
+				<a data-review-block="primary_cta" data-edit-text="primary_cta_text" href="https://example.com/old">Old CTA</a>
+			</body>
+		</html>
+	`)
+
+	router := chi.NewRouter()
+	registerEmailRoutes(router, dbpool)
+
+	request := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/emails/"+emailID+"/editable-fields",
+		bytes.NewReader([]byte(`{
+			"title": "HTML Edited Email",
+			"editable_fields": {
+				"primary_cta_text": { "type": "text", "value": "Preserved CTA" }
+			},
+			"original_html": "<html><body><section><a data-review-block=\"primary_cta\" data-edit-text=\"primary_cta_text\" href=\"https://example.com/new\">Template default</a><p data-edit-text=\"new_copy\">New copy</p></section></body></html>"
+		}`)),
+	)
+	request = withAuthUser(request, user)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusNoContent {
+		t.Fatalf("expected PATCH status 204, got %d: %s", response.Code, response.Body.String())
+	}
+
+	var title string
+	var originalHTML string
+	var templateHTML string
+	var reviewHTML string
+	err := dbpool.QueryRow(context.Background(), `
+		SELECT title, original_html, template_html, review_html
+		FROM emails
+		WHERE id = $1;
+	`, emailID).Scan(&title, &originalHTML, &templateHTML, &reviewHTML)
+	if err != nil {
+		t.Fatalf("failed to load updated original HTML: %v", err)
+	}
+	if title != "HTML Edited Email" {
+		t.Fatalf("expected updated title, got %q", title)
+	}
+	if !strings.Contains(originalHTML, "<section>") || !strings.Contains(templateHTML, "<section>") {
+		t.Fatalf("expected original/template HTML to include edited layout, got original=%q template=%q", originalHTML, templateHTML)
+	}
+	if !strings.Contains(reviewHTML, "Preserved CTA") || !strings.Contains(reviewHTML, "New copy") {
+		t.Fatalf("expected review HTML to render merged editable fields, got %q", reviewHTML)
+	}
+
+	fields := loadTestEmailEditableFields(t, dbpool, emailID)
+	assertEditableField(t, fields, "primary_cta_text", "text", "Preserved CTA")
+	assertEditableField(t, fields, "new_copy", "text", "New copy")
+}
+
 func TestUpdateEmailEditableFieldsRejectsArchivedEmail(t *testing.T) {
 	dbpool := testDBPool(t)
 	emailID := createTestEmail(t, dbpool)

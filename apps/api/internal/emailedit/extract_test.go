@@ -48,6 +48,30 @@ func TestExtractEditableFieldsRejectsConflictingDuplicateKeys(t *testing.T) {
 	}
 }
 
+func TestExtractEditableFieldsIgnoresSourceFormattingWhitespace(t *testing.T) {
+	templateHTML := `
+		<div>
+			<div data-edit-text="intro_body">
+				Dear Partner,<br /><br />
+				You've closed your first deal — great start.
+				Now the goal is to do it again.
+			</div>
+			<a data-edit-text="primary_cta_text">
+				Take more
+				leads
+			</a>
+		</div>
+	`
+
+	fields, err := ExtractEditableFields(templateHTML)
+	if err != nil {
+		t.Fatalf("ExtractEditableFields returned error: %v", err)
+	}
+
+	assertFieldValue(t, fields, "intro_body", FieldTypeText, "Dear Partner,\n\nYou've closed your first deal — great start. Now the goal is to do it again.")
+	assertFieldValue(t, fields, "primary_cta_text", FieldTypeText, "Take more leads")
+}
+
 func TestAnnotatedSeedTemplatesExtractAndRender(t *testing.T) {
 	tests := []struct {
 		name      string
