@@ -164,11 +164,27 @@ func appendTextSegment(builder *strings.Builder, segment string) {
 
 func normalizeEditableText(value string) string {
 	lines := strings.Split(value, "\n")
+	normalizedLines := make([]string, 0, len(lines))
+	blankLinePending := false
+
 	for i, line := range lines {
 		lines[i] = strings.Join(strings.Fields(line), " ")
 	}
 
-	return strings.TrimSpace(strings.Join(lines, "\n"))
+	for _, line := range lines {
+		if line == "" {
+			blankLinePending = len(normalizedLines) > 0
+			continue
+		}
+
+		if blankLinePending {
+			normalizedLines = append(normalizedLines, "")
+		}
+		normalizedLines = append(normalizedLines, line)
+		blankLinePending = false
+	}
+
+	return strings.Join(normalizedLines, "\n")
 }
 
 func styleWidthPX(style string) (int, error) {

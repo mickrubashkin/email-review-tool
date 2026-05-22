@@ -72,6 +72,17 @@ func TestExtractEditableFieldsIgnoresSourceFormattingWhitespace(t *testing.T) {
 	assertFieldValue(t, fields, "primary_cta_text", FieldTypeText, "Take more leads")
 }
 
+func TestExtractEditableFieldsCollapsesRepeatedBlankLines(t *testing.T) {
+	templateHTML := `<div data-edit-text="body">First<br><br><br>Second</div>`
+
+	fields, err := ExtractEditableFields(templateHTML)
+	if err != nil {
+		t.Fatalf("ExtractEditableFields returned error: %v", err)
+	}
+
+	assertFieldValue(t, fields, "body", FieldTypeText, "First\n\nSecond")
+}
+
 func TestExtractEditableFieldsPreservesSeedBlankLines(t *testing.T) {
 	templateHTML := readRepoFile(t, "db/seeds/emails/01_registered/01_application-received/en.html")
 

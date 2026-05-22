@@ -61,6 +61,26 @@ func TestRenderEditableHTMLPreservesBlankEditorLines(t *testing.T) {
 	assertContains(t, rendered, `First paragraph<br/><br/>Second paragraph`)
 }
 
+func TestRenderEditableHTMLCollapsesRepeatedBlankEditorLines(t *testing.T) {
+	templateHTML := `<p data-edit-text="body">Old body</p>`
+	fields := EditableFields{
+		"body": {
+			Type:  FieldTypeText,
+			Value: "First paragraph\n\n\nSecond paragraph",
+		},
+	}
+
+	rendered, err := RenderEditableHTML(templateHTML, fields)
+	if err != nil {
+		t.Fatalf("RenderEditableHTML returned error: %v", err)
+	}
+
+	assertContains(t, rendered, `First paragraph<br/><br/>Second paragraph`)
+	if strings.Contains(rendered, `<br/><br/><br/>`) {
+		t.Fatalf("rendered HTML should not include repeated blank lines:\n%s", rendered)
+	}
+}
+
 func TestRenderEditableHTMLRejectsUnsafeURLScheme(t *testing.T) {
 	templateHTML := `<a href="https://example.com" data-edit-attr-href="cta_url">CTA</a>`
 	fields := EditableFields{
