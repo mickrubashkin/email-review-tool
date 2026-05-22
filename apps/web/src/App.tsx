@@ -43,7 +43,13 @@ import {
   UserCircleIcon,
   XIcon,
 } from "@phosphor-icons/react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { notifications } from "@mantine/notifications";
+import {
+  type QueryClient,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { Link, Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
 
 import { AIAnalysisLogsView } from "./features/ai-logs/AIAnalysisLogsView";
@@ -62,18 +68,24 @@ import {
   fetchEmails,
   logout,
   reorderBoardStages,
+  updateEmailReviewStatus,
   updateBoardStage,
 } from "./features/emails/api";
 import { EmailBoard } from "./features/emails/EmailBoard";
 import { EmailCreateView } from "./features/emails/EmailCreateView";
 import { EmailFieldsEditorView } from "./features/emails/EmailFieldsEditorView";
-import { formatEmailReviewStatus } from "./features/emails/reviewStatus";
+import {
+  emailReviewStatusOptions,
+  formatEmailReviewStatus,
+} from "./features/emails/reviewStatus";
 import { buildStageColumns, formatStageName } from "./features/emails/stages";
 import type {
   AuthUser,
   Board,
   CreateBoardPayload,
+  EmailDetail,
   EmailListItem,
+  EmailReviewStatus,
   StageColumn,
 } from "./features/emails/types";
 import { EmailReviewView } from "./features/review/EmailReviewView";
@@ -84,7 +96,23 @@ const boardScrollPositionStorageKey = "reviewdesk.board.scrollPosition";
 const boardFilterStorageKey = "reviewdesk.board.filter";
 const boardSearchStorageKey = "reviewdesk.board.search";
 
-type BoardFilter = "all" | "open";
+type BoardCommentFilter = "all" | "open";
+
+type BoardFilters = {
+  comments: BoardCommentFilter;
+  language: string;
+  adaptation: string;
+  variant: string;
+  status: string;
+};
+
+const defaultBoardFilters: BoardFilters = {
+  comments: "all",
+  language: "",
+  adaptation: "",
+  variant: "",
+  status: "",
+};
 
 export default function App() {
   return <AuthenticatedApp />;
@@ -99,8 +127,8 @@ function AuthenticatedApp() {
   const [boardScrollPosition, setBoardScrollPosition] = useState(
     readStoredBoardScrollPosition
   );
-  const [boardFilter, setBoardFilter] = useState<BoardFilter>(
-    readStoredBoardFilter
+  const [boardFilters, setBoardFilters] = useState<BoardFilters>(
+    readStoredBoardFilters
   );
   const [boardSearchQuery, setBoardSearchQuery] = useState(readStoredBoardSearch);
   useEffect(() => {
@@ -113,8 +141,8 @@ function AuthenticatedApp() {
     writeSessionStorageValue(boardScrollPositionStorageKey, boardScrollPosition);
   }, [boardScrollPosition]);
   useEffect(() => {
-    writeSessionStorageValue(boardFilterStorageKey, boardFilter);
-  }, [boardFilter]);
+    writeSessionStorageValue(boardFilterStorageKey, boardFilters);
+  }, [boardFilters]);
   useEffect(() => {
     writeSessionStorageValue(boardSearchStorageKey, boardSearchQuery);
   }, [boardSearchQuery]);
@@ -171,7 +199,7 @@ function AuthenticatedApp() {
         path="/boards/:boardKey"
         element={
           <EmailBoardRoute
-            boardFilter={boardFilter}
+            boardFilters={boardFilters}
             boardScrollPosition={boardScrollPosition}
             boardSearchQuery={boardSearchQuery}
             currentUser={currentUserQuery.data}
@@ -179,7 +207,7 @@ function AuthenticatedApp() {
             selectedVersionByGroup={selectedVersionByGroup}
             onLogout={() => logoutMutation.mutate()}
             onBoardScrollPositionChange={setBoardScrollPosition}
-            onBoardFilterChange={setBoardFilter}
+            onBoardFiltersChange={setBoardFilters}
             onBoardSearchQueryChange={setBoardSearchQuery}
             onSelectedVersionByGroupChange={setSelectedVersionByGroup}
           />
@@ -249,7 +277,7 @@ function BoardHomeRedirect() {
 }
 
 function EmailBoardRoute({
-  boardFilter,
+  boardFilters,
   boardScrollPosition,
   boardSearchQuery,
   currentUser,
@@ -257,11 +285,11 @@ function EmailBoardRoute({
   selectedVersionByGroup,
   onLogout,
   onBoardScrollPositionChange,
-  onBoardFilterChange,
+  onBoardFiltersChange,
   onBoardSearchQueryChange,
   onSelectedVersionByGroupChange,
 }: {
-  boardFilter: BoardFilter;
+  boardFilters: BoardFilters;
   boardScrollPosition: { x: number; y: number };
   boardSearchQuery: string;
   currentUser: AuthUser;
@@ -269,7 +297,7 @@ function EmailBoardRoute({
   selectedVersionByGroup: Record<string, string>;
   onLogout: () => void;
   onBoardScrollPositionChange: (position: { x: number; y: number }) => void;
-  onBoardFilterChange: (filter: BoardFilter) => void;
+  onBoardFiltersChange: (filters: BoardFilters) => void;
   onBoardSearchQueryChange: (query: string) => void;
   onSelectedVersionByGroupChange: Dispatch<
     SetStateAction<Record<string, string>>
@@ -278,7 +306,7 @@ function EmailBoardRoute({
   const { boardKey } = useParams();
   return boardKey ? (
       <EmailBoardApp
-        boardFilter={boardFilter}
+        boardFilters={boardFilters}
         boardKey={boardKey}
         boardScrollPosition={boardScrollPosition}
         boardSearchQuery={boardSearchQuery}
@@ -287,7 +315,7 @@ function EmailBoardRoute({
         selectedVersionByGroup={selectedVersionByGroup}
         onLogout={onLogout}
         onBoardScrollPositionChange={onBoardScrollPositionChange}
-        onBoardFilterChange={onBoardFilterChange}
+        onBoardFiltersChange={onBoardFiltersChange}
         onBoardSearchQueryChange={onBoardSearchQueryChange}
         onSelectedVersionByGroupChange={onSelectedVersionByGroupChange}
       />
@@ -297,7 +325,7 @@ function EmailBoardRoute({
 }
 
 function EmailBoardApp({
-  boardFilter,
+  boardFilters,
   boardKey,
   boardScrollPosition,
   boardSearchQuery,
@@ -306,11 +334,11 @@ function EmailBoardApp({
   selectedVersionByGroup,
   onLogout,
   onBoardScrollPositionChange,
-  onBoardFilterChange,
+  onBoardFiltersChange,
   onBoardSearchQueryChange,
   onSelectedVersionByGroupChange,
 }: {
-  boardFilter: BoardFilter;
+  boardFilters: BoardFilters;
   boardKey: string;
   boardScrollPosition: { x: number; y: number };
   boardSearchQuery: string;
@@ -319,7 +347,7 @@ function EmailBoardApp({
   selectedVersionByGroup: Record<string, string>;
   onLogout: () => void;
   onBoardScrollPositionChange: (position: { x: number; y: number }) => void;
-  onBoardFilterChange: (filter: BoardFilter) => void;
+  onBoardFiltersChange: (filters: BoardFilters) => void;
   onBoardSearchQueryChange: (query: string) => void;
   onSelectedVersionByGroupChange: Dispatch<
     SetStateAction<Record<string, string>>
@@ -351,6 +379,38 @@ function EmailBoardApp({
       navigate(`/boards/${encodeURIComponent(board.key)}`);
     },
   });
+  const reviewStatusMutation = useMutation({
+    mutationFn: ({
+      emailId,
+      reviewStatus,
+    }: {
+      emailId: string;
+      reviewStatus: EmailReviewStatus;
+    }) =>
+      updateEmailReviewStatus(emailId, {
+        review_status: reviewStatus,
+      }),
+    onSuccess: (response, variables) => {
+      applyReviewStatusToBoardCaches(
+        queryClient,
+        boardKey,
+        variables.emailId,
+        response.review_status
+      );
+      notifications.show({
+        color: "green",
+        message: `Review status changed to ${formatEmailReviewStatus(response.review_status)}.`,
+        title: "Status updated",
+      });
+    },
+    onError: () => {
+      notifications.show({
+        color: "red",
+        message: "Try again or check that you have admin access.",
+        title: "Status update failed",
+      });
+    },
+  });
   const refreshBoardData = () => {
     void queryClient.invalidateQueries({ queryKey: ["boards"] });
     void queryClient.invalidateQueries({ queryKey: ["emails", boardKey] });
@@ -367,6 +427,10 @@ function EmailBoardApp({
     () => filterColumnsBySearch(columns, searchQuery),
     [columns, searchQuery]
   );
+  const boardFilterOptions = useMemo(
+    () => getBoardFilterOptions(emailsQuery.data ?? []),
+    [emailsQuery.data]
+  );
   const openCommentEmailCount = useMemo(
     () =>
       (emailsQuery.data ?? []).filter(
@@ -375,20 +439,129 @@ function EmailBoardApp({
     [emailsQuery.data]
   );
   const visibleColumns = useMemo(
-    () =>
-      boardFilter === "all"
-        ? searchedColumns
-        : searchedColumns
-            .map((column) => ({
-              ...column,
-              emailGroups: column.emailGroups.filter((group) =>
-                group.versions.some(
-                  (version) => (version.open_comment_count ?? 0) > 0
-                )
-              ),
-            }))
-            .filter((column) => column.emailGroups.length > 0),
-    [boardFilter, searchedColumns]
+    () => filterColumnsByBoardFilters(searchedColumns, boardFilters),
+    [boardFilters, searchedColumns]
+  );
+  const activeBoardFilterCount = getActiveBoardFilterCount(boardFilters);
+  const updateBoardFilter = (key: keyof BoardFilters, value: string | null) => {
+    onBoardFiltersChange({
+      ...boardFilters,
+      [key]: value ?? "",
+    });
+  };
+  const resetBoardFilters = () => {
+    onBoardFiltersChange(defaultBoardFilters);
+  };
+  const filterButtonLabel =
+    activeBoardFilterCount > 0
+      ? `Filters ${activeBoardFilterCount}`
+      : "Filters";
+  const hasBoardFilters = activeBoardFilterCount > 0;
+  const filterEmptyState =
+    searchQuery || hasBoardFilters ? "No matching emails" : "No emails on this board";
+  const filterEmptyHint = searchQuery
+    ? "Try another search or clear the query."
+    : hasBoardFilters
+      ? "Clear filters to browse the full sequence."
+      : "Create or import an email to start reviewing.";
+  const boardFilterMenu = (
+    <Menu position="bottom-end" width={270} shadow="md" withinPortal>
+      <Menu.Target>
+        <div className={styles.boardFilterButtonWrap}>
+          <ActionIcon
+            aria-label={filterButtonLabel}
+            className={styles.boardFilterButton}
+            size="lg"
+            variant="white"
+          >
+            <SlidersHorizontalIcon aria-hidden="true" size={18} />
+          </ActionIcon>
+          {activeBoardFilterCount > 0 ? (
+            <Badge
+              className={styles.boardFilterBadge}
+              color="blue"
+              radius="xl"
+              size="xs"
+              variant="filled"
+            >
+              {activeBoardFilterCount}
+            </Badge>
+          ) : null}
+        </div>
+      </Menu.Target>
+      <Menu.Dropdown>
+        <Menu.Label>Comments</Menu.Label>
+        <div className={styles.boardFilterMenuControl}>
+          <SegmentedControl
+            data={[
+              { label: "All", value: "all" },
+              { label: `Open ${openCommentEmailCount}`, value: "open" },
+            ]}
+            fullWidth
+            size="xs"
+            value={boardFilters.comments}
+            onChange={(value) => updateBoardFilter("comments", value)}
+          />
+        </div>
+
+        <Menu.Label>Language</Menu.Label>
+        <div className={styles.boardFilterMenuControl}>
+          <Select
+            clearable
+            data={boardFilterOptions.languages}
+            placeholder="All languages"
+            size="xs"
+            value={boardFilters.language || null}
+            onChange={(value) => updateBoardFilter("language", value)}
+          />
+        </div>
+
+        <Menu.Label>Adaptation</Menu.Label>
+        <div className={styles.boardFilterMenuControl}>
+          <Select
+            clearable
+            data={boardFilterOptions.adaptations}
+            placeholder="All adaptations"
+            size="xs"
+            value={boardFilters.adaptation || null}
+            onChange={(value) => updateBoardFilter("adaptation", value)}
+          />
+        </div>
+
+        <Menu.Label>Version</Menu.Label>
+        <div className={styles.boardFilterMenuControl}>
+          <Select
+            clearable
+            data={boardFilterOptions.variants}
+            placeholder="All versions"
+            size="xs"
+            value={boardFilters.variant || null}
+            onChange={(value) => updateBoardFilter("variant", value)}
+          />
+        </div>
+
+        <Menu.Label>Status</Menu.Label>
+        <div className={styles.boardFilterMenuControl}>
+          <Select
+            clearable
+            data={emailReviewStatusOptions}
+            placeholder="All statuses"
+            size="xs"
+            value={boardFilters.status || null}
+            onChange={(value) => updateBoardFilter("status", value)}
+          />
+        </div>
+
+        {hasBoardFilters ? (
+          <>
+            <Menu.Divider />
+            <Menu.Item color="red" onClick={resetBoardFilters}>
+              Clear filters
+            </Menu.Item>
+          </>
+        ) : null}
+      </Menu.Dropdown>
+    </Menu>
   );
   const visibleGroupCount = visibleColumns.reduce(
     (count, column) => count + column.emailGroups.length,
@@ -416,6 +589,12 @@ function EmailBoardApp({
 
   const handleOpenVersionGroup = (_groupKey: string, emailId: string) => {
     navigate(`/emails/${encodeURIComponent(emailId)}/review`);
+  };
+  const handleReviewStatusChange = (
+    emailId: string,
+    reviewStatus: EmailReviewStatus
+  ) => {
+    reviewStatusMutation.mutate({ emailId, reviewStatus });
   };
   const handleBoardChange = (value: string | null) => {
     if (value) {
@@ -491,7 +670,7 @@ function EmailBoardApp({
                       }
                     />
                   </div>
-                  <Menu.Label>Comments</Menu.Label>
+                  <Menu.Label>Filters</Menu.Label>
                   <div className={styles.boardFilterMenuControl}>
                     <SegmentedControl
                       data={[
@@ -503,12 +682,57 @@ function EmailBoardApp({
                       ]}
                       fullWidth
                       size="xs"
-                      value={boardFilter}
+                      value={boardFilters.comments}
                       onChange={(value) =>
-                        onBoardFilterChange(value as BoardFilter)
+                        updateBoardFilter("comments", value)
                       }
                     />
                   </div>
+                  <div className={styles.boardFilterMenuControl}>
+                    <Select
+                      clearable
+                      data={boardFilterOptions.languages}
+                      placeholder="All languages"
+                      size="xs"
+                      value={boardFilters.language || null}
+                      onChange={(value) => updateBoardFilter("language", value)}
+                    />
+                  </div>
+                  <div className={styles.boardFilterMenuControl}>
+                    <Select
+                      clearable
+                      data={boardFilterOptions.adaptations}
+                      placeholder="All adaptations"
+                      size="xs"
+                      value={boardFilters.adaptation || null}
+                      onChange={(value) => updateBoardFilter("adaptation", value)}
+                    />
+                  </div>
+                  <div className={styles.boardFilterMenuControl}>
+                    <Select
+                      clearable
+                      data={boardFilterOptions.variants}
+                      placeholder="All versions"
+                      size="xs"
+                      value={boardFilters.variant || null}
+                      onChange={(value) => updateBoardFilter("variant", value)}
+                    />
+                  </div>
+                  <div className={styles.boardFilterMenuControl}>
+                    <Select
+                      clearable
+                      data={emailReviewStatusOptions}
+                      placeholder="All statuses"
+                      size="xs"
+                      value={boardFilters.status || null}
+                      onChange={(value) => updateBoardFilter("status", value)}
+                    />
+                  </div>
+                  {hasBoardFilters ? (
+                    <Menu.Item color="red" onClick={resetBoardFilters}>
+                      Clear filters
+                    </Menu.Item>
+                  ) : null}
                   <Menu.Divider />
                   <Menu.Label>
                     <Stack gap={4}>
@@ -596,19 +820,7 @@ function EmailBoardApp({
                   value={activeBoard?.key ?? null}
                   onChange={handleBoardChange}
                 />
-                <SegmentedControl
-                  className={styles.boardFilter}
-                  data={[
-                    { label: "All", value: "all" },
-                    {
-                      label: `Open ${openCommentEmailCount}`,
-                      value: "open",
-                    },
-                  ]}
-                  size="sm"
-                  value={boardFilter}
-                  onChange={(value) => onBoardFilterChange(value as BoardFilter)}
-                />
+                {boardFilterMenu}
                 <TextInput
                   className={styles.boardSearch}
                   leftSection={<MagnifyingGlassIcon aria-hidden="true" size={16} />}
@@ -773,23 +985,14 @@ function EmailBoardApp({
                 selectedVersionByGroup={selectedVersionByGroup}
                 onScrollPositionChange={onBoardScrollPositionChange}
                 onOpenVersionGroup={handleOpenVersionGroup}
+                onReviewStatusChange={handleReviewStatusChange}
                 onSelectVersion={handleSelectVersion}
               />
             ) : (
               <Stack align="center" justify="center" h="100%" ta="center">
-                <Text fw={600}>
-                  {searchQuery
-                    ? "No matching emails"
-                    : boardFilter === "open"
-                      ? "No emails with open comments"
-                      : "No emails on this board"}
-                </Text>
+                <Text fw={600}>{filterEmptyState}</Text>
                 <Text c="rgba(255, 255, 255, 0.72)" size="sm">
-                  {searchQuery
-                    ? "Try another search or clear the query."
-                    : boardFilter === "open"
-                      ? "Switch back to All to browse the full sequence."
-                      : "Create or import an email to start reviewing."}
+                  {filterEmptyHint}
                 </Text>
               </Stack>
             )
@@ -837,6 +1040,143 @@ function filterColumnsBySearch(columns: StageColumn[], query: string) {
       ),
     }))
     .filter((column) => column.emailGroups.length > 0);
+}
+
+function applyReviewStatusToBoardCaches(
+  queryClient: QueryClient,
+  boardKey: string,
+  emailId: string,
+  reviewStatus: EmailReviewStatus
+) {
+  const updateList = (currentEmails: EmailListItem[] | undefined) =>
+    currentEmails?.map((currentEmail) =>
+      currentEmail.id === emailId
+        ? { ...currentEmail, review_status: reviewStatus }
+        : currentEmail
+    );
+
+  queryClient.setQueryData<EmailListItem[]>(["emails"], updateList);
+  queryClient.setQueryData<EmailListItem[]>(["emails", boardKey], updateList);
+  queryClient.setQueryData<EmailDetail>(
+    ["emails", emailId, "review"],
+    (currentEmail) =>
+      currentEmail
+        ? { ...currentEmail, review_status: reviewStatus }
+        : currentEmail
+  );
+}
+
+function filterColumnsByBoardFilters(
+  columns: StageColumn[],
+  filters: BoardFilters
+) {
+  if (getActiveBoardFilterCount(filters) === 0) {
+    return columns;
+  }
+
+  return columns
+    .map((column) => ({
+      ...column,
+      emailGroups: column.emailGroups
+        .map((group) => ({
+          ...group,
+          versions: group.versions.filter((email) =>
+            emailMatchesBoardFilters(email, filters)
+          ),
+        }))
+        .filter((group) => group.versions.length > 0),
+    }))
+    .filter((column) => column.emailGroups.length > 0);
+}
+
+function emailMatchesBoardFilters(email: EmailListItem, filters: BoardFilters) {
+  return (
+    (filters.comments === "all" || (email.open_comment_count ?? 0) > 0) &&
+    (!filters.language || email.language === filters.language) &&
+    (!filters.adaptation || email.adaptation_key === filters.adaptation) &&
+    (!filters.variant || email.variant === filters.variant) &&
+    (!filters.status || email.review_status === filters.status)
+  );
+}
+
+function getActiveBoardFilterCount(filters: BoardFilters) {
+  return [
+    filters.comments === "open" ? filters.comments : "",
+    filters.language,
+    filters.adaptation,
+    filters.variant,
+    filters.status,
+  ].filter(Boolean).length;
+}
+
+function getBoardFilterOptions(emails: EmailListItem[]) {
+  const adaptationByKey = new Map<string, string>();
+
+  for (const email of emails) {
+    if (!adaptationByKey.has(email.adaptation_key)) {
+      adaptationByKey.set(email.adaptation_key, email.adaptation_label);
+    }
+  }
+
+  const variants = uniqueSorted(emails.map((email) => email.variant));
+
+  return {
+    languages: uniqueSorted(emails.map((email) => email.language)).map((language) => ({
+      label: language.toUpperCase(),
+      value: language,
+    })),
+    adaptations: Array.from(adaptationByKey.entries())
+      .map(([value, label]) => ({ label, value }))
+      .sort((first, second) => {
+        if (first.value === "default") {
+          return -1;
+        }
+        if (second.value === "default") {
+          return 1;
+        }
+        return first.label.localeCompare(second.label);
+      }),
+    variants: variants.map((variant) => ({
+      label: formatVariantOptionLabel(variant, variants),
+      value: variant,
+    })),
+  };
+}
+
+function uniqueSorted(values: string[]) {
+  return Array.from(new Set(values.filter(Boolean))).sort((first, second) =>
+    first.localeCompare(second)
+  );
+}
+
+function formatVariantLabel(variant: string) {
+  const normalizedVariant = variant.trim().toLowerCase();
+  if (normalizedVariant === "old") {
+    return "v0";
+  }
+  if (normalizedVariant === "new") {
+    return "v1";
+  }
+
+  return variant;
+}
+
+function formatVariantOptionLabel(variant: string, variants: string[]) {
+  const label = formatVariantLabel(variant);
+  const hasLabelCollision = variants.some(
+    (otherVariant) =>
+      otherVariant !== variant && formatVariantLabel(otherVariant) === label
+  );
+  const normalizedVariant = variant.trim().toLowerCase();
+
+  if (
+    hasLabelCollision &&
+    (normalizedVariant === "old" || normalizedVariant === "new")
+  ) {
+    return `${label} legacy`;
+  }
+
+  return label;
 }
 
 function emailMatchesSearch(
@@ -1190,9 +1530,25 @@ function readStoredBoardScrollPosition() {
   );
 }
 
-function readStoredBoardFilter(): BoardFilter {
-  const storedFilter = readSessionStorageValue<string>(boardFilterStorageKey, "all");
-  return storedFilter === "open" ? "open" : "all";
+function readStoredBoardFilters(): BoardFilters {
+  const storedFilters = readSessionStorageValue<string | Partial<BoardFilters>>(
+    boardFilterStorageKey,
+    defaultBoardFilters
+  );
+
+  if (storedFilters === "open" || storedFilters === "all") {
+    return { ...defaultBoardFilters, comments: storedFilters };
+  }
+
+  if (typeof storedFilters !== "object" || storedFilters === null) {
+    return defaultBoardFilters;
+  }
+
+  return {
+    ...defaultBoardFilters,
+    ...storedFilters,
+    comments: storedFilters.comments === "open" ? "open" : "all",
+  };
 }
 
 function readStoredBoardSearch() {

@@ -42,6 +42,28 @@
   flex: 0 0 auto;
 }
 
+.boardFilterButtonWrap {
+  position: relative;
+  flex: 0 0 auto;
+  overflow: visible;
+}
+
+.boardFilterButton {
+  overflow: visible;
+}
+
+.boardFilterBadge {
+  position: absolute;
+  top: -6px;
+  right: -7px;
+  pointer-events: none;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  font-size: 10px;
+  line-height: 16px;
+}
+
 .boardSearch {
   flex: 1 1 220px;
   min-width: 180px;

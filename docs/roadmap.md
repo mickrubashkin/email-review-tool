@@ -32,10 +32,22 @@ This roadmap captures the next production-hardening and workflow improvements fo
 - [ ] Add board archive/hide behavior.
 - [ ] Consider workspaces if the product expands beyond one team workflow.
 
-## Future Feature: Workspace Setup Assistant
+## Product Backlog: Collaboration And AI Setup
 
-- [ ] Add board-scoped AI instruction documents so each board can define its own sequence logic and email review rules.
-- [ ] Add a manual setup flow for creating a workspace, boards, stages, and AI instruction documents from a clean start.
-- [ ] Add an AI-assisted setup flow that drafts boards, stages, and instruction documents from a short super-admin brief.
-- [ ] Keep AI-assisted setup as draft-first: generate a preview, allow manual edits, then apply only after super-admin confirmation.
-- [ ] Plan the feature around future `workspaces`, stable stage IDs, and board-specific prompt documents instead of the current temporary `boards.stages` JSON shape.
+- [ ] Add workspaces as the top-level collaboration boundary if ReviewDesk starts serving multiple teams, clients, or review programs.
+- [ ] Define workspace membership and permissions before adding workspace-scoped data. Likely roles:
+  - workspace owner: manages billing/configuration, members, and all boards;
+  - workspace admin: manages members and workspace-level defaults;
+  - board owner: controls one board, stages, reviewers, and AI rules for that board;
+  - board admin: manages board workflow and email setup without owning the workspace;
+  - reviewer: reviews emails, comments, and updates allowed statuses.
+- [ ] Add a board-level admin role if boards can be owned by different managers inside one workspace.
+- [ ] Add AI quick start for new boards: suggested review rules, default checks, and seed instructions based on board purpose.
+- [ ] Allow admins to edit AI instructions at multiple scopes:
+  - global defaults for all boards;
+  - workspace rules;
+  - board-specific instructions;
+  - email-specific overrides.
+- [ ] Define how scoped AI instructions merge, including precedence, audit events, and rollback/version history.
+- [ ] Add UI for viewing the effective AI instruction set used for a specific analysis run.
+- [ ] Decide whether AI instructions should support reusable presets, for example onboarding, activation, winback, or partner-manager flows.
