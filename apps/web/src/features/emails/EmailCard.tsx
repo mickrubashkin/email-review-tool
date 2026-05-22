@@ -439,7 +439,7 @@ export function EmailCard({
                     </Menu.Sub.Target>
                     <Menu.Sub.Dropdown className={styles.cardMenuCommentsDropdown}>
                       <ScrollArea.Autosize mah={156} type="auto">
-                        <Stack gap={5}>
+                        <Stack gap={0}>
                           {commentedVersions.map((email) => (
                             <button
                               className={styles.commentVersionRow}

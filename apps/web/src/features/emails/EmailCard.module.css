@@ -115,17 +115,21 @@
 .commentVersionRow {
   width: 100%;
   padding: 7px 8px;
-  border: 1px solid var(--mantine-color-gray-2);
-  border-radius: 7px;
+  border: 0;
+  border-radius: 6px;
   color: inherit;
-  background: var(--mantine-color-white);
+  background: transparent;
   text-align: left;
   cursor: pointer;
 }
 
 .commentVersionRow:hover {
-  border-color: rgba(220, 38, 38, 0.28);
-  background: rgba(255, 245, 245, 0.92);
+  background: var(--mantine-color-gray-0);
+}
+
+.commentVersionRow:focus-visible {
+  outline: 2px solid var(--mantine-primary-color-filled);
+  outline-offset: -2px;
 }
 
 .commentVersionText {
