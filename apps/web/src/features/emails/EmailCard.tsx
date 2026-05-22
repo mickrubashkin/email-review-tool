@@ -286,7 +286,7 @@ export function EmailCard({
               }}
               position="bottom-end"
               shadow="md"
-              width={220}
+              width={190}
               withinPortal
             >
               <Menu.Target>
@@ -301,116 +301,187 @@ export function EmailCard({
                 </ActionIcon>
               </Menu.Target>
               <Menu.Dropdown onClick={(event) => event.stopPropagation()}>
-                <Menu.Label>Language</Menu.Label>
-                {variantVersions.map((email) => (
-                  <Menu.Item
-                    key={email.id}
-                    rightSection={
-                      email.id === selectedEmail.id ? (
-                    <CheckIcon aria-hidden="true" size={14} weight="bold" />
-                      ) : null
-                    }
-                    onClick={(event) => handleVersionClick(event, email.id)}
-                  >
-                    {email.language.toUpperCase()}
-                  </Menu.Item>
-                ))}
+                <Menu.Sub position="right-start">
+                  <Menu.Sub.Target>
+                    <Menu.Sub.Item
+                      rightSection={
+                        <Text className={styles.cardMenuValue}>
+                          {selectedEmail.language.toUpperCase()}
+                        </Text>
+                      }
+                    >
+                      Language
+                    </Menu.Sub.Item>
+                  </Menu.Sub.Target>
+                  <Menu.Sub.Dropdown className={styles.cardMenuSubDropdown}>
+                    {variantVersions.map((email) => (
+                      <Menu.Item
+                        key={email.id}
+                        rightSection={
+                          email.id === selectedEmail.id ? (
+                            <CheckIcon aria-hidden="true" size={14} weight="bold" />
+                          ) : null
+                        }
+                        onClick={(event) => handleVersionClick(event, email.id)}
+                      >
+                        {email.language.toUpperCase()}
+                      </Menu.Item>
+                    ))}
+                  </Menu.Sub.Dropdown>
+                </Menu.Sub>
 
-                <Menu.Divider />
-                <Menu.Label>Version</Menu.Label>
-                {availableVariants.map((variant) => (
-                  <Menu.Item
-                    key={variant}
-                    rightSection={
-                      variant === selectedVariant ? (
-                        <CheckIcon aria-hidden="true" size={14} weight="bold" />
-                      ) : null
-                    }
-                    onClick={(event) => handleVariantSelect(event, variant)}
-                  >
-                    {formatVariantOptionLabel(variant, availableVariants)}
-                  </Menu.Item>
-                ))}
+                <Menu.Sub position="right-start">
+                  <Menu.Sub.Target>
+                    <Menu.Sub.Item
+                      rightSection={
+                        <Text className={styles.cardMenuValue}>
+                          {formatVariantOptionLabel(
+                            selectedVariant,
+                            availableVariants
+                          )}
+                        </Text>
+                      }
+                    >
+                      Version
+                    </Menu.Sub.Item>
+                  </Menu.Sub.Target>
+                  <Menu.Sub.Dropdown className={styles.cardMenuSubDropdown}>
+                    {availableVariants.map((variant) => (
+                      <Menu.Item
+                        key={variant}
+                        rightSection={
+                          variant === selectedVariant ? (
+                            <CheckIcon aria-hidden="true" size={14} weight="bold" />
+                          ) : null
+                        }
+                        onClick={(event) => handleVariantSelect(event, variant)}
+                      >
+                        {formatVariantOptionLabel(variant, availableVariants)}
+                      </Menu.Item>
+                    ))}
+                  </Menu.Sub.Dropdown>
+                </Menu.Sub>
 
-                <Menu.Divider />
-                <Menu.Label>Adaptation</Menu.Label>
-                {availableAdaptations.map((adaptation) => (
-                  <Menu.Item
-                    key={adaptation.adaptation_key}
-                    rightSection={
-                      adaptation.adaptation_key === selectedAdaptation ? (
-                        <CheckIcon aria-hidden="true" size={14} weight="bold" />
-                      ) : null
-                    }
-                    onClick={(event) =>
-                      handleAdaptationSelect(event, adaptation.adaptation_key)
-                    }
-                  >
-                    {adaptation.adaptation_label}
-                  </Menu.Item>
-                ))}
+                <Menu.Sub position="right-start">
+                  <Menu.Sub.Target>
+                    <Menu.Sub.Item
+                      rightSection={
+                        <Text className={styles.cardMenuValue} lineClamp={1}>
+                          {selectedEmail.adaptation_label}
+                        </Text>
+                      }
+                    >
+                      Adaptation
+                    </Menu.Sub.Item>
+                  </Menu.Sub.Target>
+                  <Menu.Sub.Dropdown className={styles.cardMenuSubDropdown}>
+                    {availableAdaptations.map((adaptation) => (
+                      <Menu.Item
+                        key={adaptation.adaptation_key}
+                        rightSection={
+                          adaptation.adaptation_key === selectedAdaptation ? (
+                            <CheckIcon aria-hidden="true" size={14} weight="bold" />
+                          ) : null
+                        }
+                        onClick={(event) =>
+                          handleAdaptationSelect(event, adaptation.adaptation_key)
+                        }
+                      >
+                        {adaptation.adaptation_label}
+                      </Menu.Item>
+                    ))}
+                  </Menu.Sub.Dropdown>
+                </Menu.Sub>
 
-                <Menu.Divider />
-                <Menu.Label>Status</Menu.Label>
-                {emailReviewStatusOptions.map((option) => (
-                  <Menu.Item
-                    key={option.value}
-                    rightSection={
-                      option.value === selectedEmail.review_status ? (
-                        <CheckIcon aria-hidden="true" size={14} weight="bold" />
-                      ) : null
-                    }
-                    onClick={(event) =>
-                      handleReviewStatusSelect(event, option.value)
-                    }
-                  >
-                    {formatEmailReviewStatus(option.value)}
-                  </Menu.Item>
-                ))}
+                <Menu.Sub position="right-start">
+                  <Menu.Sub.Target>
+                    <Menu.Sub.Item
+                      rightSection={
+                        <Text className={styles.cardMenuValue} lineClamp={1}>
+                          {formatEmailReviewStatus(selectedEmail.review_status)}
+                        </Text>
+                      }
+                    >
+                      Status
+                    </Menu.Sub.Item>
+                  </Menu.Sub.Target>
+                  <Menu.Sub.Dropdown className={styles.cardMenuSubDropdown}>
+                    {emailReviewStatusOptions.map((option) => (
+                      <Menu.Item
+                        key={option.value}
+                        rightSection={
+                          option.value === selectedEmail.review_status ? (
+                            <CheckIcon aria-hidden="true" size={14} weight="bold" />
+                          ) : null
+                        }
+                        onClick={(event) =>
+                          handleReviewStatusSelect(event, option.value)
+                        }
+                      >
+                        {formatEmailReviewStatus(option.value)}
+                      </Menu.Item>
+                    ))}
+                  </Menu.Sub.Dropdown>
+                </Menu.Sub>
 
                 {commentedVersions.length > 0 ? (
-                  <>
-                    <Menu.Divider />
-                    <Menu.Label>Open comments</Menu.Label>
-                    <ScrollArea.Autosize mah={132} type="auto">
-                      <Stack gap={5}>
-                        {commentedVersions.map((email) => (
-                          <button
-                            className={styles.commentVersionRow}
-                            key={email.id}
-                            type="button"
-                            onClick={(event) =>
-                              handleCommentVersionClick(event, email.id)
-                            }
-                          >
-                            <Group justify="space-between" gap={8} wrap="nowrap">
-                              <Stack gap={1} className={styles.commentVersionText}>
-                                <Text size="xs" fw={700} lineClamp={1}>
-                                  {email.language.toUpperCase()}{" "}
-                                  {formatVariantOptionLabel(
-                                    email.variant,
-                                    availableVariants
-                                  )}
-                                </Text>
-                                <Text className={styles.commentVersionSubject} c="dimmed" lineClamp={1}>
-                                  {email.subject ?? "No subject"}
-                                </Text>
-                              </Stack>
+                  <Menu.Sub position="right-start">
+                    <Menu.Sub.Target>
+                      <Menu.Sub.Item
+                        rightSection={
+                          <Badge color="red" size="xs" variant="light">
+                            {openCommentCount}
+                          </Badge>
+                        }
+                      >
+                        Open comments
+                      </Menu.Sub.Item>
+                    </Menu.Sub.Target>
+                    <Menu.Sub.Dropdown className={styles.cardMenuCommentsDropdown}>
+                      <ScrollArea.Autosize mah={156} type="auto">
+                        <Stack gap={5}>
+                          {commentedVersions.map((email) => (
+                            <button
+                              className={styles.commentVersionRow}
+                              key={email.id}
+                              type="button"
+                              onClick={(event) =>
+                                handleCommentVersionClick(event, email.id)
+                              }
+                            >
+                              <Group justify="space-between" gap={8} wrap="nowrap">
+                                <Stack gap={1} className={styles.commentVersionText}>
+                                  <Text size="xs" fw={700} lineClamp={1}>
+                                    {email.language.toUpperCase()}{" "}
+                                    {formatVariantOptionLabel(
+                                      email.variant,
+                                      availableVariants
+                                    )}
+                                  </Text>
+                                  <Text
+                                    className={styles.commentVersionSubject}
+                                    c="dimmed"
+                                    lineClamp={1}
+                                  >
+                                    {email.subject ?? "No subject"}
+                                  </Text>
+                                </Stack>
 
-                              <Badge
-                                className={styles.commentVersionBadge}
-                                color="red"
-                                size="xs"
-                                variant="light"
-                              >
-                                {email.open_comment_count}
-                              </Badge>
-                            </Group>
-                          </button>
-                        ))}
-                      </Stack>
-                    </ScrollArea.Autosize>
-                  </>
+                                <Badge
+                                  className={styles.commentVersionBadge}
+                                  color="red"
+                                  size="xs"
+                                  variant="light"
+                                >
+                                  {email.open_comment_count}
+                                </Badge>
+                              </Group>
+                            </button>
+                          ))}
+                        </Stack>
+                      </ScrollArea.Autosize>
+                    </Menu.Sub.Dropdown>
+                  </Menu.Sub>
                 ) : null}
               </Menu.Dropdown>
             </Menu>
