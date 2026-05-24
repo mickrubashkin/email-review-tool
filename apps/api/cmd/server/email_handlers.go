@@ -922,6 +922,25 @@ func updateEmailReviewStatusHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 		}
 
 		if currentStatus != nextStatus {
+			if nextStatus == "approved" {
+				var openBlockingCommentCount int
+				err = tx.QueryRow(r.Context(), `
+					SELECT count(*)::int
+					FROM comments
+					WHERE email_id = $1
+						AND status = 'open'
+						AND severity = 'blocking';
+				`, id).Scan(&openBlockingCommentCount)
+				if err != nil {
+					http.Error(w, "failed to update review status", http.StatusInternalServerError)
+					return
+				}
+				if openBlockingCommentCount > 0 {
+					http.Error(w, "resolve blocking comments before approving", http.StatusConflict)
+					return
+				}
+			}
+
 			eventMetadata := map[string]any{}
 			if currentStatus == "changes_requested" && nextStatus == "approved" {
 				eventMetadata["reason"] = "reapproved"

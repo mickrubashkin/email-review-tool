@@ -667,6 +667,118 @@ func TestUpdateEmailReviewStatusRejectsInvalidStatus(t *testing.T) {
 	}
 }
 
+func TestUpdateEmailReviewStatusRejectsApprovalWithOpenBlockingComment(t *testing.T) {
+	dbpool := testDBPool(t)
+	emailID := createTestEmail(t, dbpool)
+	user := createTestUserWithRole(t, dbpool, "admin")
+
+	if _, err := dbpool.Exec(context.Background(), `
+		INSERT INTO comments (
+			email_id,
+			review_block,
+			selected_text,
+			start_offset,
+			end_offset,
+			body,
+			status,
+			severity
+		)
+		VALUES ($1, 'body-001', 'selected text', 0, 13, 'Fix before approval', 'open', 'blocking');
+	`, emailID); err != nil {
+		t.Fatalf("failed to seed blocking comment: %v", err)
+	}
+
+	router := chi.NewRouter()
+	registerEmailRoutes(router, dbpool)
+
+	request := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/emails/"+emailID+"/review-status",
+		bytes.NewReader([]byte(`{"review_status":"approved"}`)),
+	)
+	request = withAuthUser(request, user)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusConflict {
+		t.Fatalf("expected PATCH status 409, got %d: %s", response.Code, response.Body.String())
+	}
+	if !strings.Contains(response.Body.String(), "resolve blocking comments before approving") {
+		t.Fatalf("expected blocking approval error, got %q", response.Body.String())
+	}
+
+	var reviewStatus string
+	if err := dbpool.QueryRow(context.Background(), `
+		SELECT review_status
+		FROM emails
+		WHERE id = $1;
+	`, emailID).Scan(&reviewStatus); err != nil {
+		t.Fatalf("failed to load review status: %v", err)
+	}
+	if reviewStatus != "in_review" {
+		t.Fatalf("expected review status to remain in_review, got %q", reviewStatus)
+	}
+
+	var eventCount int
+	if err := dbpool.QueryRow(context.Background(), `
+		SELECT count(*)::int
+		FROM email_events
+		WHERE email_id = $1
+			AND action = 'email_review_status_updated';
+	`, emailID).Scan(&eventCount); err != nil {
+		t.Fatalf("failed to count review status events: %v", err)
+	}
+	if eventCount != 0 {
+		t.Fatalf("expected no review status event, got %d", eventCount)
+	}
+}
+
+func TestUpdateEmailReviewStatusAllowsApprovalWithResolvedBlockingComment(t *testing.T) {
+	dbpool := testDBPool(t)
+	emailID := createTestEmail(t, dbpool)
+	user := createTestUserWithRole(t, dbpool, "admin")
+
+	if _, err := dbpool.Exec(context.Background(), `
+		INSERT INTO comments (
+			email_id,
+			review_block,
+			selected_text,
+			start_offset,
+			end_offset,
+			body,
+			status,
+			severity
+		)
+		VALUES ($1, 'body-001', 'selected text', 0, 13, 'Resolved blocker', 'resolved', 'blocking');
+	`, emailID); err != nil {
+		t.Fatalf("failed to seed resolved blocking comment: %v", err)
+	}
+
+	router := chi.NewRouter()
+	registerEmailRoutes(router, dbpool)
+
+	request := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/emails/"+emailID+"/review-status",
+		bytes.NewReader([]byte(`{"review_status":"approved"}`)),
+	)
+	request = withAuthUser(request, user)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected PATCH status 200, got %d: %s", response.Code, response.Body.String())
+	}
+
+	var payload updateEmailReviewStatusResponse
+	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
+		t.Fatalf("failed to decode review status response: %v", err)
+	}
+	if payload.ReviewStatus != "approved" {
+		t.Fatalf("expected approved status, got %q", payload.ReviewStatus)
+	}
+}
+
 func TestUpdateEmailReviewStatusRejectsArchivedEmail(t *testing.T) {
 	dbpool := testDBPool(t)
 	emailID := createTestEmail(t, dbpool)

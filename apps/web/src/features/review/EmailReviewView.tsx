@@ -303,6 +303,10 @@ export function EmailReviewView({
   const openBlockingCommentCount = comments.filter(
     (comment) => comment.status === "open" && comment.severity === "blocking"
   ).length;
+  const effectiveOpenBlockingCommentCount = Math.max(
+    openBlockingCommentCount,
+    email?.open_blocking_comment_count ?? 0
+  );
   const filteredComments = useMemo(
     () =>
       commentStatusFilter === "open"
@@ -455,11 +459,17 @@ export function EmailReviewView({
         title: "Status updated",
       });
     },
-    onError: () => {
+    onError: (error) => {
       notifications.show({
         color: "red",
-        message: "Try again or check that you have admin access.",
-        title: "Status update failed",
+        message:
+          error instanceof ApiError && error.status === 409
+            ? "Resolve blocking comments before approval."
+            : "Try again or check that you have admin access.",
+        title:
+          error instanceof ApiError && error.status === 409
+            ? "Approval blocked"
+            : "Status update failed",
       });
     },
   });
@@ -683,6 +693,14 @@ export function EmailReviewView({
   };
   const handleReviewStatusChange = (value: string | null) => {
     if (!email || !value || value === email.review_status) {
+      return;
+    }
+    if (value === "approved" && effectiveOpenBlockingCommentCount > 0) {
+      notifications.show({
+        color: "red",
+        message: "Resolve blocking comments before approval.",
+        title: "Approval blocked",
+      });
       return;
     }
 
@@ -978,6 +996,7 @@ export function EmailReviewView({
 
             {!isCompactReview && email ? (
               <ReviewStatusControl
+                approvalBlockedCount={effectiveOpenBlockingCommentCount}
                 canManage={canManageEmail}
                 isUpdating={reviewStatusMutation.isPending}
                 status={email.review_status}
@@ -1039,6 +1058,7 @@ export function EmailReviewView({
                       <Menu.Label>Review status</Menu.Label>
                       <div className={styles.menuControls}>
                         <ReviewStatusControl
+                          approvalBlockedCount={effectiveOpenBlockingCommentCount}
                           canManage={canManageEmail}
                           isUpdating={reviewStatusMutation.isPending}
                           status={email.review_status}
@@ -1678,11 +1698,13 @@ function formatEmailTitle(title: string) {
 }
 
 function ReviewStatusControl({
+  approvalBlockedCount,
   canManage,
   isUpdating,
   onChange,
   status,
 }: {
+  approvalBlockedCount: number;
   canManage: boolean;
   isUpdating: boolean;
   onChange: (value: string | null) => void;
@@ -1700,17 +1722,31 @@ function ReviewStatusControl({
     );
   }
 
-  return (
+  const approvalBlocked = approvalBlockedCount > 0 && status !== "approved";
+  const select = (
     <Select
       allowDeselect={false}
       aria-label="Review status"
       className={styles.reviewStatusSelect}
-      data={emailReviewStatusOptions}
+      data={emailReviewStatusOptions.map((option) => ({
+        ...option,
+        disabled: option.value === "approved" && approvalBlocked,
+      }))}
       disabled={isUpdating}
       size="xs"
       value={status}
       onChange={onChange}
     />
+  );
+
+  if (!approvalBlocked) {
+    return select;
+  }
+
+  return (
+    <Tooltip label="Resolve blocking comments before approval">
+      <div>{select}</div>
+    </Tooltip>
   );
 }
 

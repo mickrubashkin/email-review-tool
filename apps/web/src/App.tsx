@@ -398,11 +398,17 @@ function EmailBoardApp({
         title: "Status updated",
       });
     },
-    onError: () => {
+    onError: (error) => {
       notifications.show({
         color: "red",
-        message: "Try again or check that you have admin access.",
-        title: "Status update failed",
+        message:
+          error instanceof ApiError && error.status === 409
+            ? "Resolve blocking comments before approval."
+            : "Try again or check that you have admin access.",
+        title:
+          error instanceof ApiError && error.status === 409
+            ? "Approval blocked"
+            : "Status update failed",
       });
     },
   });
@@ -589,6 +595,20 @@ function EmailBoardApp({
     emailId: string,
     reviewStatus: EmailReviewStatus
   ) => {
+    const targetEmail = (emailsQuery.data ?? []).find((email) => email.id === emailId);
+    if (
+      reviewStatus === "approved" &&
+      targetEmail &&
+      (targetEmail.open_blocking_comment_count ?? 0) > 0
+    ) {
+      notifications.show({
+        color: "red",
+        message: "Resolve blocking comments before approval.",
+        title: "Approval blocked",
+      });
+      return;
+    }
+
     reviewStatusMutation.mutate({ emailId, reviewStatus });
   };
   const handleBoardChange = (value: string | null) => {

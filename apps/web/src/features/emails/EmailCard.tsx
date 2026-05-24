@@ -178,6 +178,9 @@ export function EmailCard({
     (count, email) => count + (email.open_blocking_comment_count ?? 0),
     0
   );
+  const selectedEmailApprovalBlocked =
+    selectedEmail.review_status !== "approved" &&
+    (selectedEmail.open_blocking_comment_count ?? 0) > 0;
   const commentedVersions = emailGroup.versions.filter(
     (email) => (email.open_comment_count ?? 0) > 0
   );
@@ -232,6 +235,9 @@ export function EmailCard({
     reviewStatus: EmailReviewStatus
   ) => {
     event.stopPropagation();
+    if (reviewStatus === "approved" && selectedEmailApprovalBlocked) {
+      return;
+    }
     if (reviewStatus !== selectedEmail.review_status) {
       onReviewStatusChange(selectedEmail.id, reviewStatus);
     }
@@ -412,10 +418,19 @@ export function EmailCard({
                   <Menu.Sub.Dropdown className={styles.cardMenuSubDropdown}>
                     {emailReviewStatusOptions.map((option) => (
                       <Menu.Item
+                        disabled={
+                          option.value === "approved" &&
+                          selectedEmailApprovalBlocked
+                        }
                         key={option.value}
                         rightSection={
                           option.value === selectedEmail.review_status ? (
                             <CheckIcon aria-hidden="true" size={14} weight="bold" />
+                          ) : option.value === "approved" &&
+                            selectedEmailApprovalBlocked ? (
+                            <Text c="red" size="xs">
+                              Resolve blockers
+                            </Text>
                           ) : null
                         }
                         onClick={(event) =>
