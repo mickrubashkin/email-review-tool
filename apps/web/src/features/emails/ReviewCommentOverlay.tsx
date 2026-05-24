@@ -31,7 +31,7 @@ export function ReviewCommentOverlay({
         {rects.map((rect, index) => {
           const isActive = rect.commentId === activeCommentId;
           const isHovered = rect.commentId === hoveredCommentId;
-          const shouldShow = rect.status === "open" || isActive || isHovered;
+          const shouldShow = isActive || isHovered;
           if (!shouldShow) {
             return null;
           }

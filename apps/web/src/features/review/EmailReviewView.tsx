@@ -52,6 +52,7 @@ import {
   type FormEvent,
   type KeyboardEvent,
   type PointerEvent,
+  type RefCallback,
   useEffect,
   useMemo,
   useRef,
@@ -1558,6 +1559,34 @@ function CommentsPanel({
   onSelectComment: (comment: EmailComment) => void;
   replyingCommentId: string | null;
 }) {
+  const commentItemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
+  useEffect(() => {
+    if (!activeCommentId) {
+      return;
+    }
+
+    const animationFrame = window.requestAnimationFrame(() => {
+      commentItemRefs.current.get(activeCommentId)?.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+      });
+    });
+
+    return () => window.cancelAnimationFrame(animationFrame);
+  }, [activeCommentId, filteredComments]);
+
+  const registerCommentItem =
+    (commentId: string): RefCallback<HTMLDivElement> =>
+    (node) => {
+      if (node) {
+        commentItemRefs.current.set(commentId, node);
+        return;
+      }
+
+      commentItemRefs.current.delete(commentId);
+    };
+
   if (isLoading) {
     return (
       <Stack className={styles.emptyState} align="center" justify="center">
@@ -1621,6 +1650,7 @@ function CommentsPanel({
               comment={comment}
               isReplying={comment.id === replyingCommentId}
               isResolving={isResolving}
+              itemRef={registerCommentItem(comment.id)}
               key={comment.id}
               onHover={onHoverComment}
               onReply={onReply}
@@ -1674,6 +1704,7 @@ function CommentItem({
   isHovered,
   isReplying,
   isResolving,
+  itemRef,
   onHover,
   onReply,
   onResolve,
@@ -1684,6 +1715,7 @@ function CommentItem({
   isHovered: boolean;
   isReplying: boolean;
   isResolving: boolean;
+  itemRef: RefCallback<HTMLDivElement>;
   onHover: (comment: EmailComment | null) => void;
   onReply: (commentId: string, body: string) => void;
   onResolve: (commentId: string) => void;
@@ -1760,6 +1792,7 @@ function CommentItem({
         data-active={isActive || undefined}
         data-hovered={isHovered || undefined}
         gap={8}
+        ref={itemRef}
         role="button"
         tabIndex={0}
         onClick={() => onSelect(comment)}
