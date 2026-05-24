@@ -102,6 +102,7 @@ import type {
   CreateEmailAdaptationPayload,
   DuplicateEmailPayload,
   EmailComment,
+  EmailCommentSeverity,
   EmailDetail,
   EmailListItem,
   EmailReviewStatus,
@@ -279,6 +280,9 @@ export function EmailReviewView({
   const openCommentCount = comments.filter(
     (comment) => comment.status === "open"
   ).length;
+  const openBlockingCommentCount = comments.filter(
+    (comment) => comment.status === "open" && comment.severity === "blocking"
+  ).length;
   const filteredComments = useMemo(
     () =>
       commentStatusFilter === "open"
@@ -305,7 +309,11 @@ export function EmailReviewView({
 
       return currentEmails.map((currentEmail) =>
         currentEmail.id === emailId
-          ? { ...currentEmail, open_comment_count: openCommentCount }
+          ? {
+              ...currentEmail,
+              open_comment_count: openCommentCount,
+              open_blocking_comment_count: openBlockingCommentCount,
+            }
           : currentEmail
       );
     });
@@ -319,7 +327,11 @@ export function EmailReviewView({
 
           return currentEmails.map((currentEmail) =>
             currentEmail.id === emailId
-              ? { ...currentEmail, open_comment_count: openCommentCount }
+              ? {
+                  ...currentEmail,
+                  open_comment_count: openCommentCount,
+                  open_blocking_comment_count: openBlockingCommentCount,
+                }
               : currentEmail
           );
         }
@@ -330,10 +342,21 @@ export function EmailReviewView({
       ["emails", emailId, "review"],
       (currentEmail) =>
         currentEmail
-          ? { ...currentEmail, open_comment_count: openCommentCount }
+          ? {
+              ...currentEmail,
+              open_comment_count: openCommentCount,
+              open_blocking_comment_count: openBlockingCommentCount,
+            }
           : currentEmail
     );
-  }, [commentsQuery.data, email?.sequence, emailId, openCommentCount, queryClient]);
+  }, [
+    commentsQuery.data,
+    email?.sequence,
+    emailId,
+    openBlockingCommentCount,
+    openCommentCount,
+    queryClient,
+  ]);
 
   const duplicateEmailMutation = useMutation({
     mutationFn: ({
@@ -417,9 +440,11 @@ export function EmailReviewView({
   const createCommentMutation = useMutation({
     mutationFn: ({
       body,
+      severity,
       selection,
     }: {
       body: string;
+      severity: EmailCommentSeverity;
       selection: ReviewTextSelection;
     }) =>
       createEmailComment(emailId, {
@@ -428,6 +453,7 @@ export function EmailReviewView({
         start_offset: selection.startOffset,
         end_offset: selection.endOffset,
         body,
+        severity,
       }),
     onSuccess: () => {
       setActivePanelTab("comments");
@@ -597,9 +623,10 @@ export function EmailReviewView({
   };
   const handleCreateReviewComment = (
     selection: ReviewTextSelection,
-    body: string
+    body: string,
+    severity: EmailCommentSeverity
   ) => {
-    createCommentMutation.mutate({ body, selection });
+    createCommentMutation.mutate({ body, severity, selection });
   };
   const handleApplyInlineEdit = (update: InlineEditUpdate) => {
     if (!email) {
@@ -1521,6 +1548,7 @@ function commentToTarget(comment: EmailComment): ReviewCommentTarget {
     startOffset: comment.start_offset,
     endOffset: comment.end_offset,
     status: comment.status,
+    severity: comment.severity,
   };
 }
 
@@ -1607,6 +1635,9 @@ function CommentsPanel({
   }
 
   const openCount = comments.filter((comment) => comment.status === "open").length;
+  const blockingCount = comments.filter(
+    (comment) => comment.status === "open" && comment.severity === "blocking"
+  ).length;
   const resolvedCount = comments.filter(
     (comment) => comment.status === "resolved"
   ).length;
@@ -1619,6 +1650,11 @@ function CommentsPanel({
             <Badge color="yellow" size="sm" variant="light">
               Open {openCount}
             </Badge>
+            {blockingCount > 0 ? (
+              <Badge color="red" size="sm" variant="light">
+                Blocking {blockingCount}
+              </Badge>
+            ) : null}
             <Badge color="green" size="sm" variant="light">
               Resolved {resolvedCount}
             </Badge>
@@ -1766,7 +1802,7 @@ function CommentItem({
           <ChatTextIcon aria-hidden="true" size={13} />
         )
       }
-      color={isResolved ? "green" : "yellow"}
+      color={isResolved ? "green" : commentSeverityColor(comment.severity)}
       title={
         <Group justify="space-between" gap="xs" wrap="nowrap">
           <Stack gap={2}>
@@ -1778,11 +1814,11 @@ function CommentItem({
             </Text>
           </Stack>
           <Badge
-            color={isResolved ? "green" : "yellow"}
+            color={isResolved ? "green" : commentSeverityColor(comment.severity)}
             size="sm"
             variant="light"
           >
-            {comment.status}
+            {isResolved ? "resolved" : formatCommentSeverity(comment.severity)}
           </Badge>
         </Group>
       }
@@ -1909,6 +1945,28 @@ function formatCommentDate(value: string) {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(date);
+}
+
+function formatCommentSeverity(severity: EmailCommentSeverity) {
+  switch (severity) {
+    case "suggestion":
+      return "Suggestion";
+    case "blocking":
+      return "Blocking";
+    case "issue":
+      return "Issue";
+  }
+}
+
+function commentSeverityColor(severity: EmailCommentSeverity) {
+  switch (severity) {
+    case "suggestion":
+      return "blue";
+    case "blocking":
+      return "red";
+    case "issue":
+      return "yellow";
+  }
 }
 
 function getReviewTargetLabel(comment: EmailComment) {

@@ -65,7 +65,14 @@ func listEmailsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 					FROM comments
 					WHERE comments.email_id = emails.id
 						AND comments.status = 'open'
-					) AS open_comment_count
+				) AS open_comment_count,
+				(
+					SELECT count(*)::int
+					FROM comments
+					WHERE comments.email_id = emails.id
+						AND comments.status = 'open'
+						AND comments.severity = 'blocking'
+				) AS open_blocking_comment_count
 			FROM emails
 			WHERE archived_at IS NULL
 			`+boardFilter+`
@@ -97,6 +104,7 @@ func listEmailsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 				&email.AdaptationLabel,
 				&email.ReviewStatus,
 				&email.OpenCommentCount,
+				&email.OpenBlockingCommentCount,
 			)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "failed to scan email row: %v\n", err)
@@ -145,6 +153,13 @@ func getEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 					WHERE comments.email_id = emails.id
 						AND comments.status = 'open'
 				) AS open_comment_count,
+				(
+					SELECT count(*)::int
+					FROM comments
+					WHERE comments.email_id = emails.id
+						AND comments.status = 'open'
+						AND comments.severity = 'blocking'
+				) AS open_blocking_comment_count,
 				original_html,
 				review_html,
 				template_html,
@@ -169,6 +184,7 @@ func getEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			&email.AdaptationLabel,
 			&email.ReviewStatus,
 			&email.OpenCommentCount,
+			&email.OpenBlockingCommentCount,
 			&email.OriginalHTML,
 			&email.ReviewHTML,
 			&email.TemplateHTML,
@@ -1409,6 +1425,7 @@ func insertDuplicatedEmail(r *http.Request, db emailEventExecutor, email duplica
 			adaptation_label,
 			review_status,
 			0 AS open_comment_count,
+			0 AS open_blocking_comment_count,
 			original_html,
 			review_html,
 			template_html,
@@ -1431,6 +1448,7 @@ func insertDuplicatedEmail(r *http.Request, db emailEventExecutor, email duplica
 		&created.AdaptationLabel,
 		&created.ReviewStatus,
 		&created.OpenCommentCount,
+		&created.OpenBlockingCommentCount,
 		&created.OriginalHTML,
 		&created.ReviewHTML,
 		&created.TemplateHTML,

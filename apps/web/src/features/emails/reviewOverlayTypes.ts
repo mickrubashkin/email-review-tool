@@ -1,8 +1,10 @@
 import type { ReviewTextSelection } from "./MailPreview";
+import type { EmailCommentSeverity } from "./types";
 
 export type ReviewCommentTarget = ReviewTextSelection & {
   authorKey: string;
   id: string;
+  severity: EmailCommentSeverity;
   status: "open" | "resolved";
 };
 

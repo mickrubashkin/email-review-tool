@@ -25,11 +25,12 @@ func TestListEmailsIncludesOpenCommentCount(t *testing.T) {
 			start_offset,
 			end_offset,
 			body,
-			status
+			status,
+			severity
 		)
 		VALUES
-			($1, 'body-001', 'open comment', 0, 12, 'Open comment body', 'open'),
-			($1, 'body-002', 'resolved comment', 0, 16, 'Resolved comment body', 'resolved');
+			($1, 'body-001', 'open comment', 0, 12, 'Open comment body', 'open', 'blocking'),
+			($1, 'body-002', 'resolved comment', 0, 16, 'Resolved comment body', 'resolved', 'blocking');
 	`, emailID)
 	if err != nil {
 		t.Fatalf("failed to seed comments: %v", err)
@@ -55,6 +56,9 @@ func TestListEmailsIncludesOpenCommentCount(t *testing.T) {
 		if email.ID == emailID {
 			if email.OpenCommentCount != 1 {
 				t.Fatalf("expected open comment count 1, got %d", email.OpenCommentCount)
+			}
+			if email.OpenBlockingCommentCount != 1 {
+				t.Fatalf("expected open blocking comment count 1, got %d", email.OpenBlockingCommentCount)
 			}
 			if email.ReviewStatus != "in_review" {
 				t.Fatalf("expected default review status in_review, got %q", email.ReviewStatus)

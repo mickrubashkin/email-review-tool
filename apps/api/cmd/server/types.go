@@ -8,47 +8,49 @@ import (
 )
 
 type EmailListItem struct {
-	ID               string  `json:"id"`
-	Sequence         string  `json:"sequence"`
-	Title            string  `json:"title"`
-	Subject          *string `json:"subject"`
-	Preheader        *string `json:"preheader"`
-	SendTiming       *string `json:"send_timing"`
-	Stage            string  `json:"stage"`
-	SortOrder        int     `json:"sort_order"`
-	Language         string  `json:"language"`
-	Variant          string  `json:"variant"`
-	AdaptationKey    string  `json:"adaptation_key"`
-	AdaptationLabel  string  `json:"adaptation_label"`
-	ReviewStatus     string  `json:"review_status"`
-	OpenCommentCount int     `json:"open_comment_count"`
+	ID                       string  `json:"id"`
+	Sequence                 string  `json:"sequence"`
+	Title                    string  `json:"title"`
+	Subject                  *string `json:"subject"`
+	Preheader                *string `json:"preheader"`
+	SendTiming               *string `json:"send_timing"`
+	Stage                    string  `json:"stage"`
+	SortOrder                int     `json:"sort_order"`
+	Language                 string  `json:"language"`
+	Variant                  string  `json:"variant"`
+	AdaptationKey            string  `json:"adaptation_key"`
+	AdaptationLabel          string  `json:"adaptation_label"`
+	ReviewStatus             string  `json:"review_status"`
+	OpenCommentCount         int     `json:"open_comment_count"`
+	OpenBlockingCommentCount int     `json:"open_blocking_comment_count"`
 }
 
 type EmailDetail struct {
-	ID               string          `json:"id"`
-	Slug             string          `json:"slug"`
-	Sequence         string          `json:"sequence"`
-	Title            string          `json:"title"`
-	Subject          *string         `json:"subject"`
-	Preheader        *string         `json:"preheader"`
-	SendTiming       *string         `json:"send_timing"`
-	Stage            string          `json:"stage"`
-	SortOrder        int             `json:"sort_order"`
-	Language         string          `json:"language"`
-	Variant          string          `json:"variant"`
-	AdaptationKey    string          `json:"adaptation_key"`
-	AdaptationLabel  string          `json:"adaptation_label"`
-	ReviewStatus     string          `json:"review_status"`
-	OpenCommentCount int             `json:"open_comment_count"`
-	BodyText         *string         `json:"-"`
-	ContentParts     *string         `json:"-"`
-	UpdatedAt        time.Time       `json:"-"`
-	OriginalHTML     string          `json:"original_html"`
-	ReviewHTML       *string         `json:"review_html"`
-	TemplateHTML     string          `json:"template_html"`
-	TemplateHash     *string         `json:"template_hash"`
-	TemplateVersion  *string         `json:"template_version"`
-	EditableFields   json.RawMessage `json:"editable_fields"`
+	ID                       string          `json:"id"`
+	Slug                     string          `json:"slug"`
+	Sequence                 string          `json:"sequence"`
+	Title                    string          `json:"title"`
+	Subject                  *string         `json:"subject"`
+	Preheader                *string         `json:"preheader"`
+	SendTiming               *string         `json:"send_timing"`
+	Stage                    string          `json:"stage"`
+	SortOrder                int             `json:"sort_order"`
+	Language                 string          `json:"language"`
+	Variant                  string          `json:"variant"`
+	AdaptationKey            string          `json:"adaptation_key"`
+	AdaptationLabel          string          `json:"adaptation_label"`
+	ReviewStatus             string          `json:"review_status"`
+	OpenCommentCount         int             `json:"open_comment_count"`
+	OpenBlockingCommentCount int             `json:"open_blocking_comment_count"`
+	BodyText                 *string         `json:"-"`
+	ContentParts             *string         `json:"-"`
+	UpdatedAt                time.Time       `json:"-"`
+	OriginalHTML             string          `json:"original_html"`
+	ReviewHTML               *string         `json:"review_html"`
+	TemplateHTML             string          `json:"template_html"`
+	TemplateHash             *string         `json:"template_hash"`
+	TemplateVersion          *string         `json:"template_version"`
+	EditableFields           json.RawMessage `json:"editable_fields"`
 }
 
 type EmailContentParts = emailtext.ContentParts
@@ -189,6 +191,7 @@ type EmailComment struct {
 	EndOffset       int                   `json:"end_offset"`
 	Body            string                `json:"body"`
 	Status          string                `json:"status"`
+	Severity        string                `json:"severity"`
 	CreatedAt       time.Time             `json:"created_at"`
 	ResolvedAt      *time.Time            `json:"resolved_at"`
 	ResolvedBy      *string               `json:"resolved_by"`

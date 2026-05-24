@@ -7,7 +7,7 @@ Internal tool for reviewing HTML email sequences.
 - multiple review boards with URL-based board switching
 - email board for browsing stages, language versions, and adaptations
 - admin board setup: create boards, add/rename/reorder stages, and delete empty stages
-- email review view with text selection, action popovers, comments, resolution, and 5-second comment polling
+- email review view with text selection, action popovers, comment severity, resolution, and 5-second comment polling
 - admin inline editing of template-backed email fields and metadata from the review preview
 - admin creation of uploaded/pasted HTML emails
 - backend HTML inspection before creating an email: generated review HTML, review block count, editable fields, and warnings
@@ -89,7 +89,7 @@ Internal tool for reviewing HTML email sequences.
 - `POST /api/emails/{id}/adaptations` creates a delivery adaptation for admins.
 - `PATCH /api/emails/{id}/archive` archives an email for admins.
 - `GET /api/emails/{id}/comments` lists comments.
-- `POST /api/emails/{id}/comments` creates a comment anchored to a review block and text range.
+- `POST /api/emails/{id}/comments` creates a comment anchored to a review block and text range with `suggestion`, `issue`, or `blocking` severity.
 - `PATCH /api/comments/{id}/resolve` resolves a comment.
 - `GET /api/emails/{id}/ai-analysis` returns cached shared AI analysis.
 - `POST /api/emails/{id}/ai-analysis` runs shared AI analysis.

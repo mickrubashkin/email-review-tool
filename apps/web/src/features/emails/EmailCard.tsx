@@ -174,6 +174,10 @@ export function EmailCard({
     (count, email) => count + (email.open_comment_count ?? 0),
     0
   );
+  const openBlockingCommentCount = emailGroup.versions.reduce(
+    (count, email) => count + (email.open_blocking_comment_count ?? 0),
+    0
+  );
   const commentedVersions = emailGroup.versions.filter(
     (email) => (email.open_comment_count ?? 0) > 0
   );
@@ -267,7 +271,7 @@ export function EmailCard({
             {openCommentCount > 0 ? (
               <Badge
                 className={styles.openCommentCornerBadge}
-                color="red"
+                color={openBlockingCommentCount > 0 ? "red" : "yellow"}
                 radius="xl"
                 size="xs"
                 variant="light"
@@ -429,8 +433,14 @@ export function EmailCard({
                     <Menu.Sub.Target>
                       <Menu.Sub.Item
                         rightSection={
-                          <Badge color="red" size="xs" variant="light">
-                            {openCommentCount}
+                          <Badge
+                            color={openBlockingCommentCount > 0 ? "red" : "yellow"}
+                            size="xs"
+                            variant="light"
+                          >
+                            {openBlockingCommentCount > 0
+                              ? `${openBlockingCommentCount} blocking`
+                              : openCommentCount}
                           </Badge>
                         }
                       >
@@ -469,11 +479,17 @@ export function EmailCard({
 
                                 <Badge
                                   className={styles.commentVersionBadge}
-                                  color="red"
+                                  color={
+                                    (email.open_blocking_comment_count ?? 0) > 0
+                                      ? "red"
+                                      : "yellow"
+                                  }
                                   size="xs"
                                   variant="light"
                                 >
-                                  {email.open_comment_count}
+                                  {(email.open_blocking_comment_count ?? 0) > 0
+                                    ? `${email.open_blocking_comment_count} blocking`
+                                    : email.open_comment_count}
                                 </Badge>
                               </Group>
                             </button>

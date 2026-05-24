@@ -20,6 +20,7 @@ type createEmailCommentRequest struct {
 	StartOffset  int    `json:"start_offset"`
 	EndOffset    int    `json:"end_offset"`
 	Body         string `json:"body"`
+	Severity     string `json:"severity"`
 }
 
 type createCommentMessageRequest struct {
@@ -48,6 +49,7 @@ func listEmailCommentsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 				comments.end_offset,
 				comments.body,
 				comments.status,
+				comments.severity,
 				comments.created_at,
 				comments.resolved_at,
 				comments.resolved_by,
@@ -80,6 +82,7 @@ func listEmailCommentsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 				&comment.EndOffset,
 				&comment.Body,
 				&comment.Status,
+				&comment.Severity,
 				&comment.CreatedAt,
 				&comment.ResolvedAt,
 				&comment.ResolvedBy,
@@ -127,10 +130,12 @@ func createEmailCommentHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 		payload.ReviewBlock = strings.TrimSpace(payload.ReviewBlock)
 		payload.SelectedText = strings.TrimSpace(payload.SelectedText)
 		payload.Body = strings.TrimSpace(payload.Body)
+		payload.Severity = normalizeCommentSeverity(payload.Severity)
 
 		if payload.ReviewBlock == "" ||
 			payload.SelectedText == "" ||
 			payload.Body == "" ||
+			payload.Severity == "" ||
 			payload.StartOffset < 0 ||
 			payload.EndOffset <= payload.StartOffset {
 			http.Error(w, "invalid comment payload", http.StatusBadRequest)
@@ -153,9 +158,10 @@ func createEmailCommentHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 				selected_text,
 				start_offset,
 				end_offset,
-				body
+				body,
+				severity
 			)
-				VALUES ($1, $2, $3, $4, $5, $6, $7)
+				VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 				RETURNING
 					id,
 					email_id,
@@ -166,6 +172,7 @@ func createEmailCommentHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 					end_offset,
 					body,
 					status,
+					severity,
 					created_at,
 					resolved_at;
 		`, emailID,
@@ -174,7 +181,8 @@ func createEmailCommentHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			payload.SelectedText,
 			payload.StartOffset,
 			payload.EndOffset,
-			payload.Body).Scan(
+			payload.Body,
+			payload.Severity).Scan(
 			&comment.ID,
 			&comment.EmailID,
 			&comment.UserID,
@@ -184,6 +192,7 @@ func createEmailCommentHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			&comment.EndOffset,
 			&comment.Body,
 			&comment.Status,
+			&comment.Severity,
 			&comment.CreatedAt,
 			&comment.ResolvedAt,
 		)
@@ -329,6 +338,7 @@ func resolveCommentHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 				updated_comment.end_offset,
 				updated_comment.body,
 				updated_comment.status,
+				updated_comment.severity,
 				updated_comment.created_at,
 				updated_comment.resolved_at,
 				updated_comment.resolved_by,
@@ -347,6 +357,7 @@ func resolveCommentHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			&comment.EndOffset,
 			&comment.Body,
 			&comment.Status,
+			&comment.Severity,
 			&comment.CreatedAt,
 			&comment.ResolvedAt,
 			&comment.ResolvedBy,
@@ -366,6 +377,17 @@ func resolveCommentHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(comment)
+	}
+}
+
+func normalizeCommentSeverity(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "":
+		return "issue"
+	case "suggestion", "issue", "blocking":
+		return strings.ToLower(strings.TrimSpace(value))
+	default:
+		return ""
 	}
 }
 

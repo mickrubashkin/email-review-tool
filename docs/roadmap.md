@@ -36,7 +36,7 @@ The most promising first external ICP remains CRM, lifecycle, and email marketin
   - email statuses: draft, in review, changes requested, updated, approved, archived;
   - comment statuses: open, resolved, rejected;
   - comment severity: suggestion, issue, blocking.
-- [ ] Add comment severity:
+- [x] Add comment severity:
   - suggestion;
   - issue;
   - blocking.

@@ -3,6 +3,7 @@ import {
   Button,
   Group,
   Popover,
+  SegmentedControl,
   Stack,
   Text,
   Textarea,
@@ -27,7 +28,12 @@ import {
 } from "react";
 
 import { ReviewCommentOverlay } from "./ReviewCommentOverlay";
-import type { EditableField, EditableFields, EmailDetail } from "./types";
+import type {
+  EditableField,
+  EditableFields,
+  EmailCommentSeverity,
+  EmailDetail,
+} from "./types";
 import type { ReviewCommentTarget } from "./reviewOverlayTypes";
 import { useReviewOverlayRects } from "./useReviewOverlayRects";
 import styles from "./EmailPreviewDrawer.module.css";
@@ -83,7 +89,11 @@ type MailPreviewProps = {
   onApplyInlineEdit?: (update: InlineEditUpdate) => void;
   onCommentBadgeClick?: (commentIds: string[]) => void;
   onCommentBadgeHover?: (commentIds: string[] | null) => void;
-  onCreateReviewComment?: (selection: ReviewTextSelection, body: string) => void;
+  onCreateReviewComment?: (
+    selection: ReviewTextSelection,
+    body: string,
+    severity: EmailCommentSeverity
+  ) => void;
   onEditSourceHTML?: () => void;
   viewport: PreviewViewport;
 };
@@ -118,6 +128,8 @@ export function MailPreview({
     null
   );
   const [draftComment, setDraftComment] = useState("");
+  const [draftCommentSeverity, setDraftCommentSeverity] =
+    useState<EmailCommentSeverity>("issue");
   const [draftInlineEdit, setDraftInlineEdit] = useState<
     Record<string, string | number>
   >({});
@@ -139,6 +151,7 @@ export function MailPreview({
   const closeSelectionComposer = () => {
     setSelectionMenu(null);
     setDraftComment("");
+    setDraftCommentSeverity("issue");
     setDraftInlineEdit({});
   };
   const openCommentComposer = () => {
@@ -146,6 +159,7 @@ export function MailPreview({
       current ? { ...current, mode: "comment" } : current
     );
     setDraftComment("");
+    setDraftCommentSeverity("issue");
   };
   const openInlineEditor = () => {
     setSelectionMenu((current) => {
@@ -178,7 +192,8 @@ export function MailPreview({
         startOffset: selectionMenu.startOffset,
         endOffset: selectionMenu.endOffset,
       },
-      trimmedDraft
+      trimmedDraft,
+      draftCommentSeverity
     );
   };
   const handleApplyInlineEdit = () => {
@@ -320,6 +335,19 @@ export function MailPreview({
                 placeholder="Add a comment"
                 value={draftComment}
                 onChange={(event) => setDraftComment(event.currentTarget.value)}
+              />
+              <SegmentedControl
+                data={[
+                  { label: "Suggestion", value: "suggestion" },
+                  { label: "Issue", value: "issue" },
+                  { label: "Blocking", value: "blocking" },
+                ]}
+                disabled={isCreatingComment}
+                size="xs"
+                value={draftCommentSeverity}
+                onChange={(value) =>
+                  setDraftCommentSeverity(value as EmailCommentSeverity)
+                }
               />
               {createCommentError ? (
                 <Text c="red" size="xs">

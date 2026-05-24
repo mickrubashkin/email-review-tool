@@ -13,6 +13,7 @@ export type EmailListItem = {
   adaptation_label: string;
   review_status: EmailReviewStatus;
   open_comment_count: number;
+  open_blocking_comment_count: number;
 };
 
 export type EmailDetail = EmailListItem & {
@@ -32,6 +33,8 @@ export type EmailReviewStatus =
   | "in_review"
   | "changes_requested"
   | "approved";
+
+export type EmailCommentSeverity = "suggestion" | "issue" | "blocking";
 
 export type Board = {
   id: string;
@@ -322,6 +325,7 @@ export type EmailComment = {
   end_offset: number;
   body: string;
   status: "open" | "resolved";
+  severity: EmailCommentSeverity;
   created_at: string;
   resolved_at: string | null;
   resolved_by: string | null;
@@ -345,6 +349,7 @@ export type CreateEmailCommentPayload = {
   start_offset: number;
   end_offset: number;
   body: string;
+  severity: EmailCommentSeverity;
 };
 
 export type CreateCommentMessagePayload = {
