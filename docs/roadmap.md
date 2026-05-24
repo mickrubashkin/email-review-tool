@@ -32,10 +32,10 @@ The most promising first external ICP remains CRM, lifecycle, and email marketin
 - [x] Add email search on the board.
 - [x] Add an explicit review status for each email.
 - [x] Add pragmatic threaded comment replies.
-- [ ] Finish the review workflow state model:
-  - decide whether `updated` and `archived` belong in review status or remain derived from edits/archive;
-  - decide whether comments need a `rejected` state beyond open/resolved;
-  - define approval/stale/final-production semantics.
+- [x] Finish the review workflow state model:
+  - keep `updated` and `archived` derived from edit events and archive fields, not review status;
+  - keep comments as open/resolved for now, without a separate `rejected` state;
+  - approved emails automatically move back to changes requested when edited.
 - [x] Add comment severity:
   - suggestion;
   - issue;
@@ -48,7 +48,7 @@ The most promising first external ICP remains CRM, lifecycle, and email marketin
 - [ ] Connect email editing to review state:
   - store review decisions against a specific email version;
   - keep comments open after edits until a user resolves them explicitly;
-  - mark approvals stale when the email changes after approval;
+  - [x] mark approvals stale when the email changes after approval;
   - highlight review blocks changed after related comments or approvals.
 - [ ] Add approval stale behavior after edits:
   - approved emails become stale when reviewed fields or source HTML changes;

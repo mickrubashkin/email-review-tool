@@ -659,6 +659,239 @@ func TestUpdateEmailEditableFields(t *testing.T) {
 	}
 }
 
+func TestUpdateEmailEditableFieldsMarksApprovedEmailChangesRequested(t *testing.T) {
+	dbpool := testDBPool(t)
+	emailID := createTestEmail(t, dbpool)
+	user := createTestUserWithRole(t, dbpool, "admin")
+	setTestEmailTemplate(t, dbpool, emailID, `
+		<html>
+			<body>
+				<p data-edit-text="intro_text">Old intro</p>
+			</body>
+		</html>
+	`)
+
+	_, err := dbpool.Exec(context.Background(), `
+		UPDATE emails
+		SET review_status = 'approved'
+		WHERE id = $1;
+	`, emailID)
+	if err != nil {
+		t.Fatalf("failed to approve test email: %v", err)
+	}
+
+	router := chi.NewRouter()
+	registerEmailRoutes(router, dbpool)
+
+	request := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/emails/"+emailID+"/editable-fields",
+		bytes.NewReader([]byte(`{
+			"editable_fields": {
+				"intro_text": { "type": "text", "value": "New intro" }
+			}
+		}`)),
+	)
+	request = withAuthUser(request, user)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusNoContent {
+		t.Fatalf("expected PATCH status 204, got %d: %s", response.Code, response.Body.String())
+	}
+
+	var storedStatus string
+	if err := dbpool.QueryRow(context.Background(), `
+		SELECT review_status
+		FROM emails
+		WHERE id = $1;
+	`, emailID).Scan(&storedStatus); err != nil {
+		t.Fatalf("failed to load review status: %v", err)
+	}
+	if storedStatus != "changes_requested" {
+		t.Fatalf("expected changes_requested status, got %q", storedStatus)
+	}
+}
+
+func TestUpdateEmailEditableFieldsPreservesNonApprovedReviewStatus(t *testing.T) {
+	dbpool := testDBPool(t)
+	emailID := createTestEmail(t, dbpool)
+	user := createTestUserWithRole(t, dbpool, "admin")
+	setTestEmailTemplate(t, dbpool, emailID, `
+		<html>
+			<body>
+				<p data-edit-text="intro_text">Old intro</p>
+			</body>
+		</html>
+	`)
+
+	_, err := dbpool.Exec(context.Background(), `
+		UPDATE emails
+		SET review_status = 'draft'
+		WHERE id = $1;
+	`, emailID)
+	if err != nil {
+		t.Fatalf("failed to set draft review status: %v", err)
+	}
+
+	router := chi.NewRouter()
+	registerEmailRoutes(router, dbpool)
+
+	request := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/emails/"+emailID+"/editable-fields",
+		bytes.NewReader([]byte(`{
+			"editable_fields": {
+				"intro_text": { "type": "text", "value": "New intro" }
+			}
+		}`)),
+	)
+	request = withAuthUser(request, user)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusNoContent {
+		t.Fatalf("expected PATCH status 204, got %d: %s", response.Code, response.Body.String())
+	}
+
+	var storedStatus string
+	if err := dbpool.QueryRow(context.Background(), `
+		SELECT review_status
+		FROM emails
+		WHERE id = $1;
+	`, emailID).Scan(&storedStatus); err != nil {
+		t.Fatalf("failed to load review status: %v", err)
+	}
+	if storedStatus != "draft" {
+		t.Fatalf("expected draft status, got %q", storedStatus)
+	}
+}
+
+func TestUpdateEmailEditableFieldsRecordsStaleApprovalEvent(t *testing.T) {
+	dbpool := testDBPool(t)
+	emailID := createTestEmail(t, dbpool)
+	user := createTestUserWithRole(t, dbpool, "admin")
+	setTestEmailTemplate(t, dbpool, emailID, `
+		<html>
+			<body>
+				<p data-edit-text="intro_text">Old intro</p>
+			</body>
+		</html>
+	`)
+
+	_, err := dbpool.Exec(context.Background(), `
+		UPDATE emails
+		SET review_status = 'approved'
+		WHERE id = $1;
+	`, emailID)
+	if err != nil {
+		t.Fatalf("failed to approve test email: %v", err)
+	}
+
+	router := chi.NewRouter()
+	registerEmailRoutes(router, dbpool)
+
+	request := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/emails/"+emailID+"/editable-fields",
+		bytes.NewReader([]byte(`{
+			"editable_fields": {
+				"intro_text": { "type": "text", "value": "New intro" }
+			}
+		}`)),
+	)
+	request = withAuthUser(request, user)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusNoContent {
+		t.Fatalf("expected PATCH status 204, got %d: %s", response.Code, response.Body.String())
+	}
+
+	var metadataJSON []byte
+	var changesJSON []byte
+	err = dbpool.QueryRow(context.Background(), `
+		SELECT metadata, changes
+		FROM email_events
+		WHERE email_id = $1
+			AND action = 'email_review_status_updated'
+		ORDER BY created_at DESC
+		LIMIT 1;
+	`, emailID).Scan(&metadataJSON, &changesJSON)
+	if err != nil {
+		t.Fatalf("failed to load stale approval event: %v", err)
+	}
+	if !strings.Contains(string(metadataJSON), `"reason": "approval_stale_after_edit"`) {
+		t.Fatalf("expected stale approval metadata, got %s", string(metadataJSON))
+	}
+	if !strings.Contains(string(changesJSON), `"before": "approved"`) ||
+		!strings.Contains(string(changesJSON), `"after": "changes_requested"`) {
+		t.Fatalf("expected stale approval status change, got %s", string(changesJSON))
+	}
+}
+
+func TestUpdateEmailEditableFieldsKeepsOpenCommentsOpen(t *testing.T) {
+	dbpool := testDBPool(t)
+	emailID := createTestEmail(t, dbpool)
+	user := createTestUserWithRole(t, dbpool, "admin")
+	setTestEmailTemplate(t, dbpool, emailID, `
+		<html>
+			<body>
+				<p data-review-block="intro" data-edit-text="intro_text">Old intro</p>
+			</body>
+		</html>
+	`)
+
+	_, err := dbpool.Exec(context.Background(), `
+		INSERT INTO comments (
+			email_id,
+			review_block,
+			selected_text,
+			start_offset,
+			end_offset,
+			body,
+			status
+		)
+		VALUES ($1, 'intro', 'Old intro', 0, 9, 'Open comment body', 'open');
+	`, emailID)
+	if err != nil {
+		t.Fatalf("failed to seed open comment: %v", err)
+	}
+
+	router := chi.NewRouter()
+	registerEmailRoutes(router, dbpool)
+
+	request := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/emails/"+emailID+"/editable-fields",
+		bytes.NewReader([]byte(`{
+			"editable_fields": {
+				"intro_text": { "type": "text", "value": "New intro" }
+			}
+		}`)),
+	)
+	request = withAuthUser(request, user)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusNoContent {
+		t.Fatalf("expected PATCH status 204, got %d: %s", response.Code, response.Body.String())
+	}
+
+	var openCommentCount int
+	if err := dbpool.QueryRow(context.Background(), `
+		SELECT count(*)::int
+		FROM comments
+		WHERE email_id = $1
+			AND status = 'open';
+	`, emailID).Scan(&openCommentCount); err != nil {
+		t.Fatalf("failed to count open comments: %v", err)
+	}
+	if openCommentCount != 1 {
+		t.Fatalf("expected one open comment after edit, got %d", openCommentCount)
+	}
+}
+
 func TestUpdateEmailEditableFieldsResetsChangedTextCommentAnchors(t *testing.T) {
 	dbpool := testDBPool(t)
 	emailID := createTestEmail(t, dbpool)

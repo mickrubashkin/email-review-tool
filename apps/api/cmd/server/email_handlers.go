@@ -513,12 +513,13 @@ func updateEmailEditableFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 		var currentPreheader *string
 		var currentEditableFieldsJSON []byte
 		var slug string
+		var currentReviewStatus string
 		err := dbpool.QueryRow(r.Context(), `
-			SELECT slug, original_html, template_html, title, subject, preheader, editable_fields
+			SELECT slug, original_html, template_html, title, subject, preheader, editable_fields, review_status
 			FROM emails
 			WHERE id = $1
 				AND archived_at IS NULL;
-		`, id).Scan(&slug, &originalHTML, &templateHTML, &currentTitle, &currentSubject, &currentPreheader, &currentEditableFieldsJSON)
+		`, id).Scan(&slug, &originalHTML, &templateHTML, &currentTitle, &currentSubject, &currentPreheader, &currentEditableFieldsJSON, &currentReviewStatus)
 		if err != nil {
 			http.Error(w, "email not found", http.StatusNotFound)
 			return
@@ -619,6 +620,11 @@ func updateEmailEditableFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 				"after":  nextOriginalHTML,
 			}
 		}
+		nextReviewStatus := currentReviewStatus
+		approvalBecameStale := len(changes) > 0 && currentReviewStatus == "approved"
+		if approvalBecameStale {
+			nextReviewStatus = "changes_requested"
+		}
 		commentAnchorTexts, err := changedCommentAnchorTexts(
 			nextTemplateHTML,
 			renderedHTML,
@@ -654,10 +660,11 @@ func updateEmailEditableFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 				body_text = $8,
 				original_html = $9,
 				template_html = $10,
+				review_status = $11,
 				updated_at = now()
 			WHERE id = $1
 				AND archived_at IS NULL;
-		`, id, title, subject, preheader, fieldsJSON, contentPartsJSON, reviewHTML, renderedBodyText, nextOriginalHTML, nextTemplateHTML)
+		`, id, title, subject, preheader, fieldsJSON, contentPartsJSON, reviewHTML, renderedBodyText, nextOriginalHTML, nextTemplateHTML, nextReviewStatus)
 		if err != nil {
 			http.Error(w, "failed to update editable fields", http.StatusInternalServerError)
 			return
@@ -682,6 +689,29 @@ func updateEmailEditableFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			fmt.Fprintf(os.Stderr, "failed to insert email update event for %s: %v\n", id, err)
 			http.Error(w, "failed to record email event", http.StatusInternalServerError)
 			return
+		}
+		if approvalBecameStale {
+			if err := insertEmailEvent(r.Context(), tx, emailEvent{
+				ActorUserID: user.ID,
+				ActorEmail:  user.Email,
+				Action:      emailEventReviewStatusUpdated,
+				EmailID:     &id,
+				EmailSlug:   &slug,
+				EmailTitle:  &title,
+				Metadata: map[string]any{
+					"reason": "approval_stale_after_edit",
+				},
+				Changes: map[string]any{
+					"review_status": map[string]any{
+						"before": currentReviewStatus,
+						"after":  nextReviewStatus,
+					},
+				},
+			}); err != nil {
+				fmt.Fprintf(os.Stderr, "failed to insert stale approval event for %s: %v\n", id, err)
+				http.Error(w, "failed to record email event", http.StatusInternalServerError)
+				return
+			}
 		}
 		if err := tx.Commit(r.Context()); err != nil {
 			http.Error(w, "failed to update editable fields", http.StatusInternalServerError)

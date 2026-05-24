@@ -163,6 +163,18 @@ func TestEmailActivityReturnsNotFoundForMissingEmail(t *testing.T) {
 	}
 }
 
+func TestEmailEventActivitySummaryMarksStaleApprovalAfterEdit(t *testing.T) {
+	summary := emailEventActivitySummary(
+		emailEventReviewStatusUpdated,
+		[]byte(`{"review_status":{"before":"approved","after":"changes_requested"}}`),
+		[]byte(`{"reason":"approval_stale_after_edit"}`),
+	)
+
+	if summary != "Marked approval stale after edit" {
+		t.Fatalf("expected stale approval summary, got %q", summary)
+	}
+}
+
 func assertContainsActivityType(t *testing.T, activityTypes []string, expected string) {
 	t.Helper()
 	if countActivityType(activityTypes, expected) == 0 {

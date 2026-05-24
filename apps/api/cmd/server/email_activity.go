@@ -362,6 +362,9 @@ func emailEventActivitySummary(action string, changes []byte, metadata []byte) s
 	case emailEventUpdated:
 		return "Updated email content"
 	case emailEventReviewStatusUpdated:
+		if metadataString(metadata, "reason") == "approval_stale_after_edit" {
+			return "Marked approval stale after edit"
+		}
 		nextStatus := changedFieldAfter(changes, "review_status")
 		if nextStatus != "" {
 			return "Changed review status to " + nextStatus
