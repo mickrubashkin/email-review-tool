@@ -18,6 +18,10 @@ import { HouseIcon } from "@phosphor-icons/react";
 import { Link } from "react-router-dom";
 
 import { fetchEmailEvents } from "../emails/api";
+import {
+  formatEmailUpdateChangedFields,
+  formatEmailUpdateSummary,
+} from "../emails/changeSummary";
 import { formatEmailReviewStatus } from "../emails/reviewStatus";
 import type {
   EmailEventAction,
@@ -354,7 +358,7 @@ function formatSummary(event: EmailEventItem) {
     case "email_created":
       return "Created email";
     case "email_updated":
-      return "Updated editable content";
+      return formatEmailUpdateSummary(event.changes);
     case "email_review_status_updated":
       if (isStaleApprovalEvent(event)) {
         return "Approval became stale after edit";
@@ -388,6 +392,10 @@ function formatChangedFields(event: EmailEventItem) {
     !event.action.startsWith("board_")
   ) {
     return "-";
+  }
+
+  if (event.action === "email_updated") {
+    return formatEmailUpdateChangedFields(event.changes) || "-";
   }
 
   const fields = Object.keys(event.changes);

@@ -76,6 +76,10 @@ import {
   updateEmailEditableFields,
   updateEmailReviewStatus,
 } from "../emails/api";
+import {
+  formatEmailUpdateChangedFields,
+  formatEmailUpdateSummary,
+} from "../emails/changeSummary";
 import { copyOriginalHTML, downloadOriginalHTML } from "../emails/exportHtml";
 import {
   MailPreview,
@@ -2149,6 +2153,9 @@ function activitySummary(activity: EmailActivityItem) {
   if (isStaleApprovalActivity(activity)) {
     return "Approval became stale after edit";
   }
+  if (activity.type === "email_updated") {
+    return formatEmailUpdateSummary(activity.changes);
+  }
   return activity.summary;
 }
 
@@ -2176,16 +2183,7 @@ function isStaleApprovalActivity(activity: EmailActivityItem) {
 }
 
 function formatActivityChangedFields(changes: Record<string, unknown>) {
-  const fields = Object.keys(changes);
-  const editableFields = changes.editable_fields;
-  if (isRecord(editableFields)) {
-    const index = fields.indexOf("editable_fields");
-    if (index >= 0) {
-      fields.splice(index, 1);
-    }
-    fields.push(...Object.keys(editableFields).map((field) => `field.${field}`));
-  }
-  return fields.length > 0 ? fields.join(", ") : "";
+  return formatEmailUpdateChangedFields(changes);
 }
 
 function metadataText(activity: EmailActivityItem, key: string) {
