@@ -659,6 +659,91 @@ func TestUpdateEmailEditableFields(t *testing.T) {
 	}
 }
 
+func TestUpdateEmailEditableFieldsRecordsChangedReviewBlocks(t *testing.T) {
+	dbpool := testDBPool(t)
+	emailID := createTestEmail(t, dbpool)
+	user := createTestUserWithRole(t, dbpool, "admin")
+
+	_, err := dbpool.Exec(context.Background(), `
+		UPDATE emails
+		SET
+			subject = 'Old subject',
+			preheader = 'Old preheader',
+			template_html = '
+				<html>
+					<body>
+						<p data-review-block="intro" data-edit-text="intro_text">Keep intro</p>
+						<a data-review-block="primary_cta" data-edit-text="primary_cta_text" data-edit-attr-href="primary_cta_url" href="https://example.com/old">Old CTA</a>
+					</body>
+				</html>
+			',
+			editable_fields = '{
+				"intro_text": { "type": "text", "value": "Keep intro" },
+				"primary_cta_text": { "type": "text", "value": "Old CTA" },
+				"primary_cta_url": { "type": "url", "value": "https://example.com/old" }
+			}'::jsonb
+		WHERE id = $1;
+	`, emailID)
+	if err != nil {
+		t.Fatalf("failed to prepare changed review blocks test: %v", err)
+	}
+
+	router := chi.NewRouter()
+	registerEmailRoutes(router, dbpool)
+
+	request := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/emails/"+emailID+"/editable-fields",
+		bytes.NewReader([]byte(`{
+			"subject": "New subject",
+			"preheader": "New preheader",
+			"editable_fields": {
+				"intro_text": { "type": "text", "value": "Keep intro" },
+				"primary_cta_text": { "type": "text", "value": "New CTA" },
+				"primary_cta_url": { "type": "url", "value": "https://example.com/new" }
+			}
+		}`)),
+	)
+	request = withAuthUser(request, user)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusNoContent {
+		t.Fatalf("expected PATCH status 204, got %d: %s", response.Code, response.Body.String())
+	}
+
+	var metadataJSON []byte
+	err = dbpool.QueryRow(context.Background(), `
+		SELECT metadata
+		FROM email_events
+		WHERE email_id = $1
+			AND action = 'email_updated'
+		ORDER BY created_at DESC
+		LIMIT 1;
+	`, emailID).Scan(&metadataJSON)
+	if err != nil {
+		t.Fatalf("failed to load update event metadata: %v", err)
+	}
+
+	var metadata map[string]any
+	if err := json.Unmarshal(metadataJSON, &metadata); err != nil {
+		t.Fatalf("failed to decode update event metadata: %v", err)
+	}
+	changedBlocks, ok := metadata["changed_review_blocks"].([]any)
+	if !ok {
+		t.Fatalf("expected changed_review_blocks metadata, got %#v", metadata)
+	}
+	expectedBlocks := []string{"preheader", "primary_cta", "subject"}
+	if len(changedBlocks) != len(expectedBlocks) {
+		t.Fatalf("expected changed blocks %#v, got %#v", expectedBlocks, changedBlocks)
+	}
+	for index, expectedBlock := range expectedBlocks {
+		if changedBlocks[index] != expectedBlock {
+			t.Fatalf("expected changed blocks %#v, got %#v", expectedBlocks, changedBlocks)
+		}
+	}
+}
+
 func TestUpdateEmailEditableFieldsMarksApprovedEmailChangesRequested(t *testing.T) {
 	dbpool := testDBPool(t)
 	emailID := createTestEmail(t, dbpool)

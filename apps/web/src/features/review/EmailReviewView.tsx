@@ -78,6 +78,7 @@ import {
 } from "../emails/api";
 import {
   formatEmailUpdateChangedFields,
+  formatEmailUpdateChangedReviewBlocks,
   formatEmailUpdateSummary,
 } from "../emails/changeSummary";
 import { copyOriginalHTML, downloadOriginalHTML } from "../emails/exportHtml";
@@ -2135,7 +2136,10 @@ function activityDetail(activity: EmailActivityItem) {
     case "email_review_status_updated":
       return formatReviewStatusChange(activity);
     case "email_updated":
-      return formatActivityChangedFields(activity.changes);
+      return joinActivityParts([
+        formatActivityChangedFields(activity.changes),
+        formatEmailUpdateChangedReviewBlocks(activity.metadata),
+      ]);
     case "email_adaptation_created":
       return metadataText(activity, "adaptation_label");
     case "ai_analysis_run":

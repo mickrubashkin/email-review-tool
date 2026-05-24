@@ -620,6 +620,11 @@ func updateEmailEditableFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 				"after":  nextOriginalHTML,
 			}
 		}
+		changedReviewBlocks, err := changedReviewBlocksForEmailUpdate(templateHTML, nextTemplateHTML, changes)
+		if err != nil {
+			http.Error(w, "failed to update editable fields", http.StatusInternalServerError)
+			return
+		}
 		nextReviewStatus := currentReviewStatus
 		approvalBecameStale := len(changes) > 0 && currentReviewStatus == "approved"
 		if approvalBecameStale {
@@ -677,6 +682,10 @@ func updateEmailEditableFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			http.Error(w, "failed to update editable fields", http.StatusInternalServerError)
 			return
 		}
+		updateEventMetadata := map[string]any{}
+		if len(changedReviewBlocks) > 0 {
+			updateEventMetadata["changed_review_blocks"] = changedReviewBlocks
+		}
 		if err := insertEmailEvent(r.Context(), tx, emailEvent{
 			ActorUserID: user.ID,
 			ActorEmail:  user.Email,
@@ -684,6 +693,7 @@ func updateEmailEditableFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			EmailID:     &id,
 			EmailSlug:   &slug,
 			EmailTitle:  &title,
+			Metadata:    updateEventMetadata,
 			Changes:     changes,
 		}); err != nil {
 			fmt.Fprintf(os.Stderr, "failed to insert email update event for %s: %v\n", id, err)
@@ -1639,6 +1649,48 @@ func changedCommentAnchorTexts(
 	return anchorTexts, nil
 }
 
+func changedReviewBlocksForEmailUpdate(
+	currentTemplateHTML string,
+	nextTemplateHTML string,
+	changes map[string]any,
+) ([]string, error) {
+	changedBlocks := map[string]bool{}
+	if _, ok := changes["subject"]; ok {
+		changedBlocks["subject"] = true
+	}
+	if _, ok := changes["preheader"]; ok {
+		changedBlocks["preheader"] = true
+	}
+
+	editableFieldChanges, ok := changes["editable_fields"].(map[string]any)
+	if ok && len(editableFieldChanges) > 0 {
+		currentFieldBlocks, err := editableFieldReviewBlocks(currentTemplateHTML)
+		if err != nil {
+			return nil, err
+		}
+		nextFieldBlocks, err := editableFieldReviewBlocks(nextTemplateHTML)
+		if err != nil {
+			return nil, err
+		}
+		for field := range editableFieldChanges {
+			if reviewBlock := nextFieldBlocks[field]; reviewBlock != "" {
+				changedBlocks[reviewBlock] = true
+				continue
+			}
+			if reviewBlock := currentFieldBlocks[field]; reviewBlock != "" {
+				changedBlocks[reviewBlock] = true
+			}
+		}
+	}
+
+	blocks := make([]string, 0, len(changedBlocks))
+	for reviewBlock := range changedBlocks {
+		blocks = append(blocks, reviewBlock)
+	}
+	sort.Strings(blocks)
+	return blocks, nil
+}
+
 func resetCommentAnchorsForReviewBlocks(
 	ctx context.Context,
 	db emailEventExecutor,
@@ -1673,6 +1725,17 @@ func editableTextFieldReviewBlocks(templateHTML string) (map[string]string, erro
 	return blocks, nil
 }
 
+func editableFieldReviewBlocks(templateHTML string) (map[string]string, error) {
+	root, err := xhtml.Parse(strings.NewReader(templateHTML))
+	if err != nil {
+		return nil, err
+	}
+
+	blocks := map[string]string{}
+	collectEditableFieldReviewBlocks(root, "", blocks)
+	return blocks, nil
+}
+
 func collectEditableTextFieldReviewBlocks(node *xhtml.Node, currentReviewBlock string, blocks map[string]string) {
 	if node.Type == xhtml.ElementNode {
 		if reviewBlock := htmlAttrValue(node, "data-review-block"); reviewBlock != "" {
@@ -1685,6 +1748,23 @@ func collectEditableTextFieldReviewBlocks(node *xhtml.Node, currentReviewBlock s
 
 	for child := node.FirstChild; child != nil; child = child.NextSibling {
 		collectEditableTextFieldReviewBlocks(child, currentReviewBlock, blocks)
+	}
+}
+
+func collectEditableFieldReviewBlocks(node *xhtml.Node, currentReviewBlock string, blocks map[string]string) {
+	if node.Type == xhtml.ElementNode {
+		if reviewBlock := htmlAttrValue(node, "data-review-block"); reviewBlock != "" {
+			currentReviewBlock = reviewBlock
+		}
+		for _, attr := range node.Attr {
+			if strings.HasPrefix(strings.ToLower(attr.Key), "data-edit-") && strings.TrimSpace(attr.Val) != "" && currentReviewBlock != "" {
+				blocks[strings.TrimSpace(attr.Val)] = currentReviewBlock
+			}
+		}
+	}
+
+	for child := node.FirstChild; child != nil; child = child.NextSibling {
+		collectEditableFieldReviewBlocks(child, currentReviewBlock, blocks)
 	}
 }
 

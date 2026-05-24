@@ -54,12 +54,12 @@ The most promising first external ICP remains CRM, lifecycle, and email marketin
   - approved emails become stale when reviewed fields or source HTML changes;
   - [x] the UI clearly explains when an edit invalidated the approval;
   - users can re-approve explicitly.
-- [ ] Add a simple version-change summary:
+- [x] Add a simple version-change summary:
   - [x] subject changes;
   - [x] preheader changes;
   - [x] editable field changes;
   - [x] source/template hash changes when present in event data;
-  - changed review blocks when available.
+  - [x] changed review blocks when available.
 - [ ] Add reviewer/approver roles at the email level:
   - owner/editor manages the email and moves it through review;
   - reviewer comments and requests changes for a specific area;

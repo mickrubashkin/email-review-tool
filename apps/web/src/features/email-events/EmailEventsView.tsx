@@ -20,6 +20,7 @@ import { Link } from "react-router-dom";
 import { fetchEmailEvents } from "../emails/api";
 import {
   formatEmailUpdateChangedFields,
+  formatEmailUpdateChangedReviewBlocks,
   formatEmailUpdateSummary,
 } from "../emails/changeSummary";
 import { formatEmailReviewStatus } from "../emails/reviewStatus";
@@ -395,7 +396,12 @@ function formatChangedFields(event: EmailEventItem) {
   }
 
   if (event.action === "email_updated") {
-    return formatEmailUpdateChangedFields(event.changes) || "-";
+    return (
+      joinEventParts([
+        formatEmailUpdateChangedFields(event.changes),
+        formatEmailUpdateChangedReviewBlocks(event.metadata),
+      ]) || "-"
+    );
   }
 
   const fields = Object.keys(event.changes);
@@ -453,6 +459,10 @@ function formatChangedReviewStatus(event: EmailEventItem) {
 function stringMetadata(event: EmailEventItem, key: string) {
   const value = event.metadata[key];
   return typeof value === "string" ? value : "";
+}
+
+function joinEventParts(parts: string[]) {
+  return parts.filter(Boolean).join(" · ");
 }
 
 function isStaleApprovalEvent(event: EmailEventItem) {

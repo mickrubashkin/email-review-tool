@@ -12,6 +12,17 @@ export function formatEmailUpdateChangedFields(changes: Record<string, unknown>)
   return parts.length > 0 ? parts.join(", ") : "";
 }
 
+export function formatEmailUpdateChangedReviewBlocks(
+  metadata: Record<string, unknown>
+) {
+  const blocks = stringArrayMetadata(metadata, "changed_review_blocks");
+  if (blocks.length === 0) {
+    return "";
+  }
+
+  return `Blocks: ${blocks.map(humanizeKey).join(", ")}`;
+}
+
 function emailUpdateChangeParts(
   changes: Record<string, unknown>,
   options: { includeEditableFieldNames?: boolean } = {}
@@ -76,6 +87,15 @@ function humanizeKey(key: string) {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function stringArrayMetadata(metadata: Record<string, unknown>, key: string) {
+  const value = metadata[key];
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.filter((item): item is string => typeof item === "string");
 }
 
 const knownChangeKeys = new Set([
