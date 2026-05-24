@@ -149,6 +149,16 @@ func createEmailCommentHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 		}
 		defer tx.Rollback(r.Context())
 
+		emailSlug, emailTitle, err := loadEmailEventTarget(r.Context(), tx, emailID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			http.Error(w, "email not found", http.StatusNotFound)
+			return
+		}
+		if err != nil {
+			http.Error(w, "failed to create comment", http.StatusInternalServerError)
+			return
+		}
+
 		var comment EmailComment
 		err = tx.QueryRow(r.Context(), `
 			INSERT INTO comments (
@@ -223,6 +233,24 @@ func createEmailCommentHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			return
 		}
 
+		if err := insertEmailEvent(r.Context(), tx, emailEvent{
+			ActorUserID: user.ID,
+			ActorEmail:  user.Email,
+			Action:      emailEventCommentCreated,
+			EmailID:     &emailID,
+			EmailSlug:   &emailSlug,
+			EmailTitle:  &emailTitle,
+			Metadata: map[string]any{
+				"comment_id":    comment.ID,
+				"review_block":  comment.ReviewBlock,
+				"selected_text": comment.SelectedText,
+				"severity":      comment.Severity,
+			},
+		}); err != nil {
+			http.Error(w, "failed to record comment event", http.StatusInternalServerError)
+			return
+		}
+
 		if err := tx.Commit(r.Context()); err != nil {
 			http.Error(w, "failed to create comment", http.StatusInternalServerError)
 			return
@@ -258,12 +286,24 @@ func createCommentMessageHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			return
 		}
 
+		tx, err := dbpool.Begin(r.Context())
+		if err != nil {
+			http.Error(w, "failed to create comment message", http.StatusInternalServerError)
+			return
+		}
+		defer tx.Rollback(r.Context())
+
 		var status string
-		err := dbpool.QueryRow(r.Context(), `
-			SELECT status
+		var emailID string
+		var emailSlug string
+		var emailTitle string
+		var reviewBlock string
+		err = tx.QueryRow(r.Context(), `
+			SELECT comments.status, comments.email_id, emails.slug, emails.title, comments.review_block
 			FROM comments
-			WHERE id = $1;
-		`, commentID).Scan(&status)
+			INNER JOIN emails ON emails.id = comments.email_id
+			WHERE comments.id = $1;
+		`, commentID).Scan(&status, &emailID, &emailSlug, &emailTitle, &reviewBlock)
 		if errors.Is(err, pgx.ErrNoRows) {
 			http.Error(w, "comment not found", http.StatusNotFound)
 			return
@@ -278,7 +318,7 @@ func createCommentMessageHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 		}
 
 		var message EmailCommentMessage
-		err = dbpool.QueryRow(r.Context(), `
+		err = tx.QueryRow(r.Context(), `
 			INSERT INTO comment_messages (
 				comment_id,
 				user_id,
@@ -295,6 +335,28 @@ func createCommentMessageHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			&message.UpdatedAt,
 		)
 		if err != nil {
+			http.Error(w, "failed to create comment message", http.StatusInternalServerError)
+			return
+		}
+
+		if err := insertEmailEvent(r.Context(), tx, emailEvent{
+			ActorUserID: user.ID,
+			ActorEmail:  user.Email,
+			Action:      emailEventCommentReplied,
+			EmailID:     &emailID,
+			EmailSlug:   &emailSlug,
+			EmailTitle:  &emailTitle,
+			Metadata: map[string]any{
+				"comment_id":   commentID,
+				"message_id":   message.ID,
+				"review_block": reviewBlock,
+				"body":         message.Body,
+			},
+		}); err != nil {
+			http.Error(w, "failed to record comment event", http.StatusInternalServerError)
+			return
+		}
+		if err := tx.Commit(r.Context()); err != nil {
 			http.Error(w, "failed to create comment message", http.StatusInternalServerError)
 			return
 		}
@@ -316,8 +378,17 @@ func resolveCommentHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			return
 		}
 
+		tx, err := dbpool.Begin(r.Context())
+		if err != nil {
+			http.Error(w, "failed to resolve comment", http.StatusInternalServerError)
+			return
+		}
+		defer tx.Rollback(r.Context())
+
 		var comment EmailComment
-		err := dbpool.QueryRow(r.Context(), `
+		var emailSlug string
+		var emailTitle string
+		err = tx.QueryRow(r.Context(), `
 			WITH updated_comment AS (
 				UPDATE comments
 				SET
@@ -342,8 +413,11 @@ func resolveCommentHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 				updated_comment.created_at,
 				updated_comment.resolved_at,
 				updated_comment.resolved_by,
-				resolvers.email AS resolved_by_email
+				resolvers.email AS resolved_by_email,
+				emails.slug,
+				emails.title
 			FROM updated_comment
+			INNER JOIN emails ON emails.id = updated_comment.email_id
 			LEFT JOIN users AS authors ON authors.id = updated_comment.user_id
 			LEFT JOIN users AS resolvers ON resolvers.id = updated_comment.resolved_by;
 		`, commentID, user.ID).Scan(
@@ -362,8 +436,35 @@ func resolveCommentHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			&comment.ResolvedAt,
 			&comment.ResolvedBy,
 			&comment.ResolvedByEmail,
+			&emailSlug,
+			&emailTitle,
 		)
 		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				http.Error(w, "comment not found", http.StatusNotFound)
+				return
+			}
+			http.Error(w, "failed to resolve comment", http.StatusInternalServerError)
+			return
+		}
+
+		if err := insertEmailEvent(r.Context(), tx, emailEvent{
+			ActorUserID: user.ID,
+			ActorEmail:  user.Email,
+			Action:      emailEventCommentResolved,
+			EmailID:     &comment.EmailID,
+			EmailSlug:   &emailSlug,
+			EmailTitle:  &emailTitle,
+			Metadata: map[string]any{
+				"comment_id":   comment.ID,
+				"review_block": comment.ReviewBlock,
+				"severity":     comment.Severity,
+			},
+		}); err != nil {
+			http.Error(w, "failed to record comment event", http.StatusInternalServerError)
+			return
+		}
+		if err := tx.Commit(r.Context()); err != nil {
 			http.Error(w, "failed to resolve comment", http.StatusInternalServerError)
 			return
 		}

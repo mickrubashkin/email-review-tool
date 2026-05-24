@@ -34,6 +34,9 @@ const actionOptions: { value: EmailEventAction; label: string }[] = [
   { value: "email_archived", label: "Archived" },
   { value: "email_created", label: "Created" },
   { value: "email_review_status_updated", label: "Review status updated" },
+  { value: "comment_created", label: "Comment created" },
+  { value: "comment_replied", label: "Comment replied" },
+  { value: "comment_resolved", label: "Comment resolved" },
   { value: "board_created", label: "Board created" },
   { value: "board_stage_created", label: "Stage created" },
   { value: "board_stage_renamed", label: "Stage renamed" },
@@ -319,6 +322,12 @@ function getActionColor(action: EmailEventAction) {
       return "yellow";
     case "email_review_status_updated":
       return "violet";
+    case "comment_created":
+      return "yellow";
+    case "comment_replied":
+      return "blue";
+    case "comment_resolved":
+      return "green";
     case "board_created":
       return "green";
     case "board_stage_created":
@@ -348,6 +357,12 @@ function formatSummary(event: EmailEventItem) {
       return "Updated editable content";
     case "email_review_status_updated":
       return `Changed review status to ${formatChangedReviewStatus(event)}`;
+    case "comment_created":
+      return `Added comment on ${stringMetadata(event, "review_block") || "review block"}`;
+    case "comment_replied":
+      return `Replied to comment on ${stringMetadata(event, "review_block") || "review block"}`;
+    case "comment_resolved":
+      return `Resolved comment on ${stringMetadata(event, "review_block") || "review block"}`;
     case "board_created":
       return `Created board ${stringMetadata(event, "board_name") || stringMetadata(event, "board_key") || "board"}`;
     case "board_stage_created":

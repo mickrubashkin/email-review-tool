@@ -83,13 +83,12 @@ The most promising first external ICP remains CRM, lifecycle, and email marketin
   - implementation notes;
   - approval state;
   - open blockers.
-- [ ] Add a concise activity timeline in the review view:
+- [x] Add a concise activity timeline in the review view:
   - comments;
   - replies;
+  - comment resolution;
   - status changes;
   - edits;
-  - approvals;
-  - stale approval events;
   - AI analysis runs.
 - [ ] Add activity history for status changes, comments, edits, approvals, stale approvals, and final production approval.
 

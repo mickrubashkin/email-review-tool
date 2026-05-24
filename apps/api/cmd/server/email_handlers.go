@@ -26,6 +26,7 @@ func registerEmailRoutes(r chi.Router, dbpool *pgxpool.Pool) {
 	r.Post("/api/emails", createEmailHandler(dbpool))
 	r.Post("/api/emails/inspect-html", inspectEmailHTMLHandler(dbpool))
 	r.Get("/api/emails/{id}", getEmailHandler(dbpool))
+	r.Get("/api/emails/{id}/activity", listEmailActivityHandler(dbpool))
 	r.Get("/api/emails/{id}/rendered", getRenderedEmailHandler(dbpool))
 	r.Patch("/api/emails/{id}/editable-fields", updateEmailEditableFieldsHandler(dbpool))
 	r.Patch("/api/emails/{id}/review-status", updateEmailReviewStatusHandler(dbpool))

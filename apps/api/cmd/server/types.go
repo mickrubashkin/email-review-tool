@@ -180,6 +180,16 @@ type EmailEventItem struct {
 	CreatedAt   time.Time       `json:"created_at"`
 }
 
+type EmailActivityItem struct {
+	ID         string          `json:"id"`
+	Type       string          `json:"type"`
+	ActorEmail *string         `json:"actor_email"`
+	CreatedAt  time.Time       `json:"created_at"`
+	Summary    string          `json:"summary"`
+	Metadata   json.RawMessage `json:"metadata"`
+	Changes    json.RawMessage `json:"changes"`
+}
+
 type EmailComment struct {
 	ID              string                `json:"id"`
 	EmailID         string                `json:"email_id"`

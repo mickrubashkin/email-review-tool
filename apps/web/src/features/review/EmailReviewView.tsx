@@ -67,6 +67,7 @@ import {
   createCommentMessage,
   createEmailComment,
   duplicateEmail,
+  fetchEmailActivity,
   fetchEmailComments,
   fetchEmailDetail,
   fetchEmails,
@@ -101,6 +102,7 @@ import type {
   AuthUser,
   CreateEmailAdaptationPayload,
   DuplicateEmailPayload,
+  EmailActivityItem,
   EmailComment,
   EmailCommentSeverity,
   EmailDetail,
@@ -119,8 +121,8 @@ type EmailReviewViewProps = {
 };
 
 type ReviewViewport = "desktop" | "mobile";
-type ReviewContentTab = "email" | "ai" | "comments";
-type ReviewPanelTab = "ai" | "comments";
+type ReviewContentTab = "email" | "ai" | "comments" | "activity";
+type ReviewPanelTab = "ai" | "comments" | "activity";
 type CommentStatusFilter = "open" | "all";
 
 const minRightPanelPercent = 24;
@@ -164,6 +166,11 @@ export function EmailReviewView({
     enabled: emailId.trim() !== "",
     refetchInterval: 5000,
     refetchIntervalInBackground: false,
+  });
+  const activityQuery = useQuery({
+    queryKey: ["email-activity", emailId],
+    queryFn: () => fetchEmailActivity(emailId),
+    enabled: emailId.trim() !== "",
   });
   const email = emailQuery.data;
   const emailsQuery = useQuery({
@@ -263,8 +270,14 @@ export function EmailReviewView({
     streamText,
   } = useEmailAnalysisStream(email, true, (analysis) => {
     queryClient.setQueryData(["emails", emailId, "ai-analysis"], analysis);
+    void queryClient.invalidateQueries({ queryKey: ["email-activity", emailId] });
   });
   const isCurrentStream = streamEmailId === email?.id;
+  useEffect(() => {
+    if (isCurrentStream && (streamStatus === "done" || streamStatus === "error")) {
+      void queryClient.invalidateQueries({ queryKey: ["email-activity", emailId] });
+    }
+  }, [emailId, isCurrentStream, queryClient, streamStatus]);
   const displayedAnalysis =
     streamAnalysis && isCurrentStream
       ? streamAnalysis
@@ -368,6 +381,7 @@ export function EmailReviewView({
     }) => duplicateEmail(sourceEmailId, payload),
     onSuccess: (createdEmail) => {
       void queryClient.invalidateQueries({ queryKey: ["emails"] });
+      void queryClient.invalidateQueries({ queryKey: ["email-activity", emailId] });
       queryClient.setQueryData(["emails", createdEmail.id, "review"], createdEmail);
       navigate(`/emails/${encodeURIComponent(createdEmail.id)}/review`);
     },
@@ -382,6 +396,7 @@ export function EmailReviewView({
     }) => createEmailAdaptation(sourceEmailId, payload),
     onSuccess: (createdEmail) => {
       void queryClient.invalidateQueries({ queryKey: ["emails"] });
+      void queryClient.invalidateQueries({ queryKey: ["email-activity", emailId] });
       queryClient.setQueryData(["emails", createdEmail.id, "review"], createdEmail);
       navigate(`/emails/${encodeURIComponent(createdEmail.id)}/review`);
     },
@@ -390,6 +405,7 @@ export function EmailReviewView({
     mutationFn: archiveEmail,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["emails"] });
+      void queryClient.invalidateQueries({ queryKey: ["email-activity", emailId] });
       notifications.show({
         color: "green",
         message: "Email was removed from the active board.",
@@ -423,6 +439,9 @@ export function EmailReviewView({
         response.review_status,
         email?.sequence
       );
+      void queryClient.invalidateQueries({
+        queryKey: ["email-activity", variables.targetEmailId],
+      });
       notifications.show({
         color: "green",
         message: `Review status changed to ${formatEmailReviewStatus(response.review_status)}.`,
@@ -461,6 +480,9 @@ export function EmailReviewView({
       void queryClient.invalidateQueries({
         queryKey: ["email-comments", emailId],
       });
+      void queryClient.invalidateQueries({
+        queryKey: ["email-activity", emailId],
+      });
     },
   });
   const inlineEditMutation = useMutation({
@@ -474,6 +496,7 @@ export function EmailReviewView({
       if (email?.sequence) {
         await queryClient.invalidateQueries({ queryKey: ["emails", email.sequence] });
       }
+      await queryClient.invalidateQueries({ queryKey: ["email-activity", emailId] });
       setSourceHTMLModalOpened(false);
       notifications.show({
         color: "green",
@@ -495,6 +518,9 @@ export function EmailReviewView({
       void queryClient.invalidateQueries({
         queryKey: ["email-comments", emailId],
       });
+      void queryClient.invalidateQueries({
+        queryKey: ["email-activity", emailId],
+      });
     },
   });
   const createCommentMessageMutation = useMutation({
@@ -513,6 +539,9 @@ export function EmailReviewView({
               : comment
           ) ?? currentComments
       );
+      void queryClient.invalidateQueries({
+        queryKey: ["email-activity", emailId],
+      });
     },
     onError: (error) => {
       notifications.show({
@@ -605,11 +634,13 @@ export function EmailReviewView({
     setActivePanelTab("ai");
     setActiveContentTab("ai");
     analyze();
+    void queryClient.invalidateQueries({ queryKey: ["email-activity", emailId] });
   };
   const handleReanalyze = () => {
     setActivePanelTab("ai");
     setActiveContentTab("ai");
     reanalyze();
+    void queryClient.invalidateQueries({ queryKey: ["email-activity", emailId] });
   };
   const handleReviewStatusChange = (value: string | null) => {
     if (!email || !value || value === email.review_status) {
@@ -800,6 +831,13 @@ export function EmailReviewView({
           ? createCommentMessageMutation.variables?.commentId
           : null
       }
+    />
+  );
+  const activityContent = (
+    <ActivityPanel
+      activities={activityQuery.data ?? []}
+      isError={activityQuery.isError}
+      isLoading={activityQuery.isLoading}
     />
   );
 
@@ -1325,6 +1363,7 @@ export function EmailReviewView({
                   ? `Comments ${openCommentCount}`
                   : "Comments"}
               </Tabs.Tab>
+              <Tabs.Tab value="activity">Activity</Tabs.Tab>
             </Tabs.List>
 
             <Tabs.Panel value="email" className={styles.mobileTabPanel}>
@@ -1337,6 +1376,9 @@ export function EmailReviewView({
 
             <Tabs.Panel value="comments" className={styles.mobileTabPanel}>
               {commentsContent}
+            </Tabs.Panel>
+            <Tabs.Panel value="activity" className={styles.mobileTabPanel}>
+              {activityContent}
             </Tabs.Panel>
           </Tabs>
         </main>
@@ -1382,6 +1424,7 @@ export function EmailReviewView({
                     ? `Comments ${openCommentCount}`
                     : "Comments"}
                 </Tabs.Tab>
+                <Tabs.Tab value="activity">Activity</Tabs.Tab>
               </Tabs.List>
 
               <Tabs.Panel value="ai" className={styles.tabPanel}>
@@ -1390,6 +1433,9 @@ export function EmailReviewView({
 
               <Tabs.Panel value="comments" className={styles.tabPanel}>
                 {commentsContent}
+              </Tabs.Panel>
+              <Tabs.Panel value="activity" className={styles.tabPanel}>
+                {activityContent}
               </Tabs.Panel>
             </Tabs>
           </aside>
@@ -1734,6 +1780,81 @@ function CommentsPanel({
   );
 }
 
+function ActivityPanel({
+  activities,
+  isError,
+  isLoading,
+}: {
+  activities: EmailActivityItem[];
+  isError: boolean;
+  isLoading: boolean;
+}) {
+  if (isLoading) {
+    return (
+      <Stack className={styles.emptyState} align="center" justify="center">
+        <Loader size="sm" />
+        <Text c="dimmed" size="sm">
+          Loading activity
+        </Text>
+      </Stack>
+    );
+  }
+
+  if (isError) {
+    return (
+      <Alert color="red" title="Failed to load activity">
+        Activity is unavailable right now.
+      </Alert>
+    );
+  }
+
+  if (activities.length === 0) {
+    return (
+      <Stack className={styles.emptyState} align="center" justify="center" gap="xs">
+        <Text fw={600}>No activity yet</Text>
+        <Text c="dimmed" ta="center" size="sm">
+          Review actions will appear here as this email changes.
+        </Text>
+      </Stack>
+    );
+  }
+
+  return (
+    <Timeline active={activities.length} bulletSize={24} lineWidth={2}>
+      {activities.map((activity) => (
+        <Timeline.Item
+          color={activityColor(activity.type)}
+          key={activity.id}
+          title={
+            <Group justify="space-between" gap="xs" wrap="nowrap">
+              <Stack gap={2}>
+                <Text fw={700} size="xs">
+                  {activity.actor_email ?? "System"}
+                </Text>
+                <Text c="dimmed" size="xs">
+                  {formatCommentDate(activity.created_at)}
+                </Text>
+              </Stack>
+              <Badge color={activityColor(activity.type)} size="sm" variant="light">
+                {formatActivityType(activity.type)}
+              </Badge>
+            </Group>
+          }
+        >
+          <Stack className={styles.activityItem} gap={6}>
+            <Text size="sm">{activity.summary}</Text>
+            {activityDetail(activity) ? (
+              <Text c="dimmed" size="xs">
+                {activityDetail(activity)}
+              </Text>
+            ) : null}
+          </Stack>
+        </Timeline.Item>
+      ))}
+    </Timeline>
+  );
+}
+
 function CommentItem({
   comment,
   isActive,
@@ -1945,6 +2066,127 @@ function formatCommentDate(value: string) {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(date);
+}
+
+function formatActivityType(type: EmailActivityItem["type"]) {
+  switch (type) {
+    case "comment_created":
+      return "Comment";
+    case "comment_replied":
+      return "Reply";
+    case "comment_resolved":
+      return "Resolved";
+    case "email_created":
+      return "Created";
+    case "email_updated":
+      return "Edited";
+    case "email_review_status_updated":
+      return "Status";
+    case "email_duplicated":
+      return "Duplicate";
+    case "email_adaptation_created":
+      return "Adaptation";
+    case "email_archived":
+      return "Archive";
+    case "ai_analysis_run":
+      return "AI";
+  }
+}
+
+function activityColor(type: EmailActivityItem["type"]) {
+  switch (type) {
+    case "comment_created":
+    case "email_updated":
+      return "yellow";
+    case "comment_replied":
+    case "email_duplicated":
+      return "blue";
+    case "comment_resolved":
+    case "email_created":
+      return "green";
+    case "email_review_status_updated":
+      return "violet";
+    case "email_adaptation_created":
+      return "teal";
+    case "email_archived":
+      return "red";
+    case "ai_analysis_run":
+      return "grape";
+  }
+}
+
+function activityDetail(activity: EmailActivityItem) {
+  switch (activity.type) {
+    case "comment_created":
+    case "comment_resolved":
+      return joinActivityParts([
+        metadataText(activity, "severity"),
+        metadataText(activity, "review_block"),
+      ]);
+    case "comment_replied":
+      return metadataText(activity, "review_block");
+    case "email_review_status_updated":
+      return formatReviewStatusChange(activity);
+    case "email_updated":
+      return formatActivityChangedFields(activity.changes);
+    case "email_adaptation_created":
+      return metadataText(activity, "adaptation_label");
+    case "ai_analysis_run":
+      return joinActivityParts([
+        metadataText(activity, "status"),
+        metadataText(activity, "model"),
+        metadataNumber(activity, "latency_ms"),
+      ]);
+    default:
+      return "";
+  }
+}
+
+function formatReviewStatusChange(activity: EmailActivityItem) {
+  const reviewStatus = activity.changes.review_status;
+  if (!isRecord(reviewStatus)) {
+    return "";
+  }
+  const before =
+    typeof reviewStatus.before === "string"
+      ? formatEmailReviewStatus(reviewStatus.before as EmailReviewStatus)
+      : "";
+  const after =
+    typeof reviewStatus.after === "string"
+      ? formatEmailReviewStatus(reviewStatus.after as EmailReviewStatus)
+      : "";
+  return joinActivityParts([before, after ? `to ${after}` : ""]);
+}
+
+function formatActivityChangedFields(changes: Record<string, unknown>) {
+  const fields = Object.keys(changes);
+  const editableFields = changes.editable_fields;
+  if (isRecord(editableFields)) {
+    const index = fields.indexOf("editable_fields");
+    if (index >= 0) {
+      fields.splice(index, 1);
+    }
+    fields.push(...Object.keys(editableFields).map((field) => `field.${field}`));
+  }
+  return fields.length > 0 ? fields.join(", ") : "";
+}
+
+function metadataText(activity: EmailActivityItem, key: string) {
+  const value = activity.metadata[key];
+  return typeof value === "string" ? value : "";
+}
+
+function metadataNumber(activity: EmailActivityItem, key: string) {
+  const value = activity.metadata[key];
+  return typeof value === "number" ? `${value}ms` : "";
+}
+
+function joinActivityParts(parts: string[]) {
+  return parts.filter(Boolean).join(" · ");
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 function formatCommentSeverity(severity: EmailCommentSeverity) {

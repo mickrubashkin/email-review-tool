@@ -196,6 +196,23 @@ func TestCommentHandlersCreateListResolve(t *testing.T) {
 		t.Fatalf("expected resolved comment to include two messages, got %d", len(resolvedComment.Messages))
 	}
 
+	var commentEventCount int
+	if err := dbpool.QueryRow(context.Background(), `
+		SELECT count(*)::int
+		FROM email_events
+		WHERE email_id = $1
+			AND action = ANY($2);
+	`, emailID, []string{
+		emailEventCommentCreated,
+		emailEventCommentReplied,
+		emailEventCommentResolved,
+	}).Scan(&commentEventCount); err != nil {
+		t.Fatalf("failed to count comment events: %v", err)
+	}
+	if commentEventCount != 3 {
+		t.Fatalf("expected three comment email events, got %d", commentEventCount)
+	}
+
 	resolvedReplyRequest := httptest.NewRequest(
 		http.MethodPost,
 		"/api/comments/"+createdComment.ID+"/messages",

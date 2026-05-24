@@ -274,6 +274,9 @@ export type EmailEventAction =
   | "email_archived"
   | "email_updated"
   | "email_review_status_updated"
+  | "comment_created"
+  | "comment_replied"
+  | "comment_resolved"
   | "board_created"
   | "board_stage_created"
   | "board_stage_renamed"
@@ -291,6 +294,28 @@ export type EmailEventItem = {
   metadata: Record<string, unknown>;
   changes: Record<string, unknown>;
   created_at: string;
+};
+
+export type EmailActivityType =
+  | "comment_created"
+  | "comment_replied"
+  | "comment_resolved"
+  | "email_created"
+  | "email_updated"
+  | "email_review_status_updated"
+  | "email_duplicated"
+  | "email_adaptation_created"
+  | "email_archived"
+  | "ai_analysis_run";
+
+export type EmailActivityItem = {
+  id: string;
+  type: EmailActivityType;
+  actor_email: string | null;
+  created_at: string;
+  summary: string;
+  metadata: Record<string, unknown>;
+  changes: Record<string, unknown>;
 };
 
 export type EmailEventFilters = {

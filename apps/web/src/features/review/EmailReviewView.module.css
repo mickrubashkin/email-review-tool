@@ -321,6 +321,13 @@
   gap: var(--mantine-spacing-xs);
 }
 
+.activityItem {
+  padding: var(--mantine-spacing-sm);
+  border: 1px solid var(--mantine-color-gray-2);
+  border-radius: var(--mantine-radius-sm);
+  background: var(--mantine-color-white);
+}
+
 .centerState {
   min-height: 100dvh;
 }

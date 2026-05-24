@@ -20,6 +20,7 @@ import type {
   CreateEmailCommentPayload,
   CreateEmailAdaptationPayload,
   DuplicateEmailPayload,
+  EmailActivityItem,
   EmailComment,
   EmailCommentMessage,
   UserAdminItem,
@@ -130,6 +131,12 @@ export function fetchEmailEvents(
   const query = params.toString();
   return fetchJson<EmailEventItem[]>(
     `/api/admin/email-events${query ? `?${query}` : ""}`
+  );
+}
+
+export function fetchEmailActivity(emailId: string): Promise<EmailActivityItem[]> {
+  return fetchJson<EmailActivityItem[]>(
+    `/api/emails/${encodeURIComponent(emailId)}/activity`
   );
 }
 
