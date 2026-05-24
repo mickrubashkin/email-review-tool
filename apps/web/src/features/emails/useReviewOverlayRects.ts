@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   buildReviewOverlayBadges,
   buildExternalReviewOverlayRects,
-  buildReviewOverlayRects,
+  buildReviewOverlayFrameRects,
   scrollExternalReviewTargetIntoView,
   scrollReviewTargetIntoView,
 } from "./reviewOverlayGeometry";
@@ -14,13 +14,16 @@ import type {
 } from "./reviewOverlayTypes";
 
 type ReviewOverlayState = {
-  badges: ReviewOverlayBadge[];
-  rects: ReviewOverlayRect[];
+  externalBadges: ReviewOverlayBadge[];
+  externalRects: ReviewOverlayRect[];
+  frameBadges: ReviewOverlayBadge[];
+  frameRects: ReviewOverlayRect[];
 };
 
 export function useReviewOverlayRects({
   activeCommentId,
   commentTargets,
+  frameOverlayLayerRef,
   frameLoadVersion,
   frameRef,
   overlayRootRef,
@@ -28,39 +31,66 @@ export function useReviewOverlayRects({
 }: {
   activeCommentId: string | null;
   commentTargets: ReviewCommentTarget[];
+  frameOverlayLayerRef: React.RefObject<HTMLElement | null>;
   frameLoadVersion: number;
   frameRef: React.RefObject<HTMLIFrameElement | null>;
   overlayRootRef: React.RefObject<HTMLElement | null>;
   viewport: string;
 }) {
   const [overlayState, setOverlayState] = useState<ReviewOverlayState>({
-    badges: [],
-    rects: [],
+    externalBadges: [],
+    externalRects: [],
+    frameBadges: [],
+    frameRects: [],
   });
+  const syncFrameOverlayScroll = useCallback(() => {
+    const frameWindow = frameRef.current?.contentWindow;
+    const frameOverlayLayer = frameOverlayLayerRef.current;
+    if (!frameWindow || !frameOverlayLayer) {
+      return;
+    }
+
+    frameOverlayLayer.style.transform = `translate3d(${-frameWindow.scrollX}px, ${-frameWindow.scrollY}px, 0)`;
+  }, [frameOverlayLayerRef, frameRef]);
   const updateOverlayRects = useCallback(() => {
     const frame = frameRef.current;
     const overlayRoot = overlayRootRef.current;
     if (!frame || !overlayRoot) {
-      setOverlayState({ badges: [], rects: [] });
+      setOverlayState({
+        externalBadges: [],
+        externalRects: [],
+        frameBadges: [],
+        frameRects: [],
+      });
       return;
     }
 
-    const rects = [
-      ...buildReviewOverlayRects(frame, overlayRoot, commentTargets),
-      ...buildExternalReviewOverlayRects(overlayRoot, commentTargets),
-    ];
+    const frameRects = buildReviewOverlayFrameRects(frame, commentTargets);
+    const externalRects = buildExternalReviewOverlayRects(
+      overlayRoot,
+      commentTargets
+    );
+    syncFrameOverlayScroll();
     setOverlayState({
-      badges: buildReviewOverlayBadges(rects),
-      rects,
+      externalBadges: buildReviewOverlayBadges(externalRects),
+      externalRects,
+      frameBadges: buildReviewOverlayBadges(frameRects),
+      frameRects,
     });
-  }, [commentTargets, frameRef, overlayRootRef]);
+  }, [commentTargets, frameRef, overlayRootRef, syncFrameOverlayScroll]);
 
   useEffect(() => {
     const frame = frameRef.current;
     const frameWindow = frame?.contentWindow;
+    const frameDocument = frame?.contentDocument;
     const overlayRoot = overlayRootRef.current;
     if (!frame || !frameWindow || !overlayRoot) {
-      setOverlayState({ badges: [], rects: [] });
+      setOverlayState({
+        externalBadges: [],
+        externalRects: [],
+        frameBadges: [],
+        frameRects: [],
+      });
       return;
     }
 
@@ -69,21 +99,37 @@ export function useReviewOverlayRects({
       window.cancelAnimationFrame(animationFrame);
       animationFrame = window.requestAnimationFrame(updateOverlayRects);
     };
+    const handleFrameScroll = () => {
+      syncFrameOverlayScroll();
+    };
     const resizeObserver = new ResizeObserver(scheduleOverlayUpdate);
 
     scheduleOverlayUpdate();
-    frameWindow.addEventListener("scroll", scheduleOverlayUpdate, true);
+    frameWindow.addEventListener("scroll", handleFrameScroll, true);
     window.addEventListener("resize", scheduleOverlayUpdate);
     resizeObserver.observe(frame);
     resizeObserver.observe(overlayRoot);
+    if (frameDocument?.documentElement) {
+      resizeObserver.observe(frameDocument.documentElement);
+    }
+    if (frameDocument?.body) {
+      resizeObserver.observe(frameDocument.body);
+    }
 
     return () => {
       window.cancelAnimationFrame(animationFrame);
-      frameWindow.removeEventListener("scroll", scheduleOverlayUpdate, true);
+      frameWindow.removeEventListener("scroll", handleFrameScroll, true);
       window.removeEventListener("resize", scheduleOverlayUpdate);
       resizeObserver.disconnect();
     };
-  }, [frameLoadVersion, frameRef, overlayRootRef, updateOverlayRects, viewport]);
+  }, [
+    frameLoadVersion,
+    frameRef,
+    overlayRootRef,
+    syncFrameOverlayScroll,
+    updateOverlayRects,
+    viewport,
+  ]);
 
   useEffect(() => {
     if (!activeCommentId) {

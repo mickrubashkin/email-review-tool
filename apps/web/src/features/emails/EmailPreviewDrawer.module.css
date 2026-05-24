@@ -381,6 +381,14 @@
   pointer-events: none;
 }
 
+.reviewOverlayLayer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
+}
+
 .reviewOverlayRect {
   position: absolute;
   border: 1px solid var(--review-highlight-stroke);

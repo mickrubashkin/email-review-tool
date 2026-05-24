@@ -109,6 +109,7 @@ export function MailPreview({
   viewport,
 }: MailPreviewProps) {
   const frameRef = useRef<HTMLIFrameElement | null>(null);
+  const frameOverlayLayerRef = useRef<HTMLDivElement | null>(null);
   const overlayRootRef = useRef<HTMLElement | null>(null);
   const wasApplyingInlineEditRef = useRef(false);
   const wasCreatingCommentRef = useRef(false);
@@ -252,6 +253,7 @@ export function MailPreview({
   const overlay = useReviewOverlayRects({
     activeCommentId,
     commentTargets: shouldShowCommentOverlay ? commentTargets : [],
+    frameOverlayLayerRef,
     frameLoadVersion,
     frameRef,
     overlayRootRef,
@@ -536,15 +538,26 @@ export function MailPreview({
               sandbox="allow-same-origin"
               srcDoc={email.review_html || email.original_html}
             />
+            {shouldShowCommentOverlay ? (
+              <ReviewCommentOverlay
+                activeCommentId={activeCommentId}
+                badges={overlay.frameBadges}
+                hoveredCommentId={hoveredCommentId}
+                layerRef={frameOverlayLayerRef}
+                onBadgeClick={onCommentBadgeClick}
+                onBadgeHover={onCommentBadgeHover}
+                rects={overlay.frameRects}
+              />
+            ) : null}
           </div>
           {shouldShowCommentOverlay ? (
             <ReviewCommentOverlay
               activeCommentId={activeCommentId}
-              badges={overlay.badges}
+              badges={overlay.externalBadges}
               hoveredCommentId={hoveredCommentId}
               onBadgeClick={onCommentBadgeClick}
               onBadgeHover={onCommentBadgeHover}
-              rects={overlay.rects}
+              rects={overlay.externalRects}
             />
           ) : null}
         </article>

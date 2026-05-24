@@ -45,13 +45,13 @@ const reviewCommentColors: ReviewCommentColor[] = [
   },
 ];
 
-export function buildReviewOverlayRects(
+export function buildReviewOverlayFrameRects(
   frame: HTMLIFrameElement,
-  overlayRoot: HTMLElement,
   targets: ReviewCommentTarget[]
 ): ReviewOverlayRect[] {
   const frameDocument = frame.contentDocument;
-  if (!frameDocument) {
+  const frameWindow = frame.contentWindow;
+  if (!frameDocument || !frameWindow) {
     return [];
   }
 
@@ -70,28 +70,26 @@ export function buildReviewOverlayRects(
       : [];
 
     if (rects.length > 0 && !isWholeBlockTarget(block, target)) {
-      return rects.flatMap((rect) => {
-        const overlayRect = createOverlayRectFromFrameRect(
-          frame,
-          overlayRoot,
+      return rects.map((rect) =>
+        createOverlayRectFromFrameDocumentRect(
           rect,
+          frameWindow,
           target,
           color,
           "text"
-        );
-        return overlayRect ? [overlayRect] : [];
-      });
+        )
+      );
     }
 
-    const overlayRect = createOverlayRectFromFrameRect(
-      frame,
-      overlayRoot,
-      block.getBoundingClientRect(),
-      target,
-      color,
-      "block"
-    );
-    return overlayRect ? [overlayRect] : [];
+    return [
+      createOverlayRectFromFrameDocumentRect(
+        block.getBoundingClientRect(),
+        frameWindow,
+        target,
+        color,
+        "block"
+      ),
+    ];
   });
 }
 
@@ -168,53 +166,24 @@ export function scrollExternalReviewTargetIntoView(
   return true;
 }
 
-function createOverlayRectFromFrameRect(
-  frame: HTMLIFrameElement,
-  overlayRoot: HTMLElement,
+function createOverlayRectFromFrameDocumentRect(
   rect: DOMRect,
+  frameWindow: Window,
   target: ReviewCommentTarget,
   color: ReviewCommentColor,
   kind: ReviewOverlayRect["kind"]
-): ReviewOverlayRect | null {
-  const frameRect = frame.getBoundingClientRect();
-  const overlayRootRect = overlayRoot.getBoundingClientRect();
-  const clippedRect = getIntersectionRect(
-    {
-      height: rect.height,
-      left: frameRect.left + rect.left,
-      top: frameRect.top + rect.top,
-      width: rect.width,
-    },
-    frameRect
-  );
-  if (!clippedRect) {
-    return null;
-  }
-
-  return createOverlayRectFromRootRect(
-    overlayRootRect,
-    clippedRect,
-    target,
+): ReviewOverlayRect {
+  return {
     color,
-    kind
-  );
-}
-
-function getIntersectionRect(
-  rect: Pick<DOMRect, "height" | "left" | "top" | "width">,
-  bounds: Pick<DOMRect, "height" | "left" | "top" | "width">
-) {
-  const left = Math.max(rect.left, bounds.left);
-  const top = Math.max(rect.top, bounds.top);
-  const right = Math.min(rect.left + rect.width, bounds.left + bounds.width);
-  const bottom = Math.min(rect.top + rect.height, bounds.top + bounds.height);
-  const width = right - left;
-  const height = bottom - top;
-  if (width <= 0 || height <= 0) {
-    return null;
-  }
-
-  return { height, left, top, width };
+    commentId: target.id,
+    height: rect.height,
+    kind,
+    left: rect.left + frameWindow.scrollX,
+    reviewBlock: target.reviewBlock,
+    status: target.status,
+    top: rect.top + frameWindow.scrollY,
+    width: rect.width,
+  };
 }
 
 function createOverlayRectFromRootRect(
