@@ -1836,13 +1836,13 @@ function ActivityPanel({
                 </Text>
               </Stack>
               <Badge color={activityColor(activity.type)} size="sm" variant="light">
-                {formatActivityType(activity.type)}
+                {formatActivityType(activity)}
               </Badge>
             </Group>
           }
         >
           <Stack className={styles.activityItem} gap={6}>
-            <Text size="sm">{activity.summary}</Text>
+            <Text size="sm">{activitySummary(activity)}</Text>
             {activityDetail(activity) ? (
               <Text c="dimmed" size="xs">
                 {activityDetail(activity)}
@@ -2068,8 +2068,8 @@ function formatCommentDate(value: string) {
   }).format(date);
 }
 
-function formatActivityType(type: EmailActivityItem["type"]) {
-  switch (type) {
+function formatActivityType(activity: EmailActivityItem) {
+  switch (activity.type) {
     case "comment_created":
       return "Comment";
     case "comment_replied":
@@ -2081,6 +2081,9 @@ function formatActivityType(type: EmailActivityItem["type"]) {
     case "email_updated":
       return "Edited";
     case "email_review_status_updated":
+      if (isStaleApprovalActivity(activity)) {
+        return "Approval stale";
+      }
       return "Status";
     case "email_duplicated":
       return "Duplicate";
@@ -2142,6 +2145,13 @@ function activityDetail(activity: EmailActivityItem) {
   }
 }
 
+function activitySummary(activity: EmailActivityItem) {
+  if (isStaleApprovalActivity(activity)) {
+    return "Approval became stale after edit";
+  }
+  return activity.summary;
+}
+
 function formatReviewStatusChange(activity: EmailActivityItem) {
   const reviewStatus = activity.changes.review_status;
   if (!isRecord(reviewStatus)) {
@@ -2156,6 +2166,13 @@ function formatReviewStatusChange(activity: EmailActivityItem) {
       ? formatEmailReviewStatus(reviewStatus.after as EmailReviewStatus)
       : "";
   return joinActivityParts([before, after ? `to ${after}` : ""]);
+}
+
+function isStaleApprovalActivity(activity: EmailActivityItem) {
+  return (
+    activity.type === "email_review_status_updated" &&
+    metadataText(activity, "reason") === "approval_stale_after_edit"
+  );
 }
 
 function formatActivityChangedFields(changes: Record<string, unknown>) {

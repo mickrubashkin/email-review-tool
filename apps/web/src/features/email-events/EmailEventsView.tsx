@@ -356,6 +356,9 @@ function formatSummary(event: EmailEventItem) {
     case "email_updated":
       return "Updated editable content";
     case "email_review_status_updated":
+      if (isStaleApprovalEvent(event)) {
+        return "Approval became stale after edit";
+      }
       return `Changed review status to ${formatChangedReviewStatus(event)}`;
     case "comment_created":
       return `Added comment on ${stringMetadata(event, "review_block") || "review block"}`;
@@ -442,6 +445,13 @@ function formatChangedReviewStatus(event: EmailEventItem) {
 function stringMetadata(event: EmailEventItem, key: string) {
   const value = event.metadata[key];
   return typeof value === "string" ? value : "";
+}
+
+function isStaleApprovalEvent(event: EmailEventItem) {
+  return (
+    event.action === "email_review_status_updated" &&
+    stringMetadata(event, "reason") === "approval_stale_after_edit"
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
