@@ -7,8 +7,8 @@ Internal tool for reviewing HTML email sequences.
 - multiple review boards with URL-based board switching
 - email board for browsing stages, language versions, and adaptations
 - admin board setup: create boards, add/rename/reorder stages, and delete empty stages
-- email review view with text selection, comments, resolution, and 5-second comment polling
-- admin editing of template-backed email fields and metadata
+- email review view with text selection, action popovers, comments, resolution, and 5-second comment polling
+- admin inline editing of template-backed email fields and metadata from the review preview
 - admin creation of uploaded/pasted HTML emails
 - backend HTML inspection before creating an email: generated review HTML, review block count, editable fields, and warnings
 - email duplication, versioning, delivery adaptations, archive, rendered preview, and rendered HTML export
@@ -27,8 +27,8 @@ Internal tool for reviewing HTML email sequences.
 - `/` redirects to the preferred board, usually `/boards/onboarding`
 - `/boards/{boardKey}` email board
 - `/emails/new` admin email creation from uploaded/pasted HTML
-- `/emails/{id}/review` email review view
-- `/emails/{id}/edit` admin email fields editor
+- `/emails/{id}/review` email review view with inline comment and edit actions
+- `/emails/{id}/edit` legacy route that redirects to `/emails/{id}/review`
 - `/auth-events` admin auth events
 - `/ai-logs` AI analysis logs
 - `/admin/email-events` super-admin email events
@@ -109,7 +109,8 @@ Internal tool for reviewing HTML email sequences.
 ## Notes
 - Backend is the source of truth.
 - Keep original HTML unchanged.
-- Email editing is template-backed: admins edit metadata and `data-edit-*` fields, then the backend renders final HTML for preview/export.
+- Email editing is template-backed: admins edit metadata and `data-edit-*` fields from the review preview action popover, then the backend renders final HTML for preview/export.
+- Super admins can edit source HTML from the review preview action popover; changed `data-edit-*` markers are re-extracted on save.
 - When text-backed editable content changes, text-range comment anchors on changed blocks are normalized to whole-block anchors.
 - Preview untrusted HTML in isolation and do not execute scripts.
 - AI analysis is shared per email: cached results are reused across users, while explicit shared re-generation is limited to 10 per day per email and user.
