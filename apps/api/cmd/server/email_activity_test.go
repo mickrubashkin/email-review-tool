@@ -175,6 +175,18 @@ func TestEmailEventActivitySummaryMarksStaleApprovalAfterEdit(t *testing.T) {
 	}
 }
 
+func TestEmailEventActivitySummaryMarksReapprovalAfterStaleEdit(t *testing.T) {
+	summary := emailEventActivitySummary(
+		emailEventReviewStatusUpdated,
+		[]byte(`{"review_status":{"before":"changes_requested","after":"approved"}}`),
+		[]byte(`{"reason":"reapproved_after_stale_edit"}`),
+	)
+
+	if summary != "Re-approved after stale edit" {
+		t.Fatalf("expected reapproval summary, got %q", summary)
+	}
+}
+
 func assertContainsActivityType(t *testing.T, activityTypes []string, expected string) {
 	t.Helper()
 	if countActivityType(activityTypes, expected) == 0 {

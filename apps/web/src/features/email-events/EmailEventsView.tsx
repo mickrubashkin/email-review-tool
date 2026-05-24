@@ -364,6 +364,11 @@ function formatSummary(event: EmailEventItem) {
       if (isStaleApprovalEvent(event)) {
         return "Approval became stale after edit";
       }
+      if (isReapprovalEvent(event)) {
+        return stringMetadata(event, "reason") === "reapproved_after_stale_edit"
+          ? "Re-approved after stale edit"
+          : "Re-approved email";
+      }
       return `Changed review status to ${formatChangedReviewStatus(event)}`;
     case "comment_created":
       return `Added comment on ${stringMetadata(event, "review_block") || "review block"}`;
@@ -469,6 +474,14 @@ function isStaleApprovalEvent(event: EmailEventItem) {
   return (
     event.action === "email_review_status_updated" &&
     stringMetadata(event, "reason") === "approval_stale_after_edit"
+  );
+}
+
+function isReapprovalEvent(event: EmailEventItem) {
+  const reason = stringMetadata(event, "reason");
+  return (
+    event.action === "email_review_status_updated" &&
+    (reason === "reapproved" || reason === "reapproved_after_stale_edit")
   );
 }
 

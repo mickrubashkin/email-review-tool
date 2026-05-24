@@ -426,6 +426,83 @@ func TestUpdateEmailReviewStatus(t *testing.T) {
 	}
 }
 
+func TestUpdateEmailReviewStatusMarksReapprovalAfterStaleEdit(t *testing.T) {
+	dbpool := testDBPool(t)
+	emailID := createTestEmail(t, dbpool)
+	user := createTestUserWithRole(t, dbpool, "admin")
+
+	_, err := dbpool.Exec(context.Background(), `
+		UPDATE emails
+		SET review_status = 'changes_requested'
+		WHERE id = $1;
+	`, emailID)
+	if err != nil {
+		t.Fatalf("failed to set email review status: %v", err)
+	}
+	_, err = dbpool.Exec(context.Background(), `
+		INSERT INTO email_events (
+			actor_user_id,
+			actor_email,
+			action,
+			email_id,
+			email_slug,
+			email_title,
+			metadata,
+			changes
+		)
+		VALUES (
+			$1,
+			$2,
+			'email_review_status_updated',
+			$3,
+			'comment-test-email',
+			'Comment Test Email',
+			'{"reason":"approval_stale_after_edit"}'::jsonb,
+			'{"review_status":{"before":"approved","after":"changes_requested"}}'::jsonb
+		);
+	`, user.ID, user.Email, emailID)
+	if err != nil {
+		t.Fatalf("failed to seed stale approval event: %v", err)
+	}
+
+	router := chi.NewRouter()
+	registerEmailRoutes(router, dbpool)
+
+	request := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/emails/"+emailID+"/review-status",
+		bytes.NewReader([]byte(`{"review_status":"approved"}`)),
+	)
+	request = withAuthUser(request, user)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected PATCH status 200, got %d: %s", response.Code, response.Body.String())
+	}
+
+	var metadataJSON []byte
+	var changesJSON []byte
+	err = dbpool.QueryRow(context.Background(), `
+		SELECT metadata, changes
+		FROM email_events
+		WHERE email_id = $1
+			AND action = 'email_review_status_updated'
+		ORDER BY created_at DESC, id DESC
+		LIMIT 1;
+	`, emailID).Scan(&metadataJSON, &changesJSON)
+	if err != nil {
+		t.Fatalf("failed to load reapproval event: %v", err)
+	}
+	if !strings.Contains(string(metadataJSON), `"reason": "reapproved_after_stale_edit"`) {
+		t.Fatalf("expected reapproval metadata, got %s", string(metadataJSON))
+	}
+	if !strings.Contains(string(changesJSON), `"before": "changes_requested"`) ||
+		!strings.Contains(string(changesJSON), `"after": "approved"`) {
+		t.Fatalf("expected reapproval status change, got %s", string(changesJSON))
+	}
+}
+
 func TestUpdateEmailReviewStatusRejectsReviewer(t *testing.T) {
 	dbpool := testDBPool(t)
 	emailID := createTestEmail(t, dbpool)

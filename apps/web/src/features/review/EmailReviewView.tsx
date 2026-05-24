@@ -2089,6 +2089,9 @@ function formatActivityType(activity: EmailActivityItem) {
       if (isStaleApprovalActivity(activity)) {
         return "Approval stale";
       }
+      if (isReapprovalActivity(activity)) {
+        return "Re-approved";
+      }
       return "Status";
     case "email_duplicated":
       return "Duplicate";
@@ -2157,6 +2160,11 @@ function activitySummary(activity: EmailActivityItem) {
   if (isStaleApprovalActivity(activity)) {
     return "Approval became stale after edit";
   }
+  if (isReapprovalActivity(activity)) {
+    return metadataText(activity, "reason") === "reapproved_after_stale_edit"
+      ? "Re-approved after stale edit"
+      : "Re-approved email";
+  }
   if (activity.type === "email_updated") {
     return formatEmailUpdateSummary(activity.changes);
   }
@@ -2183,6 +2191,14 @@ function isStaleApprovalActivity(activity: EmailActivityItem) {
   return (
     activity.type === "email_review_status_updated" &&
     metadataText(activity, "reason") === "approval_stale_after_edit"
+  );
+}
+
+function isReapprovalActivity(activity: EmailActivityItem) {
+  const reason = metadataText(activity, "reason");
+  return (
+    activity.type === "email_review_status_updated" &&
+    (reason === "reapproved" || reason === "reapproved_after_stale_edit")
   );
 }
 

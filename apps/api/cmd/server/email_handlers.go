@@ -13,6 +13,7 @@ import (
 	"unicode/utf16"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mickrubashkin/email-review-tool/apps/api/internal/emailedit"
@@ -780,6 +781,19 @@ func updateEmailReviewStatusHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 		}
 
 		if currentStatus != nextStatus {
+			eventMetadata := map[string]any{}
+			if currentStatus == "changes_requested" && nextStatus == "approved" {
+				eventMetadata["reason"] = "reapproved"
+				reapprovesStaleEdit, err := latestReviewStatusEventMarkedApprovalStale(r.Context(), tx, id)
+				if err != nil {
+					http.Error(w, "failed to update review status", http.StatusInternalServerError)
+					return
+				}
+				if reapprovesStaleEdit {
+					eventMetadata["reason"] = "reapproved_after_stale_edit"
+				}
+			}
+
 			result, err := tx.Exec(r.Context(), `
 				UPDATE emails
 				SET review_status = $2,
@@ -803,6 +817,7 @@ func updateEmailReviewStatusHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 				EmailID:     &id,
 				EmailSlug:   &slug,
 				EmailTitle:  &title,
+				Metadata:    eventMetadata,
 				Changes: map[string]any{
 					"review_status": map[string]any{
 						"before": currentStatus,
@@ -824,6 +839,26 @@ func updateEmailReviewStatusHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(updateEmailReviewStatusResponse{ReviewStatus: nextStatus})
 	}
+}
+
+func latestReviewStatusEventMarkedApprovalStale(ctx context.Context, db emailEventExecutor, emailID string) (bool, error) {
+	var reason string
+	err := db.QueryRow(ctx, `
+		SELECT coalesce(metadata->>'reason', '')
+		FROM email_events
+		WHERE email_id = $1
+			AND action = $2
+		ORDER BY created_at DESC, id DESC
+		LIMIT 1;
+	`, emailID, emailEventReviewStatusUpdated).Scan(&reason)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, nil
+		}
+		return false, err
+	}
+
+	return reason == "approval_stale_after_edit", nil
 }
 
 func isValidEmailReviewStatus(status string) bool {
