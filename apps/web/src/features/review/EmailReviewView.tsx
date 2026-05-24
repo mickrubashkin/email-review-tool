@@ -957,15 +957,23 @@ export function EmailReviewView({
             </Group>
 
             <Group className={styles.breadcrumbs} gap={6} wrap="nowrap">
-              <Text className={styles.breadcrumbText} size="sm" fw={600}>
-                {currentStage?.title ?? <Skeleton h={14} w={84} />}
-              </Text>
+              {currentStage?.title ? (
+                <Text className={styles.breadcrumbText} size="sm" fw={600}>
+                  {currentStage.title}
+                </Text>
+              ) : (
+                <Skeleton className={styles.breadcrumbText} h={14} w={84} />
+              )}
               <Text c="dimmed" size="sm">
                 /
               </Text>
-              <Text className={styles.titleText} size="sm" fw={600}>
-                {email ? formatEmailTitle(email.title) : <Skeleton h={14} w={120} />}
-              </Text>
+              {email ? (
+                <Text className={styles.titleText} size="sm" fw={600}>
+                  {formatEmailTitle(email.title)}
+                </Text>
+              ) : (
+                <Skeleton className={styles.titleText} h={14} w={120} />
+              )}
             </Group>
 
             {!isCompactReview && email ? (
