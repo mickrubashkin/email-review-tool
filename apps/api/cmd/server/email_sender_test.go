@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -59,6 +60,8 @@ func TestNewLoginCodeEmailSendersCanSendAndLog(t *testing.T) {
 }
 
 func TestResendEmailSenderSendsLoginCodePayload(t *testing.T) {
+	skipIfNetworkListenerUnavailable(t)
+
 	var receivedPayload resendEmailPayload
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -114,6 +117,8 @@ func TestResendEmailSenderSendsLoginCodePayload(t *testing.T) {
 }
 
 func TestResendEmailSenderReturnsHTTPError(t *testing.T) {
+	skipIfNetworkListenerUnavailable(t)
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "bad sender", http.StatusBadRequest)
 	}))
@@ -130,4 +135,15 @@ func TestResendEmailSenderReturnsHTTPError(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "resend returned 400") {
 		t.Fatalf("expected resend HTTP error, got %v", err)
 	}
+}
+
+func skipIfNetworkListenerUnavailable(t *testing.T) {
+	t.Helper()
+
+	listener, err := net.Listen("tcp", "localhost:0")
+	if err != nil {
+		t.Skipf("network listener unavailable in this environment: %v", err)
+	}
+
+	_ = listener.Close()
 }

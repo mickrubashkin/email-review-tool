@@ -25,17 +25,17 @@ The most promising first external ICP remains CRM, lifecycle, and email marketin
 
 - [x] Make `go test ./...` reliable from the intended working directory.
 - [x] Fix tests that depend on repo-relative seed paths.
-- [ ] Keep network-listener tests isolated or skippable in restricted environments.
+- [x] Keep network-listener tests isolated or skippable in restricted environments.
 
 ## Priority 3: Core Review Workflow
 
 - [x] Add email search on the board.
 - [x] Add an explicit review status for each email.
 - [x] Add pragmatic threaded comment replies.
-- [ ] Define the review workflow state model:
-  - email statuses: draft, in review, changes requested, updated, approved, archived;
-  - comment statuses: open, resolved, rejected;
-  - comment severity: suggestion, issue, blocking.
+- [ ] Finish the review workflow state model:
+  - decide whether `updated` and `archived` belong in review status or remain derived from edits/archive;
+  - decide whether comments need a `rejected` state beyond open/resolved;
+  - define approval/stale/final-production semantics.
 - [x] Add comment severity:
   - suggestion;
   - issue;
@@ -90,7 +90,7 @@ The most promising first external ICP remains CRM, lifecycle, and email marketin
   - status changes;
   - edits;
   - AI analysis runs.
-- [ ] Add activity history for status changes, comments, edits, approvals, stale approvals, and final production approval.
+- [ ] Extend activity history with approvals, stale approvals, and final production approval after those workflow states exist.
 
 ## Priority 5: Portfolio-Grade Demo
 
