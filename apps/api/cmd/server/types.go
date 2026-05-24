@@ -21,6 +21,10 @@ type EmailListItem struct {
 	AdaptationKey            string  `json:"adaptation_key"`
 	AdaptationLabel          string  `json:"adaptation_label"`
 	ReviewStatus             string  `json:"review_status"`
+	OwnerEmail               *string `json:"owner_email"`
+	ReviewerEmail            *string `json:"reviewer_email"`
+	DueDate                  *string `json:"due_date"`
+	ImplementationNotes      *string `json:"implementation_notes"`
 	OpenCommentCount         int     `json:"open_comment_count"`
 	OpenBlockingCommentCount int     `json:"open_blocking_comment_count"`
 }
@@ -40,6 +44,10 @@ type EmailDetail struct {
 	AdaptationKey            string          `json:"adaptation_key"`
 	AdaptationLabel          string          `json:"adaptation_label"`
 	ReviewStatus             string          `json:"review_status"`
+	OwnerEmail               *string         `json:"owner_email"`
+	ReviewerEmail            *string         `json:"reviewer_email"`
+	DueDate                  *string         `json:"due_date"`
+	ImplementationNotes      *string         `json:"implementation_notes"`
 	OpenCommentCount         int             `json:"open_comment_count"`
 	OpenBlockingCommentCount int             `json:"open_blocking_comment_count"`
 	BodyText                 *string         `json:"-"`

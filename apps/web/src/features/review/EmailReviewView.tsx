@@ -74,6 +74,7 @@ import {
   fetchSharedEmailAnalysis,
   resolveComment,
   updateEmailEditableFields,
+  updateEmailPlanningFields,
   updateEmailReviewStatus,
 } from "../emails/api";
 import {
@@ -116,6 +117,7 @@ import type {
   EmailVariant,
   EmailVersionGroup,
   UpdateEditableFieldsPayload,
+  UpdateEmailPlanningFieldsPayload,
 } from "../emails/types";
 import { useEmailAnalysisStream } from "../emails/useEmailAnalysisStream";
 import styles from "./EmailReviewView.module.css";
@@ -126,8 +128,8 @@ type EmailReviewViewProps = {
 };
 
 type ReviewViewport = "desktop" | "mobile";
-type ReviewContentTab = "email" | "ai" | "comments" | "activity";
-type ReviewPanelTab = "ai" | "comments" | "activity";
+type ReviewContentTab = "email" | "planning" | "ai" | "comments" | "activity";
+type ReviewPanelTab = "planning" | "ai" | "comments" | "activity";
 type CommentStatusFilter = "open" | "all";
 
 const minRightPanelPercent = 24;
@@ -461,6 +463,38 @@ export function EmailReviewView({
       });
     },
   });
+  const planningFieldsMutation = useMutation({
+    mutationFn: ({
+      payload,
+      targetEmailId,
+    }: {
+      payload: UpdateEmailPlanningFieldsPayload;
+      targetEmailId: string;
+    }) => updateEmailPlanningFields(targetEmailId, payload),
+    onSuccess: (response, variables) => {
+      applyPlanningFieldsToCaches(
+        queryClient,
+        variables.targetEmailId,
+        response,
+        email?.sequence
+      );
+      void queryClient.invalidateQueries({
+        queryKey: ["email-activity", variables.targetEmailId],
+      });
+      notifications.show({
+        color: "green",
+        message: "Planning fields updated.",
+        title: "Planning updated",
+      });
+    },
+    onError: () => {
+      notifications.show({
+        color: "red",
+        message: "Try again or check that you have admin access.",
+        title: "Planning update failed",
+      });
+    },
+  });
   const createCommentMutation = useMutation({
     mutationFn: ({
       body,
@@ -657,6 +691,18 @@ export function EmailReviewView({
       targetEmailId: email.id,
     });
   };
+  const handlePlanningFieldsSubmit = (
+    payload: UpdateEmailPlanningFieldsPayload
+  ) => {
+    if (!email) {
+      return;
+    }
+
+    planningFieldsMutation.mutate({
+      payload,
+      targetEmailId: email.id,
+    });
+  };
   const handleCreateReviewComment = (
     selection: ReviewTextSelection,
     body: string,
@@ -836,6 +882,15 @@ export function EmailReviewView({
           ? createCommentMessageMutation.variables?.commentId
           : null
       }
+    />
+  );
+  const planningContent = (
+    <PlanningPanel
+      canManage={canManageEmail}
+      email={email}
+      isSaving={planningFieldsMutation.isPending}
+      key={email?.id ?? "loading"}
+      onSubmit={handlePlanningFieldsSubmit}
     />
   );
   const activityContent = (
@@ -1357,6 +1412,7 @@ export function EmailReviewView({
           >
             <Tabs.List className={styles.mobileTabsList} grow>
               <Tabs.Tab value="email">Email</Tabs.Tab>
+              <Tabs.Tab value="planning">Plan</Tabs.Tab>
               <Tabs.Tab value="ai">AI</Tabs.Tab>
               <Tabs.Tab
                 value="comments"
@@ -1373,6 +1429,10 @@ export function EmailReviewView({
 
             <Tabs.Panel value="email" className={styles.mobileTabPanel}>
               {previewContent}
+            </Tabs.Panel>
+
+            <Tabs.Panel value="planning" className={styles.mobileTabPanel}>
+              {planningContent}
             </Tabs.Panel>
 
             <Tabs.Panel value="ai" className={styles.mobileTabPanel}>
@@ -1418,6 +1478,7 @@ export function EmailReviewView({
               }
             >
               <Tabs.List grow>
+                <Tabs.Tab value="planning">Plan</Tabs.Tab>
                 <Tabs.Tab value="ai">AI</Tabs.Tab>
                 <Tabs.Tab
                   value="comments"
@@ -1431,6 +1492,10 @@ export function EmailReviewView({
                 </Tabs.Tab>
                 <Tabs.Tab value="activity">Activity</Tabs.Tab>
               </Tabs.List>
+
+              <Tabs.Panel value="planning" className={styles.tabPanel}>
+                {planningContent}
+              </Tabs.Panel>
 
               <Tabs.Panel value="ai" className={styles.tabPanel}>
                 {analysisContent}
@@ -1452,6 +1517,100 @@ export function EmailReviewView({
 
 function clampPercent(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
+}
+
+function nullableTrimmed(value: string) {
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function PlanningPanel({
+  canManage,
+  email,
+  isSaving,
+  onSubmit,
+}: {
+  canManage: boolean;
+  email: EmailDetail | undefined;
+  isSaving: boolean;
+  onSubmit: (payload: UpdateEmailPlanningFieldsPayload) => void;
+}) {
+  const [ownerEmail, setOwnerEmail] = useState(email?.owner_email ?? "");
+  const [reviewerEmail, setReviewerEmail] = useState(email?.reviewer_email ?? "");
+  const [dueDate, setDueDate] = useState(email?.due_date ?? "");
+  const [implementationNotes, setImplementationNotes] = useState(
+    email?.implementation_notes ?? ""
+  );
+
+  if (!email) {
+    return (
+      <Stack className={styles.emptyState} align="center" justify="center">
+        <Loader size="sm" />
+      </Stack>
+    );
+  }
+
+  const payload = {
+    owner_email: nullableTrimmed(ownerEmail),
+    reviewer_email: nullableTrimmed(reviewerEmail),
+    due_date: nullableTrimmed(dueDate),
+    implementation_notes: nullableTrimmed(implementationNotes),
+  };
+  const isDirty =
+    payload.owner_email !== (email.owner_email ?? null) ||
+    payload.reviewer_email !== (email.reviewer_email ?? null) ||
+    payload.due_date !== (email.due_date ?? null) ||
+    payload.implementation_notes !== (email.implementation_notes ?? null);
+
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (canManage && isDirty) {
+          onSubmit(payload);
+        }
+      }}
+    >
+      <Stack gap="sm">
+        <TextInput
+          disabled={!canManage || isSaving}
+          label="Owner"
+          placeholder="owner@example.com"
+          value={ownerEmail}
+          onChange={(event) => setOwnerEmail(event.currentTarget.value)}
+        />
+        <TextInput
+          disabled={!canManage || isSaving}
+          label="Reviewer"
+          placeholder="reviewer@example.com"
+          value={reviewerEmail}
+          onChange={(event) => setReviewerEmail(event.currentTarget.value)}
+        />
+        <TextInput
+          disabled={!canManage || isSaving}
+          label="Due date"
+          type="date"
+          value={dueDate}
+          onChange={(event) => setDueDate(event.currentTarget.value)}
+        />
+        <Textarea
+          autosize
+          disabled={!canManage || isSaving}
+          label="Implementation notes"
+          minRows={4}
+          value={implementationNotes}
+          onChange={(event) => setImplementationNotes(event.currentTarget.value)}
+        />
+        {canManage ? (
+          <Group justify="flex-end">
+            <Button disabled={!isDirty} loading={isSaving} type="submit">
+              Save
+            </Button>
+          </Group>
+        ) : null}
+      </Stack>
+    </form>
+  );
 }
 
 function ReviewPreviewSkeleton() {
@@ -1571,6 +1730,26 @@ function applyReviewStatusToCaches(
         ? { ...currentEmail, review_status: reviewStatus }
         : currentEmail
   );
+}
+
+function applyPlanningFieldsToCaches(
+  queryClient: QueryClient,
+  emailId: string,
+  planningFields: UpdateEmailPlanningFieldsPayload,
+  sequence: string | undefined
+) {
+  queryClient.setQueryData<EmailDetail>(["emails", emailId, "review"], (currentEmail) =>
+    currentEmail?.id === emailId
+      ? { ...currentEmail, ...planningFields }
+      : currentEmail
+  );
+  if (sequence) {
+    queryClient.setQueryData<EmailListItem[]>(["emails", sequence], (emails) =>
+      emails?.map((listEmail) =>
+        listEmail.id === emailId ? { ...listEmail, ...planningFields } : listEmail
+      )
+    );
+  }
 }
 
 function buildEditableFieldsPayload(
@@ -2085,6 +2264,8 @@ function formatActivityType(activity: EmailActivityItem) {
       return "Created";
     case "email_updated":
       return "Edited";
+    case "email_planning_updated":
+      return "Planning";
     case "email_review_status_updated":
       if (isStaleApprovalActivity(activity)) {
         return "Approval stale";
@@ -2109,6 +2290,8 @@ function activityColor(type: EmailActivityItem["type"]) {
     case "comment_created":
     case "email_updated":
       return "yellow";
+    case "email_planning_updated":
+      return "cyan";
     case "comment_replied":
     case "email_duplicated":
       return "blue";
@@ -2143,6 +2326,8 @@ function activityDetail(activity: EmailActivityItem) {
         formatActivityChangedFields(activity.changes),
         formatEmailUpdateChangedReviewBlocks(activity.metadata),
       ]);
+    case "email_planning_updated":
+      return formatPlanningChangedFields(activity.changes);
     case "email_adaptation_created":
       return metadataText(activity, "adaptation_label");
     case "ai_analysis_run":
@@ -2167,6 +2352,9 @@ function activitySummary(activity: EmailActivityItem) {
   }
   if (activity.type === "email_updated") {
     return formatEmailUpdateSummary(activity.changes);
+  }
+  if (activity.type === "email_planning_updated") {
+    return "Updated planning fields";
   }
   return activity.summary;
 }
@@ -2204,6 +2392,18 @@ function isReapprovalActivity(activity: EmailActivityItem) {
 
 function formatActivityChangedFields(changes: Record<string, unknown>) {
   return formatEmailUpdateChangedFields(changes);
+}
+
+function formatPlanningChangedFields(changes: Record<string, unknown>) {
+  const labels: Record<string, string> = {
+    due_date: "Due date",
+    implementation_notes: "Implementation notes",
+    owner_email: "Owner",
+    reviewer_email: "Reviewer",
+  };
+  return Object.keys(changes)
+    .map((field) => labels[field] ?? field)
+    .join(", ");
 }
 
 function metadataText(activity: EmailActivityItem, key: string) {

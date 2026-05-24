@@ -12,6 +12,10 @@ export type EmailListItem = {
   adaptation_key: string;
   adaptation_label: string;
   review_status: EmailReviewStatus;
+  owner_email: string | null;
+  reviewer_email: string | null;
+  due_date: string | null;
+  implementation_notes: string | null;
   open_comment_count: number;
   open_blocking_comment_count: number;
 };
@@ -128,6 +132,16 @@ export type UpdateEmailReviewStatusPayload = {
 export type UpdateEmailReviewStatusResponse = {
   review_status: EmailReviewStatus;
 };
+
+export type UpdateEmailPlanningFieldsPayload = {
+  owner_email: string | null;
+  reviewer_email: string | null;
+  due_date: string | null;
+  implementation_notes: string | null;
+};
+
+export type UpdateEmailPlanningFieldsResponse =
+  UpdateEmailPlanningFieldsPayload;
 
 export type RenderedEmail = {
   html: string;
@@ -273,6 +287,7 @@ export type EmailEventAction =
   | "email_created"
   | "email_archived"
   | "email_updated"
+  | "email_planning_updated"
   | "email_review_status_updated"
   | "comment_created"
   | "comment_replied"
@@ -302,6 +317,7 @@ export type EmailActivityType =
   | "comment_resolved"
   | "email_created"
   | "email_updated"
+  | "email_planning_updated"
   | "email_review_status_updated"
   | "email_duplicated"
   | "email_adaptation_created"

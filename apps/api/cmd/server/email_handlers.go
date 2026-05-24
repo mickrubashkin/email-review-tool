@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"time"
 	"unicode/utf16"
 
 	"github.com/go-chi/chi/v5"
@@ -30,6 +31,7 @@ func registerEmailRoutes(r chi.Router, dbpool *pgxpool.Pool) {
 	r.Get("/api/emails/{id}/activity", listEmailActivityHandler(dbpool))
 	r.Get("/api/emails/{id}/rendered", getRenderedEmailHandler(dbpool))
 	r.Patch("/api/emails/{id}/editable-fields", updateEmailEditableFieldsHandler(dbpool))
+	r.Patch("/api/emails/{id}/planning-fields", updateEmailPlanningFieldsHandler(dbpool))
 	r.Patch("/api/emails/{id}/review-status", updateEmailReviewStatusHandler(dbpool))
 	r.Post("/api/emails/{id}/duplicate", duplicateEmailHandler(dbpool))
 	r.Post("/api/emails/{id}/adaptations", createEmailAdaptationHandler(dbpool))
@@ -62,6 +64,10 @@ func listEmailsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 				adaptation_key,
 				adaptation_label,
 				review_status,
+				owner_email,
+				reviewer_email,
+				due_date::text,
+				implementation_notes,
 				(
 					SELECT count(*)::int
 					FROM comments
@@ -105,6 +111,10 @@ func listEmailsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 				&email.AdaptationKey,
 				&email.AdaptationLabel,
 				&email.ReviewStatus,
+				&email.OwnerEmail,
+				&email.ReviewerEmail,
+				&email.DueDate,
+				&email.ImplementationNotes,
 				&email.OpenCommentCount,
 				&email.OpenBlockingCommentCount,
 			)
@@ -149,6 +159,10 @@ func getEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 				adaptation_key,
 				adaptation_label,
 				review_status,
+				owner_email,
+				reviewer_email,
+				due_date::text,
+				implementation_notes,
 				(
 					SELECT count(*)::int
 					FROM comments
@@ -185,6 +199,10 @@ func getEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			&email.AdaptationKey,
 			&email.AdaptationLabel,
 			&email.ReviewStatus,
+			&email.OwnerEmail,
+			&email.ReviewerEmail,
+			&email.DueDate,
+			&email.ImplementationNotes,
 			&email.OpenCommentCount,
 			&email.OpenBlockingCommentCount,
 			&email.OriginalHTML,
@@ -436,6 +454,20 @@ type updateEmailReviewStatusRequest struct {
 
 type updateEmailReviewStatusResponse struct {
 	ReviewStatus string `json:"review_status"`
+}
+
+type updateEmailPlanningFieldsRequest struct {
+	OwnerEmail          *string `json:"owner_email"`
+	ReviewerEmail       *string `json:"reviewer_email"`
+	DueDate             *string `json:"due_date"`
+	ImplementationNotes *string `json:"implementation_notes"`
+}
+
+type updateEmailPlanningFieldsResponse struct {
+	OwnerEmail          *string `json:"owner_email"`
+	ReviewerEmail       *string `json:"reviewer_email"`
+	DueDate             *string `json:"due_date"`
+	ImplementationNotes *string `json:"implementation_notes"`
 }
 
 type renderedEmailResponse struct {
@@ -730,6 +762,115 @@ func updateEmailEditableFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 		}
 
 		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+func updateEmailPlanningFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := chi.URLParam(r, "id")
+		user, ok := authUserFromContext(r)
+		if !ok {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		if !isAdminUser(user) {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+
+		var request updateEmailPlanningFieldsRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+
+		ownerEmail := trimmedOptionalString(request.OwnerEmail)
+		reviewerEmail := trimmedOptionalString(request.ReviewerEmail)
+		dueDate, err := normalizedOptionalDate(request.DueDate)
+		if err != nil {
+			http.Error(w, "due_date must use YYYY-MM-DD", http.StatusBadRequest)
+			return
+		}
+		implementationNotes := trimmedOptionalString(request.ImplementationNotes)
+
+		tx, err := dbpool.Begin(r.Context())
+		if err != nil {
+			http.Error(w, "failed to update planning fields", http.StatusInternalServerError)
+			return
+		}
+		defer tx.Rollback(r.Context())
+
+		var slug string
+		var title string
+		var currentOwnerEmail *string
+		var currentReviewerEmail *string
+		var currentDueDate *string
+		var currentImplementationNotes *string
+		err = tx.QueryRow(r.Context(), `
+			SELECT slug, title, owner_email, reviewer_email, due_date::text, implementation_notes
+			FROM emails
+			WHERE id = $1
+				AND archived_at IS NULL
+			FOR UPDATE;
+		`, id).Scan(&slug, &title, &currentOwnerEmail, &currentReviewerEmail, &currentDueDate, &currentImplementationNotes)
+		if err != nil {
+			http.Error(w, "email not found", http.StatusNotFound)
+			return
+		}
+
+		changes := map[string]any{}
+		addStringChange(changes, "owner_email", currentOwnerEmail, ownerEmail)
+		addStringChange(changes, "reviewer_email", currentReviewerEmail, reviewerEmail)
+		addStringChange(changes, "due_date", currentDueDate, dueDate)
+		addStringChange(changes, "implementation_notes", currentImplementationNotes, implementationNotes)
+
+		if len(changes) > 0 {
+			result, err := tx.Exec(r.Context(), `
+				UPDATE emails
+				SET owner_email = $2,
+					reviewer_email = $3,
+					due_date = $4,
+					implementation_notes = $5,
+					updated_at = now()
+				WHERE id = $1
+					AND archived_at IS NULL;
+			`, id, ownerEmail, reviewerEmail, dueDate, implementationNotes)
+			if err != nil {
+				http.Error(w, "failed to update planning fields", http.StatusInternalServerError)
+				return
+			}
+			if result.RowsAffected() == 0 {
+				http.Error(w, "email not found", http.StatusNotFound)
+				return
+			}
+
+			if err := insertEmailEvent(r.Context(), tx, emailEvent{
+				ActorUserID: user.ID,
+				ActorEmail:  user.Email,
+				Action:      emailEventPlanningUpdated,
+				EmailID:     &id,
+				EmailSlug:   &slug,
+				EmailTitle:  &title,
+				Changes:     changes,
+			}); err != nil {
+				fmt.Fprintf(os.Stderr, "failed to insert email planning event for %s: %v\n", id, err)
+				http.Error(w, "failed to record email event", http.StatusInternalServerError)
+				return
+			}
+		}
+
+		if err := tx.Commit(r.Context()); err != nil {
+			http.Error(w, "failed to update planning fields", http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(updateEmailPlanningFieldsResponse{
+			OwnerEmail:          ownerEmail,
+			ReviewerEmail:       reviewerEmail,
+			DueDate:             dueDate,
+			ImplementationNotes: implementationNotes,
+		})
 	}
 }
 
@@ -1500,6 +1641,10 @@ func insertDuplicatedEmail(r *http.Request, db emailEventExecutor, email duplica
 			adaptation_key,
 			adaptation_label,
 			review_status,
+			owner_email,
+			reviewer_email,
+			due_date::text,
+			implementation_notes,
 			0 AS open_comment_count,
 			0 AS open_blocking_comment_count,
 			original_html,
@@ -1523,6 +1668,10 @@ func insertDuplicatedEmail(r *http.Request, db emailEventExecutor, email duplica
 		&created.AdaptationKey,
 		&created.AdaptationLabel,
 		&created.ReviewStatus,
+		&created.OwnerEmail,
+		&created.ReviewerEmail,
+		&created.DueDate,
+		&created.ImplementationNotes,
 		&created.OpenCommentCount,
 		&created.OpenBlockingCommentCount,
 		&created.OriginalHTML,
@@ -1605,6 +1754,17 @@ func addStringChange(changes map[string]any, key string, before *string, after *
 		"before": before,
 		"after":  after,
 	}
+}
+
+func normalizedOptionalDate(value *string) (*string, error) {
+	trimmed := strings.TrimSpace(stringFromPointer(value))
+	if trimmed == "" {
+		return nil, nil
+	}
+	if _, err := time.Parse("2006-01-02", trimmed); err != nil {
+		return nil, err
+	}
+	return &trimmed, nil
 }
 
 func mergeEditableFields(

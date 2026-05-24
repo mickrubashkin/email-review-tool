@@ -17,6 +17,7 @@ const (
 	emailEventCreated             = "email_created"
 	emailEventArchived            = "email_archived"
 	emailEventUpdated             = "email_updated"
+	emailEventPlanningUpdated     = "email_planning_updated"
 	emailEventReviewStatusUpdated = "email_review_status_updated"
 	emailEventCommentCreated      = "comment_created"
 	emailEventCommentReplied      = "comment_replied"

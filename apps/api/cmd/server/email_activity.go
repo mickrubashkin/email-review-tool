@@ -259,6 +259,7 @@ func listEmailEventActivity(ctx context.Context, dbpool *pgxpool.Pool, emailID s
 	`, emailID, []string{
 		emailEventCreated,
 		emailEventUpdated,
+		emailEventPlanningUpdated,
 		emailEventReviewStatusUpdated,
 		emailEventDuplicated,
 		emailEventAdaptationCreated,
@@ -361,6 +362,8 @@ func emailEventActivitySummary(action string, changes []byte, metadata []byte) s
 		return "Created email"
 	case emailEventUpdated:
 		return "Updated email content"
+	case emailEventPlanningUpdated:
+		return "Updated planning fields"
 	case emailEventReviewStatusUpdated:
 		reason := metadataString(metadata, "reason")
 		if reason == "approval_stale_after_edit" {

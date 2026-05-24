@@ -503,6 +503,126 @@ func TestUpdateEmailReviewStatusMarksReapprovalAfterStaleEdit(t *testing.T) {
 	}
 }
 
+func TestUpdateEmailPlanningFields(t *testing.T) {
+	dbpool := testDBPool(t)
+	emailID := createTestEmail(t, dbpool)
+	user := createTestUserWithRole(t, dbpool, "admin")
+
+	router := chi.NewRouter()
+	registerEmailRoutes(router, dbpool)
+
+	request := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/emails/"+emailID+"/planning-fields",
+		bytes.NewReader([]byte(`{
+			"owner_email": "owner@example.com",
+			"reviewer_email": "reviewer@example.com",
+			"due_date": "2026-06-15",
+			"implementation_notes": "Implement after legal approval."
+		}`)),
+	)
+	request = withAuthUser(request, user)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected PATCH status 200, got %d: %s", response.Code, response.Body.String())
+	}
+
+	var payload updateEmailPlanningFieldsResponse
+	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
+		t.Fatalf("failed to decode planning fields response: %v", err)
+	}
+	if stringFromPointer(payload.OwnerEmail) != "owner@example.com" ||
+		stringFromPointer(payload.ReviewerEmail) != "reviewer@example.com" ||
+		stringFromPointer(payload.DueDate) != "2026-06-15" ||
+		stringFromPointer(payload.ImplementationNotes) != "Implement after legal approval." {
+		t.Fatalf("unexpected planning response: %#v", payload)
+	}
+
+	var email EmailDetail
+	getRequest := httptest.NewRequest(http.MethodGet, "/api/emails/"+emailID, nil)
+	getResponse := httptest.NewRecorder()
+	router.ServeHTTP(getResponse, getRequest)
+	if getResponse.Code != http.StatusOK {
+		t.Fatalf("expected GET status 200, got %d: %s", getResponse.Code, getResponse.Body.String())
+	}
+	if err := json.NewDecoder(getResponse.Body).Decode(&email); err != nil {
+		t.Fatalf("failed to decode email detail: %v", err)
+	}
+	if stringFromPointer(email.OwnerEmail) != "owner@example.com" ||
+		stringFromPointer(email.ReviewerEmail) != "reviewer@example.com" ||
+		stringFromPointer(email.DueDate) != "2026-06-15" ||
+		stringFromPointer(email.ImplementationNotes) != "Implement after legal approval." {
+		t.Fatalf("expected planning fields on email detail, got %#v", email)
+	}
+
+	var actorEmail string
+	var changesJSON []byte
+	if err := dbpool.QueryRow(context.Background(), `
+		SELECT actor_email, changes
+		FROM email_events
+		WHERE email_id = $1
+			AND action = 'email_planning_updated'
+		ORDER BY created_at DESC
+		LIMIT 1;
+	`, emailID).Scan(&actorEmail, &changesJSON); err != nil {
+		t.Fatalf("failed to load planning event: %v", err)
+	}
+	if actorEmail != user.Email {
+		t.Fatalf("expected planning event actor %s, got %s", user.Email, actorEmail)
+	}
+	if !strings.Contains(string(changesJSON), `"owner_email"`) ||
+		!strings.Contains(string(changesJSON), `"due_date"`) ||
+		!strings.Contains(string(changesJSON), `"implementation_notes"`) {
+		t.Fatalf("expected planning changes, got %s", string(changesJSON))
+	}
+}
+
+func TestUpdateEmailPlanningFieldsRejectsInvalidDueDate(t *testing.T) {
+	dbpool := testDBPool(t)
+	emailID := createTestEmail(t, dbpool)
+	user := createTestUserWithRole(t, dbpool, "admin")
+
+	router := chi.NewRouter()
+	registerEmailRoutes(router, dbpool)
+
+	request := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/emails/"+emailID+"/planning-fields",
+		bytes.NewReader([]byte(`{"due_date":"06/15/2026"}`)),
+	)
+	request = withAuthUser(request, user)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("expected PATCH status 400, got %d: %s", response.Code, response.Body.String())
+	}
+}
+
+func TestUpdateEmailPlanningFieldsRejectsReviewer(t *testing.T) {
+	dbpool := testDBPool(t)
+	emailID := createTestEmail(t, dbpool)
+	user := createTestUserWithRole(t, dbpool, "reviewer")
+
+	router := chi.NewRouter()
+	registerEmailRoutes(router, dbpool)
+
+	request := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/emails/"+emailID+"/planning-fields",
+		bytes.NewReader([]byte(`{"owner_email":"owner@example.com"}`)),
+	)
+	request = withAuthUser(request, user)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("expected PATCH status 403, got %d: %s", response.Code, response.Body.String())
+	}
+}
+
 func TestUpdateEmailReviewStatusRejectsReviewer(t *testing.T) {
 	dbpool := testDBPool(t)
 	emailID := createTestEmail(t, dbpool)

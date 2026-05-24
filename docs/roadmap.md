@@ -40,11 +40,11 @@ The most promising first external ICP remains CRM, lifecycle, and email marketin
   - suggestion;
   - issue;
   - blocking.
-- [ ] Add lightweight ownership and planning fields:
-  - owner;
-  - reviewer;
-  - due date;
-  - optional implementation notes.
+- [x] Add lightweight ownership and planning fields:
+  - [x] owner;
+  - [x] reviewer;
+  - [x] due date;
+  - [x] optional implementation notes.
 - [ ] Connect email editing to review state:
   - store review decisions against a specific email version;
   - keep comments open after edits until a user resolves them explicitly;

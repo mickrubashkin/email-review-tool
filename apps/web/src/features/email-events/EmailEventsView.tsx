@@ -38,6 +38,7 @@ const actionOptions: { value: EmailEventAction; label: string }[] = [
   { value: "email_adaptation_created", label: "Adaptation created" },
   { value: "email_archived", label: "Archived" },
   { value: "email_created", label: "Created" },
+  { value: "email_planning_updated", label: "Planning updated" },
   { value: "email_review_status_updated", label: "Review status updated" },
   { value: "comment_created", label: "Comment created" },
   { value: "comment_replied", label: "Comment replied" },
@@ -325,6 +326,8 @@ function getActionColor(action: EmailEventAction) {
       return "green";
     case "email_updated":
       return "yellow";
+    case "email_planning_updated":
+      return "cyan";
     case "email_review_status_updated":
       return "violet";
     case "comment_created":
@@ -360,6 +363,8 @@ function formatSummary(event: EmailEventItem) {
       return "Created email";
     case "email_updated":
       return formatEmailUpdateSummary(event.changes);
+    case "email_planning_updated":
+      return "Updated planning fields";
     case "email_review_status_updated":
       if (isStaleApprovalEvent(event)) {
         return "Approval became stale after edit";
@@ -394,6 +399,7 @@ function formatSummary(event: EmailEventItem) {
 function formatChangedFields(event: EmailEventItem) {
   if (
     event.action !== "email_updated" &&
+    event.action !== "email_planning_updated" &&
     event.action !== "email_review_status_updated" &&
     !event.action.startsWith("board_")
   ) {
