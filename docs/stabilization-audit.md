@@ -1,96 +1,128 @@
-# Отчет по стабилизации (Stabilization Pass Audit) — ReviewDesk
+# ReviewDesk Stabilization Audit
 
-В данном документе зафиксированы найденные баги, технические долги, шероховатости интерфейса (UI/UX) и потенциальные проблемы производительности, выявленные в ходе анализа кодовой базы проекта **ReviewDesk**.
+This document tracks concrete bugs, UX issues, and engineering risks found during the stabilization pass. It is not a product roadmap. Product direction and larger feature work belong in `docs/roadmap.md`.
 
----
+## Status Labels
 
-## 1. Проблемы UI/UX и интерактивности
+- `verified`: confirmed from current code or manual behavior.
+- `needs repro`: plausible issue that needs a focused manual or automated reproduction before implementation.
+- `risk`: architectural or scale concern that is not blocking current usage.
 
-### 1.1. Сброс позиции скролла в iframe при редактировании (Inline Edit)
-*   **Локация:** `apps/web/src/features/emails/MailPreview.tsx`
-*   **Описание:** Шаблонные письма рендерятся внутри `iframe`. При редактировании инлайн-полей (`data-edit-*`) бэкенд возвращает обновленный HTML, после чего `iframe` перезагружается. Это приводит к тому, что скролл пользователя сбрасывается в самый верх (top: 0). При редактировании элементов в нижней части длинного письма пользователю приходится постоянно прокручивать страницу заново.
-*   **Критичность:** Средняя (сильно ухудшает опыт работы редактора).
-*   **Решение:** Сохранять `scrollTop` окна iframe перед отправкой изменений на сервер и восстанавливать его в событии `onLoad` обновленного фрейма.
+## Priority Labels
 
-### 1.2. Прыгающий список комментариев при автообновлении (Polling)
-*   **Локация:** `apps/web/src/features/review/EmailReviewView.tsx`
-*   **Описание:** Запрос списка комментариев (`commentsQuery`) настроен на фоновый опрос раз в 5 секунд (`refetchInterval: 5000`). Если пользователь в этот момент читает длинную ветку комментариев или пишет ответ, автоматическое обновление данных и последующий рендеринг могут сбить текущую позицию скролла в правой панели или временно перерисовать дерево компонентов, вызвав визуальный сдвиг ("layout shift").
-*   **Критичность:** Средняя.
-*   **Решение:** Мемоизировать компоненты комментариев, использовать стабильные уникальные React-ключи (`key={comment.id}` вместо индексов), а также временно блокировать автообновление, если поле ввода ответа на комментарий находится в фокусе.
+- `P1`: should be addressed in the next stabilization pass.
+- `P2`: useful stabilization work after P1 items.
+- `P3`: backlog or scale-readiness item.
 
-### 1.3. Отсутствие подтверждения (Confirmation Modal) при удалении этапов
-*   **Локация:** Настройки доски в `apps/web/src/App.tsx`
-*   **Описание:** Удаление этапа доски (`deleteBoardStage`) происходит мгновенно при клике на иконку удаления. Хотя бэкенд блокирует удаление непустых этапов, случайный клик по корзине на пустом этапе сразу стирает его без возможности отмены или предупреждения.
-*   **Критичность:** Низкая / Средняя.
-*   **Решение:** Добавить стандартное диалоговое окно подтверждения (Mantine `Modal` или `Popover`) перед вызовом мутации удаления.
+## Verified Items
 
-### 1.4. Наложение оверлеев комментариев (Z-Index / Collision)
-*   **Локация:** `apps/web/src/features/emails/MailPreview.tsx` и `EmailReviewView.module.css`
-*   **Описание:** Плавающие элементы (поповеры комментариев, кнопки добавления) позиционируются поверх разметки письма. При близком расположении нескольких анкоров (`data-review-block`) элементы накладываются друг на друга. Также возможны проблемы с наложением при открытии глобальных модальных окон Mantine поверх экрана ревью.
-*   **Критичность:** Средняя.
-*   **Решение:** Использовать умное позиционирование через Floating UI (встроенный в Mantine) с обработкой коллизий (`shift()`, `flip()`) и строго разграничить уровни `zIndex` по дизайн-системе.
+### 1. Stage deletion has no confirmation
 
----
+- `Status`: verified
+- `Priority`: P1
+- `Type`: UX / data safety
+- `Location`: `apps/web/src/App.tsx`
+- `Evidence`: `ManageStagesModal` calls `deleteBoardStage` directly from the delete icon. The backend blocks non-empty stages, but an empty stage can still be deleted by a single accidental click.
+- `Fix`: Add a lightweight confirmation modal or popover before calling the delete mutation. Keep the existing backend protection for non-empty stages.
 
-## 2. Асинхронная логика и сетевое взаимодействие
+### 2. Expired sessions do not have a centralized 401 flow
 
-### 2.1. Состояние гонки (Race Condition) в AI-стриминге через SSE
-*   **Локация:** `apps/web/src/features/emails/useEmailAnalysisStream.ts`
-*   **Описание:** При быстром переключении пользователя между разными письмами, фоновое SSE-соединение для анализа предыдущего письма может продолжать принимать чанки данных и пытаться записать их в стейт или вызвать ошибки в консоли из-за несоответствия идентификаторов писем.
-*   **Критичность:** Средняя / Высокая.
-*   **Решение:** Убедиться, что при размонтировании хука или изменении `emailId` происходит немедленный вызов `.close()` у `EventSource`, а в колбэках получения данных проверяется соответствие текущего `emailId` тому, который инициировал запрос.
+- `Status`: verified
+- `Priority`: P1
+- `Type`: auth UX
+- `Location`: `apps/web/src/features/emails/api.ts`
+- `Evidence`: `fetchJson` throws `ApiError(401, ...)`, and individual screens handle errors locally. There is no central session-expired redirect or user-facing recovery path.
+- `Fix`: Add a global unauthorized handler either in the fetch wrapper or in TanStack Query `QueryCache` / `MutationCache`. The user should end up back at login with a clear session-expired state.
 
-### 2.2. Отсутствие оптимистичных обновлений (Optimistic UI)
-*   **Локация:** `apps/web/src/features/review/EmailReviewView.tsx`
-*   **Описание:** Изменение статуса ревью (`updateEmailReviewStatus`), добавление комментария или обновление метаданных планирования выполняются через стандартный жизненный цикл мутаций: клик -> отправка -> ожидание ответа -> рефетч. Интерфейс выглядит неотзывчивым из-за задержки сети.
-*   **Критичность:** Средняя.
-*   **Решение:** Добавить обработчики `onMutate` в `useMutation` для мгновенного локального обновления кэша TanStack Query с последующим откатом (rollback) в случае ошибки бэкенда.
+### 3. Inline edit likely resets iframe scroll
 
-### 2.3. Отсутствие валидации уникальности на клиенте при дублировании
-*   **Локация:** Форма дублирования в `apps/web/src/features/review/EmailReviewView.tsx`
-*   **Описание:** При создании адаптации или новой версии письма пользователь может случайно выбрать уже существующую комбинацию `language + adaptation + version`. Проверка происходит только на уровне БД (Unique Constraint), и в случае ошибки пользователь получает неинформативное общее уведомление (500/400) вместо подсветки конкретного поля формы.
-*   **Критичность:** Низкая.
-*   **Решение:** Добавить валидацию на стороне клиента перед отправкой формы, сопоставляя выбранные параметры со списком уже существующих вариантов письма.
+- `Status`: verified from code, needs final manual check
+- `Priority`: P2
+- `Type`: review UX
+- `Location`: `apps/web/src/features/emails/MailPreview.tsx`
+- `Evidence`: `handleFrameLoad` resets selection state and increments `frameLoadVersion`, but there is no scroll snapshot or restoration around iframe reloads after inline edits.
+- `Fix`: Capture the iframe window scroll position before applying an inline edit and restore it after the next iframe `load` event.
 
-### 2.4. Глобальная обработка истечения сессии (401 Unauthorized)
-*   **Локация:** `apps/web/src/features/emails/api.ts`
-*   **Описание:** При истечении сессионной куки (например, долгое отсутствие активности) запросы начинают возвращать код `401`. В приложении отсутствует централизованный перехватчик, который бы плавно перенаправлял пользователя на страницу авторизации `/login` с сохранением `returnTo` параметра. Пользователь видит зависшие лоадеры.
-*   **Критичность:** Средняя.
-*   **Решение:** Реализовать глобальный перехватчик ошибок в `fetch`-обертке или через обработчик `onError` в `QueryCache` / `MutationCache` TanStack Query.
+### 4. Comment polling continues while users compose replies
 
----
+- `Status`: verified
+- `Priority`: P2
+- `Type`: review UX
+- `Location`: `apps/web/src/features/review/EmailReviewView.tsx`
+- `Evidence`: `commentsQuery` refetches every 5 seconds. Comment and message list keys are already stable, so the main risk is not React key instability; it is background refresh while a user is reading or composing.
+- `Fix`: Pause or slow comment polling while a reply/comment composer is focused or dirty. Resume after submit, cancel, blur, or a short idle timeout.
 
-## 3. Производительность и масштабируемость
+### 5. Duplicate-as conflicts are only caught after submit
 
-### 3.1. Избыточный рендеринг тяжелых объектов в AI-логах
-*   **Локация:** `apps/web/src/features/ai-logs/AIAnalysisLogsView.tsx`
-*   **Описание:** Страница `/ai-logs` выгружает историю запросов к AI-моделям. Поля `Prompt` и `Response` содержат объемный текст (тысячи токенов). Если записей в базе много, загрузка и рендеринг всей таблицы без пагинации на сервере или виртуализации на клиенте приведет к значительному потреблению оперативной памяти браузером и лагам интерфейса.
-*   **Критичность:** Средняя (растет с увеличением базы).
-*   **Решение:** Внедрить пагинацию на стороне бэкенда (`LIMIT` / `OFFSET`) или использовать виртуализацию строк на фронтенде.
+- `Status`: verified
+- `Priority`: P2
+- `Type`: form polish
+- `Location`: `apps/web/src/features/review/EmailReviewView.tsx`
+- `Evidence`: The unified `Duplicate as...` flow submits to the backend and relies on a `409` conflict when the target `language + version + adaptation` already exists.
+- `Fix`: Use the already loaded email group variants to detect an existing target combination before submit and show field-level or form-level validation.
 
-### 3.2. Нагрузка при "живом" поиске на доске
-*   **Локация:** Поисковая строка в `apps/web/src/App.tsx`
-*   **Описание:** Фильтрация списка писем по `boardSearchQuery` происходит на клиенте при каждом вводе символа, параллельно записывая значение в `sessionStorage`. При наличии сотен писем на доске это вызывает частые перерендеры тяжелых DOM-деревьев карточек Kanban-доски.
-*   **Критичность:** Низкая (на малом объеме данных не заметна, растет при масштабировании).
-*   **Решение:** Дебаунсить (debouncing) обновление состояния фильтрации на 200–300 мс.
+## Needs Reproduction
 
----
+### 6. SSE analysis callbacks should be guarded by email id
 
-## 4. Бэкенд и логика парсинга
+- `Status`: needs repro
+- `Priority`: P2
+- `Type`: async hardening
+- `Location`: `apps/web/src/features/emails/useEmailAnalysisStream.ts`
+- `Evidence`: Current cleanup closes the active `EventSource` on `email.id` change, `opened` change, and unmount. That handles the obvious leak. A stale callback guard would still be useful defense-in-depth if a browser delivers queued events after close.
+- `Fix`: Capture the requested `email.id` when starting analysis and ignore callbacks if it no longer matches the current stream email id.
 
-### 4.1. Слабая обработка ошибок некорректной разметки (HTML Parser)
-*   **Локация:** `apps/api/internal/emailreview/markup.go`
-*   **Описание:** При загрузке некорректного или поврежденного HTML (например, незакрытые теги, сломанные маркеры `data-review-block` или `data-edit-*`), парсер на стороне Go может вернуть общую ошибку, которая приведет к ошибке HTTP 500.
-*   **Критичность:** Средняя.
-*   **Решение:** Сделать парсинг более отказоустойчивым. Вместо возврата критической ошибки возвращать массив предупреждений (warnings), позволяя загрузить письмо, но предупреждая администратора о структурных проблемах в коде письма.
+### 7. Overlay collision around dense review blocks
 
-### 4.2. Потенциальная утечка пула соединений при сбоях транзакций
-*   **Локация:** Обработчики транзакций в `apps/api/cmd/server/`
-*   **Описание:** В ряде мест, где инициируются ручные транзакции через `pgxpool`, необходимо гарантировать вызов `defer tx.Rollback(ctx)` сразу после создания транзакции. В случае паники или непредвиденного `return` без явного отката/коммита, соединение может зависнуть.
-*   **Критичность:** Средняя.
-*   **Решение:** Провести аудит всех обработчиков и убедиться, что паттерн использования транзакций везде строго следует правилу:
-    ```go
-    tx, err := dbpool.Begin(ctx)
-    if err != nil { ... }
-    defer tx.Rollback(ctx) // безопасно, если коммит уже был сделан
-    ```
+- `Status`: needs repro
+- `Priority`: P2
+- `Type`: review UX
+- `Location`: `apps/web/src/features/emails/MailPreview.tsx`, `apps/web/src/features/emails/ReviewCommentOverlay.tsx`
+- `Evidence`: Comment badges and changed-block markers are custom overlay elements. Dense anchors may overlap, but this needs a screenshot or fixture that reproduces the collision.
+- `Fix`: Add a dense-anchor fixture or manual repro. If confirmed, add collision-aware placement or aggregate nearby markers more aggressively.
+
+### 8. Broken HTML handling needs negative tests
+
+- `Status`: needs repro
+- `Priority`: P2
+- `Type`: backend validation
+- `Location`: `apps/api/internal/emailreview/markup.go`, `apps/api/cmd/server/email_handlers.go`
+- `Evidence`: Several create/update paths already return `400 invalid email HTML` when parsing fails. The remaining risk is unknown behavior for malformed but parseable email HTML, broken editable markers, or duplicated review block identifiers.
+- `Fix`: Add focused API tests for malformed HTML, duplicated editable keys, broken review markers, and parseable-but-poor HTML. Only change behavior after a failing case is confirmed.
+
+## Scale Risks
+
+### 9. AI logs will need pagination before log volume grows
+
+- `Status`: risk
+- `Priority`: P3
+- `Type`: performance
+- `Location`: `apps/web/src/features/ai-logs/AIAnalysisLogsView.tsx`
+- `Evidence`: The page uses server-side `limit` values up to 500 and then sorts/render rows client-side. This is acceptable for small internal usage, but will degrade as `ai_analysis_logs` grows.
+- `Fix`: Add server-side pagination with cursor or offset. Keep client-side sorting only for the current page, or move sort parameters to the API.
+
+### 10. Board search is immediate and client-side
+
+- `Status`: risk
+- `Priority`: P3
+- `Type`: performance
+- `Location`: `apps/web/src/App.tsx`
+- `Evidence`: Board search filters the current board client-side on every keystroke and persists the query to session storage. This is fine for current small boards, but may become expensive with hundreds of emails and many variants.
+- `Fix`: Add a small debounce or deferred value for board search before filtering. Server-side search can wait until board sizes justify it.
+
+### 11. Transaction handling should stay part of backend review checklist
+
+- `Status`: risk
+- `Priority`: P3
+- `Type`: backend audit
+- `Location`: `apps/api/cmd/server`
+- `Evidence`: The codebase uses manual `pgx` transactions in multiple handlers. Current key paths generally follow `defer tx.Rollback(...)`, so this is not a confirmed leak.
+- `Fix`: Keep transaction rollback checks in code review. If a helper emerges naturally, add a small transaction wrapper later.
+
+## Suggested Stabilization Order
+
+1. Add confirmation before deleting board stages.
+2. Add centralized 401/session-expired handling.
+3. Preserve iframe scroll position after inline edits.
+4. Pause comment polling while composing.
+5. Add client-side duplicate-as conflict validation.
