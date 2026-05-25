@@ -19,7 +19,6 @@ import type {
   OperationalEventItem,
   CreateEmailPayload,
   CreateEmailCommentPayload,
-  CreateEmailAdaptationPayload,
   DuplicateEmailPayload,
   EmailActivityItem,
   EmailComment,
@@ -323,23 +322,7 @@ export function duplicateEmail(
   payload: DuplicateEmailPayload
 ): Promise<EmailDetail> {
   return fetchJson<EmailDetail>(
-    `/api/emails/${encodeURIComponent(emailId)}/duplicate`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    }
-  );
-}
-
-export function createEmailAdaptation(
-  emailId: string,
-  payload: CreateEmailAdaptationPayload
-): Promise<EmailDetail> {
-  return fetchJson<EmailDetail>(
-    `/api/emails/${encodeURIComponent(emailId)}/adaptations`,
+    `/api/emails/${encodeURIComponent(emailId)}/duplicate-as`,
     {
       method: "POST",
       headers: {

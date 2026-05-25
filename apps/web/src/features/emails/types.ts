@@ -96,15 +96,12 @@ export type EmailHTMLInspection = {
 };
 
 export type DuplicateEmailPayload = {
-  language: string;
+  language?: string;
   variant?: EmailVariant;
+  adaptation_label?: string;
   title?: string;
   subject?: string;
   preheader?: string;
-};
-
-export type CreateEmailAdaptationPayload = {
-  label: string;
 };
 
 export type EditableFieldType = "text" | "url" | "image" | "number";

@@ -1833,6 +1833,93 @@ func TestDuplicateEmail(t *testing.T) {
 	}
 }
 
+func TestDuplicateEmailAsCreatesLanguageVersionAndAdaptation(t *testing.T) {
+	dbpool := testDBPool(t)
+	emailID := createTestEmail(t, dbpool)
+	user := createTestUserWithRole(t, dbpool, "admin")
+	setTestEmailForDuplicate(t, dbpool, emailID)
+
+	router := chi.NewRouter()
+	registerEmailRoutes(router, dbpool)
+
+	requestBody := []byte(`{
+		"language": "ES",
+		"variant": "v2",
+		"adaptation_label": "Legal",
+		"title": "Legal ES v2",
+		"subject": "Legal subject",
+		"preheader": "Legal preheader"
+	}`)
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/api/emails/"+emailID+"/duplicate-as",
+		bytes.NewReader(requestBody),
+	)
+	request = withAuthUser(request, user)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusCreated {
+		t.Fatalf("expected POST status 201, got %d: %s", response.Code, response.Body.String())
+	}
+
+	var created EmailDetail
+	if err := json.NewDecoder(response.Body).Decode(&created); err != nil {
+		t.Fatalf("failed to decode duplicated email: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = dbpool.Exec(context.Background(), `DELETE FROM emails WHERE id = $1;`, created.ID)
+	})
+
+	if created.Slug != "comment-test-email-es-v2--legal" {
+		t.Fatalf("expected duplicate-as slug comment-test-email-es-v2--legal, got %q", created.Slug)
+	}
+	if created.Language != "es" {
+		t.Fatalf("expected language es, got %q", created.Language)
+	}
+	if created.Variant != "v2" {
+		t.Fatalf("expected variant v2, got %q", created.Variant)
+	}
+	if created.AdaptationKey != "legal" {
+		t.Fatalf("expected adaptation key legal, got %q", created.AdaptationKey)
+	}
+	if created.AdaptationLabel != "Legal" {
+		t.Fatalf("expected adaptation label Legal, got %q", created.AdaptationLabel)
+	}
+	if created.Title != "Legal ES v2" {
+		t.Fatalf("expected title override, got %q", created.Title)
+	}
+	if created.Subject == nil || *created.Subject != "Legal subject" {
+		t.Fatalf("expected subject override, got %#v", created.Subject)
+	}
+	if created.Preheader == nil || *created.Preheader != "Legal preheader" {
+		t.Fatalf("expected preheader override, got %#v", created.Preheader)
+	}
+
+	var metadataJSON []byte
+	err := dbpool.QueryRow(context.Background(), `
+		SELECT metadata
+		FROM email_events
+		WHERE email_id = $1
+			AND action = 'email_duplicated'
+		ORDER BY created_at DESC
+		LIMIT 1;
+	`, created.ID).Scan(&metadataJSON)
+	if err != nil {
+		t.Fatalf("failed to load duplicate-as event: %v", err)
+	}
+	var metadata map[string]any
+	if err := json.Unmarshal(metadataJSON, &metadata); err != nil {
+		t.Fatalf("failed to decode duplicate-as event metadata: %v", err)
+	}
+	if metadata["mode"] != "duplicate_as" {
+		t.Fatalf("expected duplicate-as event mode, got %#v", metadata["mode"])
+	}
+	if metadata["adaptation_key"] != "legal" {
+		t.Fatalf("expected adaptation_key legal, got %#v", metadata["adaptation_key"])
+	}
+}
+
 func TestDuplicateEmailConflict(t *testing.T) {
 	dbpool := testDBPool(t)
 	emailID := createTestEmail(t, dbpool)

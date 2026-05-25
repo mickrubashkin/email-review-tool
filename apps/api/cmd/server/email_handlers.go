@@ -35,6 +35,7 @@ func registerEmailRoutes(r chi.Router, dbpool *pgxpool.Pool) {
 	r.Patch("/api/emails/{id}/editable-fields", updateEmailEditableFieldsHandler(dbpool))
 	r.Patch("/api/emails/{id}/planning-fields", updateEmailPlanningFieldsHandler(dbpool))
 	r.Patch("/api/emails/{id}/review-status", updateEmailReviewStatusHandler(dbpool))
+	r.Post("/api/emails/{id}/duplicate-as", duplicateEmailAsHandler(dbpool))
 	r.Post("/api/emails/{id}/duplicate", duplicateEmailHandler(dbpool))
 	r.Post("/api/emails/{id}/adaptations", createEmailAdaptationHandler(dbpool))
 	r.Patch("/api/emails/{id}/archive", archiveEmailHandler(dbpool))
@@ -1127,6 +1128,182 @@ type duplicateEmailRequest struct {
 
 type createEmailAdaptationRequest struct {
 	Label string `json:"label"`
+}
+
+type duplicateEmailAsRequest struct {
+	Language        *string `json:"language"`
+	Variant         *string `json:"variant"`
+	AdaptationLabel *string `json:"adaptation_label"`
+	Title           *string `json:"title"`
+	Subject         *string `json:"subject"`
+	Preheader       *string `json:"preheader"`
+}
+
+func duplicateEmailAsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := chi.URLParam(r, "id")
+		user, ok := authUserFromContext(r)
+		if !ok {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		if !isAdminUser(user) {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+
+		var request duplicateEmailAsRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+
+		source, err := loadEmailForDuplicate(r, dbpool, id)
+		if err != nil {
+			http.Error(w, "email not found", http.StatusNotFound)
+			return
+		}
+
+		language := source.Language
+		if request.Language != nil {
+			language = strings.ToLower(strings.TrimSpace(*request.Language))
+		}
+		if language == "" {
+			http.Error(w, "language is required", http.StatusBadRequest)
+			return
+		}
+
+		variant := source.Variant
+		if request.Variant != nil {
+			variant = strings.ToLower(strings.TrimSpace(*request.Variant))
+		}
+		if variant == "" {
+			http.Error(w, "variant is required", http.StatusBadRequest)
+			return
+		}
+
+		adaptationKey := source.AdaptationKey
+		adaptationLabel := source.AdaptationLabel
+		if request.AdaptationLabel != nil {
+			adaptationKey, adaptationLabel, err = normalizeEmailAdaptation(request.AdaptationLabel)
+			if err != nil {
+				http.Error(w, "invalid adaptation_label", http.StatusBadRequest)
+				return
+			}
+		}
+
+		title := source.Title
+		if request.Title != nil {
+			title = strings.TrimSpace(*request.Title)
+		}
+		if title == "" {
+			http.Error(w, "title is required", http.StatusBadRequest)
+			return
+		}
+
+		subject := source.Subject
+		if request.Subject != nil {
+			subject = request.Subject
+		}
+
+		preheader := source.Preheader
+		if request.Preheader != nil {
+			preheader = request.Preheader
+		}
+
+		if language == source.Language &&
+			variant == source.Variant &&
+			adaptationKey == source.AdaptationKey &&
+			title == source.Title &&
+			stringFromPointer(subject) == stringFromPointer(source.Subject) &&
+			stringFromPointer(preheader) == stringFromPointer(source.Preheader) {
+			http.Error(w, "target must change language, version, adaptation, or copy", http.StatusBadRequest)
+			return
+		}
+
+		slug := emailSlugWithAdaptation(
+			duplicateEmailSlug(source.Slug, source.Language, source.Variant, language, variant),
+			adaptationKey,
+		)
+		contentParts, err := json.Marshal(emailtext.ExtractContentParts(
+			source.OriginalHTML,
+			stringFromPointer(subject),
+			stringFromPointer(preheader),
+			stringFromPointer(source.BodyText),
+		))
+		if err != nil {
+			http.Error(w, "failed to build duplicated email", http.StatusInternalServerError)
+			return
+		}
+
+		tx, err := dbpool.Begin(r.Context())
+		if err != nil {
+			http.Error(w, "failed to duplicate email", http.StatusInternalServerError)
+			return
+		}
+		defer tx.Rollback(r.Context())
+
+		created, err := insertDuplicatedEmail(r, tx, duplicateEmailInsert{
+			Slug:            slug,
+			Sequence:        source.Sequence,
+			Title:           title,
+			Subject:         subject,
+			Preheader:       preheader,
+			SendTiming:      source.SendTiming,
+			Stage:           source.Stage,
+			SortOrder:       source.SortOrder,
+			Language:        language,
+			Variant:         variant,
+			AdaptationKey:   adaptationKey,
+			AdaptationLabel: adaptationLabel,
+			BodyText:        source.BodyText,
+			ContentParts:    contentParts,
+			OriginalHTML:    source.OriginalHTML,
+			ReviewHTML:      source.ReviewHTML,
+			TemplateHTML:    source.TemplateHTML,
+			TemplateHash:    source.TemplateHash,
+			TemplateVersion: source.TemplateVersion,
+			EditableFields:  source.EditableFields,
+		})
+		if err != nil {
+			if isEmailCreationConflict(err) {
+				http.Error(w, "email duplicate already exists", http.StatusConflict)
+				return
+			}
+			fmt.Fprintf(os.Stderr, "failed to duplicate email as %s: %v\n", id, err)
+			http.Error(w, "failed to duplicate email", http.StatusInternalServerError)
+			return
+		}
+		if err := insertEmailEvent(r.Context(), tx, emailEvent{
+			ActorUserID: user.ID,
+			ActorEmail:  user.Email,
+			Action:      emailEventDuplicated,
+			EmailID:     &created.ID,
+			EmailSlug:   &created.Slug,
+			EmailTitle:  &created.Title,
+			Metadata: map[string]any{
+				"source_email_id":  id,
+				"source_slug":      source.Slug,
+				"created_email_id": created.ID,
+				"language":         created.Language,
+				"variant":          created.Variant,
+				"adaptation_key":   created.AdaptationKey,
+				"adaptation_label": created.AdaptationLabel,
+				"mode":             "duplicate_as",
+			},
+		}); err != nil {
+			fmt.Fprintf(os.Stderr, "failed to insert email duplicate-as event for %s: %v\n", created.ID, err)
+			http.Error(w, "failed to record email event", http.StatusInternalServerError)
+			return
+		}
+		if err := tx.Commit(r.Context()); err != nil {
+			http.Error(w, "failed to duplicate email", http.StatusInternalServerError)
+			return
+		}
+
+		w.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(w).Encode(created)
+	}
 }
 
 func duplicateEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {

@@ -63,7 +63,6 @@ import { AnalysisPanel } from "../emails/AnalysisPanel";
 import {
   ApiError,
   archiveEmail,
-  createEmailAdaptation,
   createCommentMessage,
   createEmailComment,
   duplicateEmail,
@@ -115,7 +114,6 @@ import {
 import { buildStreamPreview } from "../emails/streamPreview";
 import type {
   AuthUser,
-  CreateEmailAdaptationPayload,
   DuplicateEmailPayload,
   EmailActivityItem,
   EmailComment,
@@ -163,7 +161,6 @@ export function EmailReviewView({
     useState<ReviewContentTab>("email");
   const [archiveModalOpened, setArchiveModalOpened] = useState(false);
   const [duplicateModalOpened, setDuplicateModalOpened] = useState(false);
-  const [adaptationModalOpened, setAdaptationModalOpened] = useState(false);
   const [sourceHTMLModalOpened, setSourceHTMLModalOpened] = useState(false);
   const [sourceHTMLDraft, setSourceHTMLDraft] = useState("");
   const [rightPanelPercent, setRightPanelPercent] = useState(30);
@@ -430,21 +427,6 @@ export function EmailReviewView({
       sourceEmailId: string;
       payload: DuplicateEmailPayload;
     }) => duplicateEmail(sourceEmailId, payload),
-    onSuccess: (createdEmail) => {
-      void queryClient.invalidateQueries({ queryKey: ["emails"] });
-      void queryClient.invalidateQueries({ queryKey: ["email-activity", emailId] });
-      queryClient.setQueryData(["emails", createdEmail.id, "review"], createdEmail);
-      navigate(`/emails/${encodeURIComponent(createdEmail.id)}/review`);
-    },
-  });
-  const createAdaptationMutation = useMutation({
-    mutationFn: ({
-      sourceEmailId,
-      payload,
-    }: {
-      sourceEmailId: string;
-      payload: CreateEmailAdaptationPayload;
-    }) => createEmailAdaptation(sourceEmailId, payload),
     onSuccess: (createdEmail) => {
       void queryClient.invalidateQueries({ queryKey: ["emails"] });
       void queryClient.invalidateQueries({ queryKey: ["email-activity", emailId] });
@@ -1155,23 +1137,11 @@ export function EmailReviewView({
                           <StackPlusIcon aria-hidden="true" size={15} />
                         }
                         onClick={() => {
-                          createAdaptationMutation.reset();
-                          setAdaptationModalOpened(true);
-                        }}
-                      >
-                        Create adaptation
-                      </Menu.Item>
-                      <Menu.Item
-                        disabled={!email}
-                        leftSection={
-                          <StackPlusIcon aria-hidden="true" size={15} />
-                        }
-                        onClick={() => {
                           duplicateEmailMutation.reset();
                           setDuplicateModalOpened(true);
                         }}
                       >
-                        Duplicate language/version
+                        Duplicate as...
                       </Menu.Item>
                       <Menu.Item
                         color="red"
@@ -1223,26 +1193,9 @@ export function EmailReviewView({
                 {canManageEmail ? (
                   <>
                     <Group className={styles.actionGroup} gap="xs" wrap="nowrap">
-                      <Tooltip label="Create adaptation">
+                      <Tooltip label="Duplicate as...">
                         <ActionIcon
-                          aria-label="Create adaptation"
-                          className={styles.headerIconButton}
-                          disabled={!email}
-                          onClick={() => {
-                            createAdaptationMutation.reset();
-                            setAdaptationModalOpened(true);
-                          }}
-                          radius="md"
-                          size="lg"
-                          variant="light"
-                        >
-                          <StackPlusIcon aria-hidden="true" size={16} />
-                        </ActionIcon>
-                      </Tooltip>
-
-                      <Tooltip label="Duplicate language/version">
-                        <ActionIcon
-                          aria-label="Duplicate language/version"
+                          aria-label="Duplicate as"
                           className={styles.headerIconButton}
                           disabled={!email}
                           onClick={() => {
@@ -1253,7 +1206,7 @@ export function EmailReviewView({
                           size="lg"
                           variant="light"
                         >
-                          <CopyIcon aria-hidden="true" size={16} />
+                          <StackPlusIcon aria-hidden="true" size={16} />
                         </ActionIcon>
                       </Tooltip>
 
@@ -1353,23 +1306,6 @@ export function EmailReviewView({
           onSubmit={async (sourceEmailId, payload) => {
             await duplicateEmailMutation.mutateAsync({ sourceEmailId, payload });
             setDuplicateModalOpened(false);
-          }}
-        />
-      ) : null}
-
-      {adaptationModalOpened && email ? (
-        <CreateAdaptationModal
-          email={email}
-          error={createAdaptationMutation.error}
-          isSubmitting={createAdaptationMutation.isPending}
-          onClose={() => {
-            createAdaptationMutation.reset();
-            setAdaptationModalOpened(false);
-          }}
-          onResetError={() => createAdaptationMutation.reset()}
-          onSubmit={async (sourceEmailId, payload) => {
-            await createAdaptationMutation.mutateAsync({ sourceEmailId, payload });
-            setAdaptationModalOpened(false);
           }}
         />
       ) : null}
@@ -3058,31 +2994,61 @@ function DuplicateEmailModal({
   onResetError: () => void;
   onSubmit: (emailId: string, payload: DuplicateEmailPayload) => Promise<void>;
 }) {
-  const [language, setLanguage] = useState("");
+  const [language, setLanguage] = useState(email.language);
   const [variant, setVariant] = useState<EmailVariant>(email.variant);
+  const [adaptationLabel, setAdaptationLabel] = useState(email.adaptation_label);
   const [title, setTitle] = useState(email.title);
   const [subject, setSubject] = useState(email.subject ?? "");
   const [preheader, setPreheader] = useState(email.preheader ?? "");
   const [languageError, setLanguageError] = useState<string | null>(null);
+  const [variantError, setVariantError] = useState<string | null>(null);
+  const [adaptationError, setAdaptationError] = useState<string | null>(null);
+  const [targetError, setTargetError] = useState<string | null>(null);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     const normalizedLanguage = language.trim().toLowerCase();
+    const normalizedVariant = variant.trim().toLowerCase();
+    const normalizedAdaptationLabel = adaptationLabel.trim();
     if (!normalizedLanguage) {
       setLanguageError("Language is required");
       return;
     }
+    if (!normalizedVariant) {
+      setVariantError("Version is required");
+      return;
+    }
+    if (!normalizedAdaptationLabel) {
+      setAdaptationError("Adaptation is required");
+      return;
+    }
+
+    const payload: DuplicateEmailPayload = {
+      ...buildOptionalTextPayload("title", title, email.title),
+      ...buildOptionalTextPayload("subject", subject, email.subject),
+      ...buildOptionalTextPayload("preheader", preheader, email.preheader),
+    };
+    if (normalizedLanguage !== email.language) {
+      payload.language = normalizedLanguage;
+    }
+    if (normalizedVariant !== email.variant) {
+      payload.variant = normalizedVariant;
+    }
+    if (normalizedAdaptationLabel !== email.adaptation_label) {
+      payload.adaptation_label = normalizedAdaptationLabel;
+    }
+    if (Object.keys(payload).length === 0) {
+      setTargetError("Change language, version, adaptation, or copy before creating.");
+      return;
+    }
 
     setLanguageError(null);
+    setVariantError(null);
+    setAdaptationError(null);
+    setTargetError(null);
     try {
-      await onSubmit(email.id, {
-        language: normalizedLanguage,
-        variant,
-        ...buildOptionalTextPayload("title", title, email.title),
-        ...buildOptionalTextPayload("subject", subject, email.subject),
-        ...buildOptionalTextPayload("preheader", preheader, email.preheader),
-      });
+      await onSubmit(email.id, payload);
     } catch {
       // React Query stores the error; keep the modal open and show it inline.
     }
@@ -3091,14 +3057,19 @@ function DuplicateEmailModal({
   const isConflict = error instanceof ApiError && error.status === 409;
 
   return (
-    <Modal centered opened title="Duplicate language/version" onClose={onClose}>
+    <Modal centered opened title="Duplicate as..." onClose={onClose}>
       <form onSubmit={handleSubmit}>
         <Stack gap="sm">
           {error ? (
-            <Alert color="red" title="Could not duplicate language/version">
+            <Alert color="red" title="Could not duplicate email">
               {isConflict
-                ? "This language and version already exist for the selected email."
+                ? "This language, version, and adaptation already exist for the selected email."
                 : "Try again or check that the API server is reachable."}
+            </Alert>
+          ) : null}
+          {targetError ? (
+            <Alert color="yellow" title="Nothing to create">
+              {targetError}
             </Alert>
           ) : null}
 
@@ -3111,6 +3082,7 @@ function DuplicateEmailModal({
             value={language}
             onChange={(event) => {
               onResetError();
+              setTargetError(null);
               setLanguage(event.currentTarget.value);
               if (languageError) {
                 setLanguageError(null);
@@ -3120,12 +3092,33 @@ function DuplicateEmailModal({
 
           <TextInput
             disabled={isSubmitting}
+            error={variantError}
             label="Version"
             placeholder="v2"
             value={variant}
             onChange={(event) => {
               onResetError();
+              setTargetError(null);
               setVariant(event.currentTarget.value);
+              if (variantError) {
+                setVariantError(null);
+              }
+            }}
+          />
+
+          <TextInput
+            disabled={isSubmitting}
+            error={adaptationError}
+            label="Adaptation"
+            placeholder="Legal"
+            value={adaptationLabel}
+            onChange={(event) => {
+              onResetError();
+              setTargetError(null);
+              setAdaptationLabel(event.currentTarget.value);
+              if (adaptationError) {
+                setAdaptationError(null);
+              }
             }}
           />
 
@@ -3135,6 +3128,7 @@ function DuplicateEmailModal({
             value={title}
             onChange={(event) => {
               onResetError();
+              setTargetError(null);
               setTitle(event.currentTarget.value);
             }}
           />
@@ -3145,6 +3139,7 @@ function DuplicateEmailModal({
             value={subject}
             onChange={(event) => {
               onResetError();
+              setTargetError(null);
               setSubject(event.currentTarget.value);
             }}
           />
@@ -3155,6 +3150,7 @@ function DuplicateEmailModal({
             value={preheader}
             onChange={(event) => {
               onResetError();
+              setTargetError(null);
               setPreheader(event.currentTarget.value);
             }}
           />
@@ -3169,93 +3165,7 @@ function DuplicateEmailModal({
               Cancel
             </Button>
             <Button loading={isSubmitting} type="submit">
-              Create duplicate
-            </Button>
-          </Group>
-        </Stack>
-      </form>
-    </Modal>
-  );
-}
-
-function CreateAdaptationModal({
-  email,
-  error,
-  isSubmitting,
-  onClose,
-  onResetError,
-  onSubmit,
-}: {
-  email: EmailDetail;
-  error: Error | null;
-  isSubmitting: boolean;
-  onClose: () => void;
-  onResetError: () => void;
-  onSubmit: (
-    emailId: string,
-    payload: CreateEmailAdaptationPayload
-  ) => Promise<void>;
-}) {
-  const [label, setLabel] = useState("");
-  const [labelError, setLabelError] = useState<string | null>(null);
-  const isConflict = error instanceof ApiError && error.status === 409;
-
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const normalizedLabel = label.trim();
-    if (!normalizedLabel) {
-      setLabelError("Name is required");
-      return;
-    }
-    setLabelError(null);
-    try {
-      await onSubmit(email.id, { label: normalizedLabel });
-    } catch {
-      // React Query stores the error; keep the modal open and show it inline.
-    }
-  };
-
-  return (
-    <Modal centered opened title="Create adaptation" onClose={onClose}>
-      <form onSubmit={handleSubmit}>
-        <Stack gap="sm">
-          {error ? (
-            <Alert color="red" title="Could not create adaptation">
-              {isConflict
-                ? "This adaptation already exists for the selected language and version."
-                : "Try again or check that the API server is reachable."}
-            </Alert>
-          ) : null}
-          <Text size="sm" c="dimmed">
-            Create an independent copy of {email.language.toUpperCase()}{" "}
-            {email.variant} for a specific audience or use case.
-          </Text>
-          <TextInput
-            data-autofocus
-            disabled={isSubmitting}
-            error={labelError}
-            label="Name"
-            placeholder="UAE"
-            value={label}
-            onChange={(event) => {
-              onResetError();
-              setLabel(event.currentTarget.value);
-              if (labelError) {
-                setLabelError(null);
-              }
-            }}
-          />
-          <Group justify="flex-end" mt="xs">
-            <Button
-              disabled={isSubmitting}
-              type="button"
-              variant="default"
-              onClick={onClose}
-            >
-              Cancel
-            </Button>
-            <Button loading={isSubmitting} type="submit">
-              Create adaptation
+              Duplicate as
             </Button>
           </Group>
         </Stack>
