@@ -99,13 +99,17 @@ The most promising first external ICP remains CRM, lifecycle, and email marketin
 
 ## Priority 4: Handoff And Activity History
 
-- [ ] Add a handoff package for an approved email or sequence:
+- [x] Add a minimal handoff package for an approved email:
   - final rendered HTML;
   - subject and preheader;
-  - links and UTM values;
   - implementation notes;
   - approval state;
   - open blockers.
+- [ ] Extend handoff package for full production handoff:
+  - [x] sequence-level package;
+  - links and UTM values;
+  - [x] structured export manifest;
+  - final approval summary.
 - [x] Add a concise activity timeline in the review view:
   - comments;
   - replies;
