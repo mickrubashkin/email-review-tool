@@ -110,6 +110,25 @@
   cursor: pointer;
 }
 
+.readOnlySelect {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+  min-width: 54px;
+  max-width: 144px;
+  padding: 0 10px;
+  overflow: hidden;
+  border: 1px solid var(--mantine-color-gray-2);
+  border-radius: var(--mantine-radius-md);
+  color: var(--mantine-color-gray-6);
+  background: var(--mantine-color-gray-0);
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .select:disabled {
   opacity: 0.54;
   cursor: not-allowed;

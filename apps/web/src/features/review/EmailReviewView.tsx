@@ -271,6 +271,9 @@ export function EmailReviewView({
     : email
       ? [email]
       : [];
+  const hasLanguageOptions = languageVersions.length > 1;
+  const hasVariantOptions = availableVariants.length > 1;
+  const hasAdaptationOptions = availableAdaptations.length > 1;
   const boardEmailGroups = useMemo(
     () => stageColumns.flatMap((column) => column.emailGroups),
     [stageColumns]
@@ -1055,22 +1058,43 @@ export function EmailReviewView({
                 <div className={styles.actionDivider} aria-hidden="true" />
 
                 <Group className={styles.actionGroup} gap="xs" wrap="nowrap">
-                  <LanguageSelect
-                    selectedEmailId={email?.id ?? ""}
-                    versions={languageVersions}
-                    onSelect={navigateToReview}
-                  />
+                  {hasLanguageOptions ? (
+                    <LanguageSelect
+                      selectedEmailId={email?.id ?? ""}
+                      versions={languageVersions}
+                      onSelect={navigateToReview}
+                    />
+                  ) : (
+                    <ReadOnlyVersionValue
+                      label="Email language"
+                      value={email?.language.toUpperCase() ?? ""}
+                    />
+                  )}
 
-                  <VariantSwitch
-                    availableVariants={availableVariants}
-                    selectedVariant={selectedVariant}
-                    onSelect={handleVariantClick}
-                  />
-                  <AdaptationSelect
-                    adaptations={availableAdaptations}
-                    selectedAdaptation={selectedAdaptation}
-                    onSelect={handleAdaptationSelect}
-                  />
+                  {hasVariantOptions ? (
+                    <VariantSelect
+                      availableVariants={availableVariants}
+                      selectedVariant={selectedVariant}
+                      onSelect={handleVariantClick}
+                    />
+                  ) : (
+                    <ReadOnlyVersionValue
+                      label="Email version"
+                      value={selectedVariant}
+                    />
+                  )}
+                  {hasAdaptationOptions ? (
+                    <AdaptationSelect
+                      adaptations={availableAdaptations}
+                      selectedAdaptation={selectedAdaptation}
+                      onSelect={handleAdaptationSelect}
+                    />
+                  ) : (
+                    <ReadOnlyVersionValue
+                      label="Email adaptation"
+                      value={email?.adaptation_label ?? ""}
+                    />
+                  )}
                 </Group>
               </>
             ) : null}
@@ -1110,22 +1134,43 @@ export function EmailReviewView({
                   ) : null}
                   <Menu.Label>Email version</Menu.Label>
                   <div className={styles.menuControls}>
-                    <LanguageSelect
-                      selectedEmailId={email?.id ?? ""}
-                      versions={languageVersions}
-                      onSelect={navigateToReview}
-                    />
+                    {hasLanguageOptions ? (
+                      <LanguageSelect
+                        selectedEmailId={email?.id ?? ""}
+                        versions={languageVersions}
+                        onSelect={navigateToReview}
+                      />
+                    ) : (
+                      <ReadOnlyVersionValue
+                        label="Email language"
+                        value={email?.language.toUpperCase() ?? ""}
+                      />
+                    )}
 
-                    <VariantSwitch
-                      availableVariants={availableVariants}
-                      selectedVariant={selectedVariant}
-                      onSelect={handleVariantClick}
-                    />
-                    <AdaptationSelect
-                      adaptations={availableAdaptations}
-                      selectedAdaptation={selectedAdaptation}
-                      onSelect={handleAdaptationSelect}
-                    />
+                    {hasVariantOptions ? (
+                      <VariantSelect
+                        availableVariants={availableVariants}
+                        selectedVariant={selectedVariant}
+                        onSelect={handleVariantClick}
+                      />
+                    ) : (
+                      <ReadOnlyVersionValue
+                        label="Email version"
+                        value={selectedVariant}
+                      />
+                    )}
+                    {hasAdaptationOptions ? (
+                      <AdaptationSelect
+                        adaptations={availableAdaptations}
+                        selectedAdaptation={selectedAdaptation}
+                        onSelect={handleAdaptationSelect}
+                      />
+                    ) : (
+                      <ReadOnlyVersionValue
+                        label="Email adaptation"
+                        value={email?.adaptation_label ?? ""}
+                      />
+                    )}
                   </div>
                   <Menu.Divider />
 
@@ -3260,7 +3305,7 @@ function AdaptationSelect({
   );
 }
 
-function VariantSwitch({
+function VariantSelect({
   availableVariants,
   onSelect,
   selectedVariant,
@@ -3270,20 +3315,39 @@ function VariantSwitch({
   selectedVariant: EmailVariant;
 }) {
   return (
-    <Group className={styles.segmentedControl} gap={0}>
-      {availableVariants.map((variant) => (
-        <button
-          aria-label={`${variant} email version`}
-          className={styles.segmentedButton}
-          data-active={variant === selectedVariant || undefined}
-          key={variant}
-          type="button"
-          onClick={() => onSelect(variant)}
-        >
-          {variant}
-        </button>
-      ))}
-    </Group>
+    <label className={styles.selectWrap}>
+      <select
+        aria-label="Email version"
+        className={styles.select}
+        value={selectedVariant}
+        onChange={(event) => onSelect(event.currentTarget.value)}
+      >
+        {availableVariants.map((variant) => (
+          <option key={variant} value={variant}>
+            {variant}
+          </option>
+        ))}
+      </select>
+      <CaretDownIcon
+        aria-hidden="true"
+        className={styles.selectIcon}
+        size={14}
+      />
+    </label>
+  );
+}
+
+function ReadOnlyVersionValue({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <span aria-label={label} className={styles.readOnlySelect}>
+      {value || "None"}
+    </span>
   );
 }
 
