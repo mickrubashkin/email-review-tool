@@ -99,17 +99,21 @@ const boardSearchStorageKey = "reviewdesk.board.search";
 type BoardCommentFilter = "all" | "open";
 
 type BoardFilters = {
+  owner: string;
   comments: BoardCommentFilter;
   language: string;
   adaptation: string;
+  reviewer: string;
   variant: string;
   status: string;
 };
 
 const defaultBoardFilters: BoardFilters = {
+  owner: "",
   comments: "all",
   language: "",
   adaptation: "",
+  reviewer: "",
   variant: "",
   status: "",
 };
@@ -578,6 +582,30 @@ function EmailBoardApp({
           />
         </div>
 
+        <Menu.Label>Owner</Menu.Label>
+        <div className={styles.boardFilterMenuControl}>
+          <Select
+            clearable
+            data={boardFilterOptions.owners}
+            placeholder="All owners"
+            size="xs"
+            value={boardFilters.owner || null}
+            onChange={(value) => updateBoardFilter("owner", value)}
+          />
+        </div>
+
+        <Menu.Label>Reviewer</Menu.Label>
+        <div className={styles.boardFilterMenuControl}>
+          <Select
+            clearable
+            data={boardFilterOptions.reviewers}
+            placeholder="All reviewers"
+            size="xs"
+            value={boardFilters.reviewer || null}
+            onChange={(value) => updateBoardFilter("reviewer", value)}
+          />
+        </div>
+
         <Menu.Label>Status</Menu.Label>
         <div className={styles.boardFilterMenuControl}>
           <Select
@@ -768,6 +796,26 @@ function EmailBoardApp({
                       size="xs"
                       value={boardFilters.variant || null}
                       onChange={(value) => updateBoardFilter("variant", value)}
+                    />
+                  </div>
+                  <div className={styles.boardFilterMenuControl}>
+                    <Select
+                      clearable
+                      data={boardFilterOptions.owners}
+                      placeholder="All owners"
+                      size="xs"
+                      value={boardFilters.owner || null}
+                      onChange={(value) => updateBoardFilter("owner", value)}
+                    />
+                  </div>
+                  <div className={styles.boardFilterMenuControl}>
+                    <Select
+                      clearable
+                      data={boardFilterOptions.reviewers}
+                      placeholder="All reviewers"
+                      size="xs"
+                      value={boardFilters.reviewer || null}
+                      onChange={(value) => updateBoardFilter("reviewer", value)}
                     />
                   </div>
                   <div className={styles.boardFilterMenuControl}>
@@ -1310,6 +1358,9 @@ function emailMatchesBoardFilters(email: EmailListItem, filters: BoardFilters) {
     (!filters.language || email.language === filters.language) &&
     (!filters.adaptation || email.adaptation_key === filters.adaptation) &&
     (!filters.variant || email.variant === filters.variant) &&
+    (!filters.owner || assigneeFilterValue(email.owner_email) === filters.owner) &&
+    (!filters.reviewer ||
+      assigneeFilterValue(email.reviewer_email) === filters.reviewer) &&
     (!filters.status || email.review_status === filters.status)
   );
 }
@@ -1320,6 +1371,8 @@ function getActiveBoardFilterCount(filters: BoardFilters) {
     filters.language,
     filters.adaptation,
     filters.variant,
+    filters.owner,
+    filters.reviewer,
     filters.status,
   ].filter(Boolean).length;
 }
@@ -1355,7 +1408,20 @@ function getBoardFilterOptions(emails: EmailListItem[]) {
       label: formatVariantOptionLabel(variant, variants),
       value: variant,
     })),
+    owners: assigneeFilterOptions(emails.map((email) => email.owner_email)),
+    reviewers: assigneeFilterOptions(emails.map((email) => email.reviewer_email)),
   };
+}
+
+function assigneeFilterOptions(values: Array<string | null>) {
+  return uniqueSorted(values.map(assigneeFilterValue)).map((value) => ({
+    label: value === "__unassigned__" ? "Unassigned" : value,
+    value,
+  }));
+}
+
+function assigneeFilterValue(value: string | null) {
+  return value?.trim() || "__unassigned__";
 }
 
 function uniqueSorted(values: string[]) {
