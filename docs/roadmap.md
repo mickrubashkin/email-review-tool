@@ -20,6 +20,10 @@ The most promising first external ICP remains CRM, lifecycle, and email marketin
 - [x] Restrict admin-style operational endpoints to admin users, especially AI analysis logs and AI debug payloads.
 - [x] Add defense-in-depth for cookie-authenticated mutating API requests by rejecting cross-origin browser requests.
 - [x] Keep the local Vite proxy workflow working for same-origin `/api` calls.
+- [x] Add basic user administration:
+  - admins can add reviewer users by email without sending invites;
+  - super admins can add reviewer, admin, and super admin users;
+  - users can later sign in through the existing OTP flow.
 
 ## Priority 2: Test Reproducibility
 
@@ -44,7 +48,8 @@ The most promising first external ICP remains CRM, lifecycle, and email marketin
   - [x] owner;
   - [x] reviewer;
   - [x] due date;
-  - [x] optional implementation notes.
+  - [x] optional implementation notes;
+  - [x] owner and reviewer can be selected from existing users, with saved-email fallback.
 - [ ] Connect email editing to review state:
   - store review decisions against a specific email version;
   - keep comments open after edits until a user resolves them explicitly;
