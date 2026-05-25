@@ -67,6 +67,7 @@ import {
   createCommentMessage,
   createEmailComment,
   duplicateEmail,
+  fetchAdminUsers,
   fetchEmailActivity,
   fetchEmailComments,
   fetchEmailDetail,
@@ -116,6 +117,8 @@ import type {
   EmailReviewStatus,
   EmailVariant,
   EmailVersionGroup,
+  UserAdminItem,
+  UserRole,
   UpdateEditableFieldsPayload,
   UpdateEmailPlanningFieldsPayload,
 } from "../emails/types";
@@ -162,6 +165,8 @@ export function EmailReviewView({
   const isResizingRef = useRef(false);
   const [isResizing, setIsResizing] = useState(false);
   const isCompactReview = useMediaQuery("(max-width: 64em)");
+  const canManageEmail =
+    currentUserRole === "admin" || currentUserRole === "super_admin";
   const emailQuery = useQuery({
     queryKey: ["emails", emailId, "review"],
     queryFn: () => fetchEmailDetail(emailId),
@@ -189,6 +194,11 @@ export function EmailReviewView({
     queryKey: ["emails", emailId, "ai-analysis"],
     queryFn: () => fetchSharedEmailAnalysis(emailId),
     enabled: emailId.trim() !== "",
+  });
+  const adminUsersQuery = useQuery({
+    queryKey: ["admin", "users"],
+    queryFn: fetchAdminUsers,
+    enabled: canManageEmail,
   });
   const stageColumns = useMemo(
     () => buildStageColumns(emailsQuery.data ?? []),
@@ -318,9 +328,6 @@ export function EmailReviewView({
     () => filteredComments.map(commentToTarget),
     [filteredComments]
   );
-  const canManageEmail =
-    currentUserRole === "admin" || currentUserRole === "super_admin";
-
   useEffect(() => {
     if (!commentsQuery.data) {
       return;
@@ -904,8 +911,10 @@ export function EmailReviewView({
   );
   const planningContent = (
     <PlanningPanel
+      adminUsers={adminUsersQuery.data ?? []}
       canManage={canManageEmail}
       email={email}
+      isLoadingUsers={adminUsersQuery.isLoading}
       isSaving={planningFieldsMutation.isPending}
       key={email?.id ?? "loading"}
       onSubmit={handlePlanningFieldsSubmit}
@@ -1553,13 +1562,17 @@ function nullableTrimmed(value: string) {
 }
 
 function PlanningPanel({
+  adminUsers,
   canManage,
   email,
+  isLoadingUsers,
   isSaving,
   onSubmit,
 }: {
+  adminUsers: UserAdminItem[];
   canManage: boolean;
   email: EmailDetail | undefined;
+  isLoadingUsers: boolean;
   isSaving: boolean;
   onSubmit: (payload: UpdateEmailPlanningFieldsPayload) => void;
 }) {
@@ -1589,6 +1602,15 @@ function PlanningPanel({
     payload.reviewer_email !== (email.reviewer_email ?? null) ||
     payload.due_date !== (email.due_date ?? null) ||
     payload.implementation_notes !== (email.implementation_notes ?? null);
+  const ownerOptions = assigneeOptions(adminUsers, ownerEmail, [
+    "admin",
+    "super_admin",
+  ]);
+  const reviewerOptions = assigneeOptions(adminUsers, reviewerEmail, [
+    "reviewer",
+    "admin",
+    "super_admin",
+  ]);
 
   return (
     <form
@@ -1600,20 +1622,33 @@ function PlanningPanel({
       }}
     >
       <Stack gap="sm">
-        <TextInput
+        <Select
+          clearable
           disabled={!canManage || isSaving}
           label="Owner"
+          nothingFoundMessage="No users found"
           placeholder="owner@example.com"
-          value={ownerEmail}
-          onChange={(event) => setOwnerEmail(event.currentTarget.value)}
+          searchable
+          data={ownerOptions}
+          value={ownerEmail || null}
+          onChange={(value) => setOwnerEmail(value ?? "")}
         />
-        <TextInput
+        <Select
+          clearable
           disabled={!canManage || isSaving}
           label="Reviewer"
+          nothingFoundMessage="No users found"
           placeholder="reviewer@example.com"
-          value={reviewerEmail}
-          onChange={(event) => setReviewerEmail(event.currentTarget.value)}
+          searchable
+          data={reviewerOptions}
+          value={reviewerEmail || null}
+          onChange={(value) => setReviewerEmail(value ?? "")}
         />
+        {canManage && isLoadingUsers ? (
+          <Text c="dimmed" size="xs">
+            Loading user options
+          </Text>
+        ) : null}
         <TextInput
           disabled={!canManage || isSaving}
           label="Due date"
@@ -1639,6 +1674,36 @@ function PlanningPanel({
       </Stack>
     </form>
   );
+}
+
+function assigneeOptions(
+  users: UserAdminItem[],
+  currentEmail: string,
+  allowedRoles: UserRole[]
+) {
+  const allowedRoleSet = new Set<UserRole>(allowedRoles);
+  const options = users
+    .filter((user) => allowedRoleSet.has(user.role))
+    .map((user) => ({
+      label: `${user.email} (${formatUserRole(user.role)})`,
+      value: user.email,
+    }));
+  const normalizedCurrentEmail = currentEmail.trim();
+  if (
+    normalizedCurrentEmail &&
+    !options.some((option) => option.value === normalizedCurrentEmail)
+  ) {
+    options.unshift({
+      label: normalizedCurrentEmail,
+      value: normalizedCurrentEmail,
+    });
+  }
+
+  return options;
+}
+
+function formatUserRole(role: UserRole) {
+  return role.replaceAll("_", " ");
 }
 
 function ReviewPreviewSkeleton() {
