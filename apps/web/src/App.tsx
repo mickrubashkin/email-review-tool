@@ -18,6 +18,7 @@ import {
   Loader,
   Menu,
   Modal,
+  MultiSelect,
   SegmentedControl,
   Select,
   Stack,
@@ -111,6 +112,18 @@ const defaultBoardFilters: BoardFilters = {
   adaptation: "",
   variant: "",
   status: "",
+};
+
+type HandoffFilters = {
+  adaptations: string[];
+  languages: string[];
+  stages: string[];
+};
+
+const defaultHandoffFilters: HandoffFilters = {
+  adaptations: [],
+  languages: [],
+  stages: [],
 };
 
 export default function App() {
@@ -356,6 +369,8 @@ function EmailBoardApp({
   const [userMenuOpened, setUserMenuOpened] = useState(false);
   const [createBoardModalOpened, setCreateBoardModalOpened] = useState(false);
   const [manageStagesModalOpened, setManageStagesModalOpened] = useState(false);
+  const [handoffFilters, setHandoffFilters] =
+    useState<HandoffFilters>(defaultHandoffFilters);
   const isCompactHeader = useMediaQuery("(max-width: 64em)");
   const isAdmin =
     currentUser.role === "admin" || currentUser.role === "super_admin";
@@ -446,6 +461,23 @@ function EmailBoardApp({
     () => filterColumnsByBoardFilters(searchedColumns, boardFilters),
     [boardFilters, searchedColumns]
   );
+  const handoffEmails = useMemo(
+    () => filterEmailsByHandoffFilters(emailsQuery.data ?? [], handoffFilters),
+    [emailsQuery.data, handoffFilters]
+  );
+  const sequenceHandoffManifest = useMemo(
+    () =>
+      buildSequenceHandoffManifest(
+        activeBoard?.key ?? boardKey,
+        activeBoard?.name ?? boardKey,
+        handoffEmails
+      ),
+    [activeBoard?.key, activeBoard?.name, boardKey, handoffEmails]
+  );
+  const sequenceHandoffJSON = useMemo(
+    () => JSON.stringify(sequenceHandoffManifest, null, 2),
+    [sequenceHandoffManifest]
+  );
   const activeBoardFilterCount = getActiveBoardFilterCount(boardFilters);
   const updateBoardFilter = (key: keyof BoardFilters, value: string | null) => {
     onBoardFiltersChange({
@@ -461,6 +493,8 @@ function EmailBoardApp({
       ? `Filters ${activeBoardFilterCount}`
       : "Filters";
   const hasBoardFilters = activeBoardFilterCount > 0;
+  const activeHandoffFilterCount = getActiveHandoffFilterCount(handoffFilters);
+  const canExportSequenceHandoff = sequenceHandoffManifest.email_count > 0;
   const filterEmptyState =
     searchQuery || hasBoardFilters ? "No matching emails" : "No emails on this board";
   const filterEmptyHint = searchQuery
@@ -752,6 +786,83 @@ function EmailBoardApp({
                     </Menu.Item>
                   ) : null}
                   <Menu.Divider />
+                  <Menu.Label>Handoff</Menu.Label>
+                  <div className={styles.boardFilterMenuControl}>
+                    <MultiSelect
+                      clearable
+                      data={boardFilterOptions.languages}
+                      placeholder="All languages"
+                      size="xs"
+                      value={handoffFilters.languages}
+                      onChange={(languages) =>
+                        setHandoffFilters((current) => ({
+                          ...current,
+                          languages,
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className={styles.boardFilterMenuControl}>
+                    <MultiSelect
+                      clearable
+                      data={boardFilterOptions.adaptations}
+                      placeholder="All adaptations"
+                      size="xs"
+                      value={handoffFilters.adaptations}
+                      onChange={(adaptations) =>
+                        setHandoffFilters((current) => ({
+                          ...current,
+                          adaptations,
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className={styles.boardFilterMenuControl}>
+                    <MultiSelect
+                      clearable
+                      data={(activeBoard?.stages ?? []).map((stage) => ({
+                        label: formatStageName(stage),
+                        value: stage,
+                      }))}
+                      placeholder="All stages"
+                      size="xs"
+                      value={handoffFilters.stages}
+                      onChange={(stages) =>
+                        setHandoffFilters((current) => ({
+                          ...current,
+                          stages,
+                        }))
+                      }
+                    />
+                  </div>
+                  <Text c="dimmed" px="xs" size="xs">
+                    {sequenceHandoffManifest.email_count} emails selected
+                  </Text>
+                  {activeHandoffFilterCount > 0 ? (
+                    <Menu.Item
+                      color="red"
+                      onClick={() => setHandoffFilters(defaultHandoffFilters)}
+                    >
+                      Clear handoff filters
+                    </Menu.Item>
+                  ) : null}
+                  <Menu.Item
+                    disabled={!canExportSequenceHandoff}
+                    onClick={() =>
+                      void copyPlainText(sequenceHandoffJSON, "Sequence handoff")
+                    }
+                  >
+                    Copy sequence handoff
+                  </Menu.Item>
+                  <Menu.Item
+                    disabled={!canExportSequenceHandoff}
+                    onClick={() =>
+                      downloadJSON(sequenceHandoffJSON, `${boardKey}-handoff.json`)
+                    }
+                  >
+                    Download sequence handoff
+                  </Menu.Item>
+                  <Menu.Divider />
                   <Menu.Label>
                     <Stack gap={4}>
                       <Text className={styles.userMenuEmail} size="sm">
@@ -972,6 +1083,83 @@ function EmailBoardApp({
                         </Badge>
                       </Stack>
                     </Menu.Label>
+                    <Menu.Divider />
+                    <Menu.Label>Handoff</Menu.Label>
+                    <div className={styles.boardFilterMenuControl}>
+                      <MultiSelect
+                        clearable
+                        data={boardFilterOptions.languages}
+                        placeholder="All languages"
+                        size="xs"
+                        value={handoffFilters.languages}
+                        onChange={(languages) =>
+                          setHandoffFilters((current) => ({
+                            ...current,
+                            languages,
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className={styles.boardFilterMenuControl}>
+                      <MultiSelect
+                        clearable
+                        data={boardFilterOptions.adaptations}
+                        placeholder="All adaptations"
+                        size="xs"
+                        value={handoffFilters.adaptations}
+                        onChange={(adaptations) =>
+                          setHandoffFilters((current) => ({
+                            ...current,
+                            adaptations,
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className={styles.boardFilterMenuControl}>
+                      <MultiSelect
+                        clearable
+                        data={(activeBoard?.stages ?? []).map((stage) => ({
+                          label: formatStageName(stage),
+                          value: stage,
+                        }))}
+                        placeholder="All stages"
+                        size="xs"
+                        value={handoffFilters.stages}
+                        onChange={(stages) =>
+                          setHandoffFilters((current) => ({
+                            ...current,
+                            stages,
+                          }))
+                        }
+                      />
+                    </div>
+                    <Text c="dimmed" px="xs" size="xs">
+                      {sequenceHandoffManifest.email_count} emails selected
+                    </Text>
+                    {activeHandoffFilterCount > 0 ? (
+                      <Menu.Item
+                        color="red"
+                        onClick={() => setHandoffFilters(defaultHandoffFilters)}
+                      >
+                        Clear handoff filters
+                      </Menu.Item>
+                    ) : null}
+                    <Menu.Item
+                      disabled={!canExportSequenceHandoff}
+                      onClick={() =>
+                        void copyPlainText(sequenceHandoffJSON, "Sequence handoff")
+                      }
+                    >
+                      Copy sequence handoff
+                    </Menu.Item>
+                    <Menu.Item
+                      disabled={!canExportSequenceHandoff}
+                      onClick={() =>
+                        downloadJSON(sequenceHandoffJSON, `${boardKey}-handoff.json`)
+                      }
+                    >
+                      Download sequence handoff
+                    </Menu.Item>
                     <Menu.Divider />
                     <Menu.Item
                       color="red"
@@ -1580,6 +1768,133 @@ function readStoredBoardFilters(): BoardFilters {
 
 function readStoredBoardSearch() {
   return readSessionStorageValue<string>(boardSearchStorageKey, "");
+}
+
+function filterEmailsByHandoffFilters(
+  emails: EmailListItem[],
+  filters: HandoffFilters
+) {
+  const languageSet = new Set(filters.languages);
+  const adaptationSet = new Set(filters.adaptations);
+  const stageSet = new Set(filters.stages);
+
+  return emails.filter((email) => {
+    if (languageSet.size > 0 && !languageSet.has(email.language)) {
+      return false;
+    }
+    if (
+      adaptationSet.size > 0 &&
+      !adaptationSet.has(email.adaptation_key)
+    ) {
+      return false;
+    }
+    if (stageSet.size > 0 && !stageSet.has(email.stage ?? "")) {
+      return false;
+    }
+    return true;
+  });
+}
+
+function getActiveHandoffFilterCount(filters: HandoffFilters) {
+  return (
+    filters.adaptations.length +
+    filters.languages.length +
+    filters.stages.length
+  );
+}
+
+function buildSequenceHandoffManifest(
+  boardKey: string,
+  boardName: string,
+  sequenceEmails: EmailListItem[]
+) {
+  const emails = sequenceEmails.map((email, index) => ({
+    adaptation: email.adaptation_label,
+    due_date: email.due_date,
+    id: email.id,
+    implementation_notes: email.implementation_notes,
+    language: email.language,
+    open_blocking_comment_count: email.open_blocking_comment_count,
+    open_comment_count: email.open_comment_count,
+    order: index + 1,
+    preheader: email.preheader,
+    review_status: email.review_status,
+    send_timing: email.send_timing,
+    stage: email.stage,
+    subject: email.subject,
+    title: email.title,
+    variant: email.variant,
+  }));
+  const approvedCount = emails.filter(
+    (email) => email.review_status === "approved"
+  ).length;
+  const openBlockingCommentCount = emails.reduce(
+    (total, email) => total + email.open_blocking_comment_count,
+    0
+  );
+
+  return {
+    approved_count: approvedCount,
+    board_key: boardKey,
+    board_name: boardName,
+    email_count: emails.length,
+    emails,
+    open_blocking_comment_count: openBlockingCommentCount,
+    ready_for_handoff:
+      emails.length > 0 &&
+      approvedCount === emails.length &&
+      openBlockingCommentCount === 0,
+  };
+}
+
+async function copyPlainText(value: string, label: string) {
+  try {
+    await navigator.clipboard.writeText(value);
+    notifications.show({
+      color: "green",
+      message: `${label} copied to clipboard.`,
+      title: "Copied",
+    });
+  } catch {
+    notifications.show({
+      color: "red",
+      message: "Browser blocked clipboard access.",
+      title: "Copy failed",
+    });
+  }
+}
+
+function downloadJSON(json: string, fileName: string) {
+  const blob = new Blob([json], {
+    type: "application/json;charset=utf-8",
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = sanitizeDownloadFileName(fileName);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+
+  notifications.show({
+    color: "green",
+    message: `${link.download} is ready.`,
+    title: "Downloaded",
+  });
+}
+
+function sanitizeDownloadFileName(fileName: string) {
+  return (
+    fileName
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, "-")
+      .replace(/[^a-z0-9_.-]+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "") || "handoff.json"
+  );
 }
 
 function readSessionStorageValue<T>(key: string, fallback: T): T {

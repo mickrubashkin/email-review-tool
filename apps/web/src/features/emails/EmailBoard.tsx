@@ -23,10 +23,6 @@ export function EmailBoard({
   onScrollPositionChange,
   onSelectVersion,
 }: EmailBoardProps) {
-  const sequenceEmails = columns.flatMap((column) =>
-    column.emailGroups.flatMap((group) => group.versions)
-  );
-
   return (
     <ScrollArea
       className={styles.boardScroll}
@@ -41,7 +37,6 @@ export function EmailBoard({
             columnIndex={columnIndex}
             key={column.stage}
             selectedVersionByGroup={selectedVersionByGroup}
-            sequenceEmails={sequenceEmails}
             onOpenVersionGroup={onOpenVersionGroup}
             onReviewStatusChange={onReviewStatusChange}
             onSelectVersion={onSelectVersion}
