@@ -461,6 +461,8 @@ type updateEmailPlanningFieldsRequest struct {
 	ReviewerEmail       *string `json:"reviewer_email"`
 	DueDate             *string `json:"due_date"`
 	ImplementationNotes *string `json:"implementation_notes"`
+	SendTiming          *string `json:"send_timing"`
+	AdaptationLabel     *string `json:"adaptation_label"`
 }
 
 type updateEmailPlanningFieldsResponse struct {
@@ -468,6 +470,8 @@ type updateEmailPlanningFieldsResponse struct {
 	ReviewerEmail       *string `json:"reviewer_email"`
 	DueDate             *string `json:"due_date"`
 	ImplementationNotes *string `json:"implementation_notes"`
+	SendTiming          *string `json:"send_timing"`
+	AdaptationLabel     string  `json:"adaptation_label"`
 }
 
 type renderedEmailResponse struct {
@@ -792,6 +796,12 @@ func updateEmailPlanningFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			return
 		}
 		implementationNotes := trimmedOptionalString(request.ImplementationNotes)
+		sendTiming := trimmedOptionalString(request.SendTiming)
+		_, adaptationLabel, err := normalizeEmailAdaptation(request.AdaptationLabel)
+		if err != nil {
+			http.Error(w, "adaptation_label must contain letters, numbers, spaces, hyphens, or underscores", http.StatusBadRequest)
+			return
+		}
 
 		tx, err := dbpool.Begin(r.Context())
 		if err != nil {
@@ -806,16 +816,24 @@ func updateEmailPlanningFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 		var currentReviewerEmail *string
 		var currentDueDate *string
 		var currentImplementationNotes *string
+		var currentSendTiming *string
+		var currentAdaptationLabel string
 		err = tx.QueryRow(r.Context(), `
-			SELECT slug, title, owner_email, reviewer_email, due_date::text, implementation_notes
+			SELECT slug, title, owner_email, reviewer_email, due_date::text, implementation_notes, send_timing, adaptation_label
 			FROM emails
 			WHERE id = $1
 				AND archived_at IS NULL
 			FOR UPDATE;
-		`, id).Scan(&slug, &title, &currentOwnerEmail, &currentReviewerEmail, &currentDueDate, &currentImplementationNotes)
+		`, id).Scan(&slug, &title, &currentOwnerEmail, &currentReviewerEmail, &currentDueDate, &currentImplementationNotes, &currentSendTiming, &currentAdaptationLabel)
 		if err != nil {
 			http.Error(w, "email not found", http.StatusNotFound)
 			return
+		}
+		if request.SendTiming == nil {
+			sendTiming = currentSendTiming
+		}
+		if request.AdaptationLabel == nil {
+			adaptationLabel = currentAdaptationLabel
 		}
 
 		changes := map[string]any{}
@@ -823,6 +841,8 @@ func updateEmailPlanningFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 		addStringChange(changes, "reviewer_email", currentReviewerEmail, reviewerEmail)
 		addStringChange(changes, "due_date", currentDueDate, dueDate)
 		addStringChange(changes, "implementation_notes", currentImplementationNotes, implementationNotes)
+		addStringChange(changes, "send_timing", currentSendTiming, sendTiming)
+		addStringChange(changes, "adaptation_label", &currentAdaptationLabel, &adaptationLabel)
 
 		if len(changes) > 0 {
 			result, err := tx.Exec(r.Context(), `
@@ -831,10 +851,12 @@ func updateEmailPlanningFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 					reviewer_email = $3,
 					due_date = $4,
 					implementation_notes = $5,
+					send_timing = $6,
+					adaptation_label = $7,
 					updated_at = now()
 				WHERE id = $1
 					AND archived_at IS NULL;
-			`, id, ownerEmail, reviewerEmail, dueDate, implementationNotes)
+			`, id, ownerEmail, reviewerEmail, dueDate, implementationNotes, sendTiming, adaptationLabel)
 			if err != nil {
 				http.Error(w, "failed to update planning fields", http.StatusInternalServerError)
 				return
@@ -870,6 +892,8 @@ func updateEmailPlanningFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			ReviewerEmail:       reviewerEmail,
 			DueDate:             dueDate,
 			ImplementationNotes: implementationNotes,
+			SendTiming:          sendTiming,
+			AdaptationLabel:     adaptationLabel,
 		})
 	}
 }

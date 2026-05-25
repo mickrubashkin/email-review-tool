@@ -518,7 +518,9 @@ func TestUpdateEmailPlanningFields(t *testing.T) {
 			"owner_email": "owner@example.com",
 			"reviewer_email": "reviewer@example.com",
 			"due_date": "2026-06-15",
-			"implementation_notes": "Implement after legal approval."
+			"implementation_notes": "Implement after legal approval.",
+			"send_timing": "Day 3",
+			"adaptation_label": "UAE"
 		}`)),
 	)
 	request = withAuthUser(request, user)
@@ -536,7 +538,9 @@ func TestUpdateEmailPlanningFields(t *testing.T) {
 	if stringFromPointer(payload.OwnerEmail) != "owner@example.com" ||
 		stringFromPointer(payload.ReviewerEmail) != "reviewer@example.com" ||
 		stringFromPointer(payload.DueDate) != "2026-06-15" ||
-		stringFromPointer(payload.ImplementationNotes) != "Implement after legal approval." {
+		stringFromPointer(payload.ImplementationNotes) != "Implement after legal approval." ||
+		stringFromPointer(payload.SendTiming) != "Day 3" ||
+		payload.AdaptationLabel != "UAE" {
 		t.Fatalf("unexpected planning response: %#v", payload)
 	}
 
@@ -553,7 +557,9 @@ func TestUpdateEmailPlanningFields(t *testing.T) {
 	if stringFromPointer(email.OwnerEmail) != "owner@example.com" ||
 		stringFromPointer(email.ReviewerEmail) != "reviewer@example.com" ||
 		stringFromPointer(email.DueDate) != "2026-06-15" ||
-		stringFromPointer(email.ImplementationNotes) != "Implement after legal approval." {
+		stringFromPointer(email.ImplementationNotes) != "Implement after legal approval." ||
+		stringFromPointer(email.SendTiming) != "Day 3" ||
+		email.AdaptationLabel != "UAE" {
 		t.Fatalf("expected planning fields on email detail, got %#v", email)
 	}
 
@@ -574,8 +580,32 @@ func TestUpdateEmailPlanningFields(t *testing.T) {
 	}
 	if !strings.Contains(string(changesJSON), `"owner_email"`) ||
 		!strings.Contains(string(changesJSON), `"due_date"`) ||
-		!strings.Contains(string(changesJSON), `"implementation_notes"`) {
+		!strings.Contains(string(changesJSON), `"implementation_notes"`) ||
+		!strings.Contains(string(changesJSON), `"send_timing"`) ||
+		!strings.Contains(string(changesJSON), `"adaptation_label"`) {
 		t.Fatalf("expected planning changes, got %s", string(changesJSON))
+	}
+}
+
+func TestUpdateEmailPlanningFieldsRejectsInvalidAdaptationLabel(t *testing.T) {
+	dbpool := testDBPool(t)
+	emailID := createTestEmail(t, dbpool)
+	user := createTestUserWithRole(t, dbpool, "admin")
+
+	router := chi.NewRouter()
+	registerEmailRoutes(router, dbpool)
+
+	request := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/emails/"+emailID+"/planning-fields",
+		bytes.NewReader([]byte(`{"adaptation_label":"日本"}`)),
+	)
+	request = withAuthUser(request, user)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("expected PATCH status 400, got %d: %s", response.Code, response.Body.String())
 	}
 }
 

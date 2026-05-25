@@ -1582,6 +1582,10 @@ function PlanningPanel({
   const [implementationNotes, setImplementationNotes] = useState(
     email?.implementation_notes ?? ""
   );
+  const [sendTiming, setSendTiming] = useState(email?.send_timing ?? "");
+  const [adaptationLabel, setAdaptationLabel] = useState(
+    email?.adaptation_label ?? "Default"
+  );
 
   if (!email) {
     return (
@@ -1596,12 +1600,16 @@ function PlanningPanel({
     reviewer_email: nullableTrimmed(reviewerEmail),
     due_date: nullableTrimmed(dueDate),
     implementation_notes: nullableTrimmed(implementationNotes),
+    send_timing: nullableTrimmed(sendTiming),
+    adaptation_label: adaptationLabel.trim() || "Default",
   };
   const isDirty =
     payload.owner_email !== (email.owner_email ?? null) ||
     payload.reviewer_email !== (email.reviewer_email ?? null) ||
     payload.due_date !== (email.due_date ?? null) ||
-    payload.implementation_notes !== (email.implementation_notes ?? null);
+    payload.implementation_notes !== (email.implementation_notes ?? null) ||
+    payload.send_timing !== (email.send_timing ?? null) ||
+    payload.adaptation_label !== email.adaptation_label;
   const ownerOptions = assigneeOptions(adminUsers, ownerEmail, [
     "admin",
     "super_admin",
@@ -1656,6 +1664,22 @@ function PlanningPanel({
           value={dueDate}
           onChange={(event) => setDueDate(event.currentTarget.value)}
         />
+        <Group grow align="flex-start">
+          <TextInput
+            disabled={!canManage || isSaving}
+            label="Send timing"
+            placeholder="Day 3"
+            value={sendTiming}
+            onChange={(event) => setSendTiming(event.currentTarget.value)}
+          />
+          <TextInput
+            disabled={!canManage || isSaving}
+            label="Adaptation"
+            placeholder="Default"
+            value={adaptationLabel}
+            onChange={(event) => setAdaptationLabel(event.currentTarget.value)}
+          />
+        </Group>
         <Textarea
           autosize
           disabled={!canManage || isSaving}
@@ -2505,10 +2529,12 @@ function formatActivityChangedFields(changes: Record<string, unknown>) {
 
 function formatPlanningChangedFields(changes: Record<string, unknown>) {
   const labels: Record<string, string> = {
+    adaptation_label: "Adaptation",
     due_date: "Due date",
     implementation_notes: "Implementation notes",
     owner_email: "Owner",
     reviewer_email: "Reviewer",
+    send_timing: "Send timing",
   };
   return Object.keys(changes)
     .map((field) => labels[field] ?? field)

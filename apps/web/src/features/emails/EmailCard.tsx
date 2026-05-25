@@ -124,6 +124,52 @@ function isLegacyVariant(variant: EmailVariant) {
   return normalizedVariant === "old" || normalizedVariant === "new";
 }
 
+function parseDateOnly(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) {
+    return null;
+  }
+
+  const [, year, month, day] = match;
+  return new Date(Number(year), Number(month) - 1, Number(day));
+}
+
+function formatDueDate(value: string) {
+  const dueDate = parseDateOnly(value);
+  if (!dueDate) {
+    return value;
+  }
+
+  return dueDate.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function getDueDateTone(value: string) {
+  const dueDate = parseDateOnly(value);
+  if (!dueDate) {
+    return undefined;
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  dueDate.setHours(0, 0, 0, 0);
+
+  const daysUntilDue = Math.round(
+    (dueDate.getTime() - today.getTime()) / 86_400_000
+  );
+
+  if (daysUntilDue < 0) {
+    return "overdue";
+  }
+  if (daysUntilDue <= 2) {
+    return "soon";
+  }
+
+  return undefined;
+}
+
 function formatVariantOptionLabel(
   variant: EmailVariant,
   variants: EmailVariant[]
@@ -184,6 +230,9 @@ export function EmailCard({
   const commentedVersions = emailGroup.versions.filter(
     (email) => (email.open_comment_count ?? 0) > 0
   );
+  const dueDateTone = selectedEmail.due_date
+    ? getDueDateTone(selectedEmail.due_date)
+    : undefined;
 
   const handleVersionClick = (
     event: MouseEvent<HTMLButtonElement>,
@@ -442,6 +491,42 @@ export function EmailCard({
                     ))}
                   </Menu.Sub.Dropdown>
                 </Menu.Sub>
+
+                <Menu.Divider />
+
+                <Menu.Item
+                  rightSection={
+                    <Text className={styles.cardMenuValue} lineClamp={1}>
+                      {selectedEmail.owner_email ?? "Unassigned"}
+                    </Text>
+                  }
+                >
+                  Owner
+                </Menu.Item>
+                <Menu.Item
+                  rightSection={
+                    <Text className={styles.cardMenuValue} lineClamp={1}>
+                      {selectedEmail.reviewer_email ?? "Unassigned"}
+                    </Text>
+                  }
+                >
+                  Reviewer
+                </Menu.Item>
+                <Menu.Item
+                  rightSection={
+                    <Text
+                      className={styles.cardMenuValue}
+                      data-tone={dueDateTone}
+                      lineClamp={1}
+                    >
+                      {selectedEmail.due_date
+                        ? formatDueDate(selectedEmail.due_date)
+                        : "None"}
+                    </Text>
+                  }
+                >
+                  Due date
+                </Menu.Item>
 
                 {commentedVersions.length > 0 ? (
                   <Menu.Sub position="right-start">

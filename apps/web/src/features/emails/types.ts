@@ -138,6 +138,8 @@ export type UpdateEmailPlanningFieldsPayload = {
   reviewer_email: string | null;
   due_date: string | null;
   implementation_notes: string | null;
+  send_timing: string | null;
+  adaptation_label: string;
 };
 
 export type UpdateEmailPlanningFieldsResponse =
