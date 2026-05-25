@@ -5,7 +5,18 @@ export type ReviewCommentTarget = ReviewTextSelection & {
   authorKey: string;
   id: string;
   severity: EmailCommentSeverity;
+  staleAfterEdit?: boolean;
   status: "open" | "resolved";
+};
+
+export type ReviewChangedBlockReason =
+  | "approval"
+  | "comment"
+  | "comment_and_approval";
+
+export type ReviewChangedBlockTarget = {
+  reason: ReviewChangedBlockReason;
+  reviewBlock: string;
 };
 
 export type ReviewCommentColor = {
@@ -36,4 +47,13 @@ export type ReviewOverlayBadge = {
   reviewBlock: string;
   status: ReviewCommentTarget["status"];
   top: number;
+};
+
+export type ReviewChangedBlockRect = {
+  height: number;
+  left: number;
+  reason: ReviewChangedBlockReason;
+  reviewBlock: string;
+  top: number;
+  width: number;
 };

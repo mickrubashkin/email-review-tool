@@ -56,7 +56,7 @@ The most promising first external ICP remains CRM, lifecycle, and email marketin
   - store review decisions against a specific email version;
   - keep comments open after edits until a user resolves them explicitly;
   - [x] mark approvals stale when the email changes after approval;
-  - highlight review blocks changed after related comments or approvals.
+  - [x] highlight review blocks changed after related comments or approvals.
 - [x] Add approval stale behavior after edits:
   - [x] approved emails become stale when reviewed fields or source HTML changes;
   - [x] the UI clearly explains when an edit invalidated the approval;

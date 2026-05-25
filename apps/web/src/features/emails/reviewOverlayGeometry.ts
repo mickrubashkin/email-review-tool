@@ -1,6 +1,8 @@
 import type { ReviewTextSelection } from "./MailPreview";
 import type {
   ReviewOverlayBadge,
+  ReviewChangedBlockRect,
+  ReviewChangedBlockTarget,
   ReviewCommentColor,
   ReviewCommentTarget,
   ReviewOverlayRect,
@@ -93,6 +95,32 @@ export function buildReviewOverlayFrameRects(
   });
 }
 
+export function buildChangedBlockFrameRects(
+  frame: HTMLIFrameElement,
+  targets: ReviewChangedBlockTarget[]
+): ReviewChangedBlockRect[] {
+  const frameDocument = frame.contentDocument;
+  const frameWindow = frame.contentWindow;
+  if (!frameDocument || !frameWindow) {
+    return [];
+  }
+
+  return targets.flatMap((target) => {
+    const block = findReviewBlock(frameDocument, target.reviewBlock);
+    if (!block) {
+      return [];
+    }
+
+    return [
+      createChangedBlockRectFromFrameDocumentRect(
+        block.getBoundingClientRect(),
+        frameWindow,
+        target
+      ),
+    ];
+  });
+}
+
 export function buildExternalReviewOverlayRects(
   overlayRoot: HTMLElement,
   targets: ReviewCommentTarget[]
@@ -112,6 +140,28 @@ export function buildExternalReviewOverlayRects(
         target,
         getCommentColor(target.authorKey),
         "block"
+      ),
+    ];
+  });
+}
+
+export function buildExternalChangedBlockRects(
+  overlayRoot: HTMLElement,
+  targets: ReviewChangedBlockTarget[]
+): ReviewChangedBlockRect[] {
+  const overlayRootRect = overlayRoot.getBoundingClientRect();
+
+  return targets.flatMap((target) => {
+    const block = findExternalReviewBlock(overlayRoot, target.reviewBlock);
+    if (!block) {
+      return [];
+    }
+
+    return [
+      createChangedBlockRectFromRootRect(
+        overlayRootRect,
+        block.getBoundingClientRect(),
+        target
       ),
     ];
   });
@@ -164,6 +214,36 @@ export function scrollExternalReviewTargetIntoView(
     inline: "nearest",
   });
   return true;
+}
+
+function createChangedBlockRectFromFrameDocumentRect(
+  rect: DOMRect,
+  frameWindow: Window,
+  target: ReviewChangedBlockTarget
+): ReviewChangedBlockRect {
+  return {
+    height: rect.height,
+    left: rect.left + frameWindow.scrollX,
+    reason: target.reason,
+    reviewBlock: target.reviewBlock,
+    top: rect.top + frameWindow.scrollY,
+    width: rect.width,
+  };
+}
+
+function createChangedBlockRectFromRootRect(
+  overlayRootRect: DOMRect,
+  rect: Pick<DOMRect, "height" | "left" | "top" | "width">,
+  target: ReviewChangedBlockTarget
+): ReviewChangedBlockRect {
+  return {
+    height: rect.height,
+    left: rect.left - overlayRootRect.left,
+    reason: target.reason,
+    reviewBlock: target.reviewBlock,
+    top: rect.top - overlayRootRect.top,
+    width: rect.width,
+  };
 }
 
 function createOverlayRectFromFrameDocumentRect(

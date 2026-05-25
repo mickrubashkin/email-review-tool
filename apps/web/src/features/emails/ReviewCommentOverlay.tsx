@@ -2,6 +2,7 @@ import type { CSSProperties, RefObject } from "react";
 
 import styles from "./EmailPreviewDrawer.module.css";
 import type {
+  ReviewChangedBlockRect,
   ReviewOverlayBadge,
   ReviewOverlayRect,
 } from "./reviewOverlayTypes";
@@ -9,6 +10,7 @@ import type {
 type ReviewCommentOverlayProps = {
   activeCommentId?: string | null;
   badges: ReviewOverlayBadge[];
+  changedBlockRects?: ReviewChangedBlockRect[];
   hoveredCommentId?: string | null;
   layerRef?: RefObject<HTMLDivElement | null>;
   onBadgeClick?: (commentIds: string[]) => void;
@@ -19,6 +21,7 @@ type ReviewCommentOverlayProps = {
 export function ReviewCommentOverlay({
   activeCommentId = null,
   badges,
+  changedBlockRects = [],
   hoveredCommentId = null,
   layerRef,
   onBadgeClick,
@@ -28,6 +31,25 @@ export function ReviewCommentOverlay({
   return (
     <div className={styles.reviewOverlay} aria-hidden="true">
       <div className={styles.reviewOverlayLayer} ref={layerRef}>
+        {changedBlockRects.map((rect) => (
+          <div
+            className={styles.changedBlockRect}
+            data-reason={rect.reason}
+            key={`${rect.reviewBlock}-${rect.reason}`}
+            style={
+              {
+                height: rect.height,
+                left: rect.left,
+                top: rect.top,
+                width: rect.width,
+              } as CSSProperties
+            }
+          >
+            <span className={styles.changedBlockBadge}>
+              {changedBlockLabel(rect.reason)}
+            </span>
+          </div>
+        ))}
         {rects.map((rect, index) => {
           const isActive = rect.commentId === activeCommentId;
           const isHovered = rect.commentId === hoveredCommentId;
@@ -98,4 +120,15 @@ export function ReviewCommentOverlay({
       </div>
     </div>
   );
+}
+
+function changedBlockLabel(reason: ReviewChangedBlockRect["reason"]) {
+  switch (reason) {
+    case "approval":
+      return "Edited after approval";
+    case "comment":
+      return "Edited after comment";
+    case "comment_and_approval":
+      return "Edited after comment and approval";
+  }
 }

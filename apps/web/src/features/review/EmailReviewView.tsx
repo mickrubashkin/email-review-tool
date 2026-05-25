@@ -89,7 +89,11 @@ import {
   type InlineEditUpdate,
   type ReviewTextSelection,
 } from "../emails/MailPreview";
-import type { ReviewCommentTarget } from "../emails/reviewOverlayTypes";
+import type {
+  ReviewChangedBlockReason,
+  ReviewChangedBlockTarget,
+  ReviewCommentTarget,
+} from "../emails/reviewOverlayTypes";
 import {
   emailReviewStatusColor,
   emailReviewStatusOptions,
@@ -324,9 +328,23 @@ export function EmailReviewView({
         : comments,
     [commentStatusFilter, comments]
   );
+  const reviewBlockFreshness = useMemo(
+    () => buildReviewBlockFreshness(comments, activityQuery.data ?? []),
+    [activityQuery.data, comments]
+  );
   const commentTargets = useMemo(
-    () => filteredComments.map(commentToTarget),
-    [filteredComments]
+    () =>
+      filteredComments.map((comment) =>
+        commentToTarget(
+          comment,
+          reviewBlockFreshness.changedAfterCommentCommentIds.has(comment.id)
+        )
+      ),
+    [filteredComments, reviewBlockFreshness.changedAfterCommentCommentIds]
+  );
+  const changedBlockTargets = useMemo(
+    () => buildChangedBlockTargets(reviewBlockFreshness),
+    [reviewBlockFreshness]
   );
   useEffect(() => {
     if (!commentsQuery.data) {
@@ -827,6 +845,7 @@ export function EmailReviewView({
         activeCommentId={activeCommentId}
         canEditContent={canManageEmail}
         canEditHTML={currentUserRole === "super_admin"}
+        changedBlockTargets={changedBlockTargets}
         commentTargets={commentTargets}
         createCommentError={createCommentMutation.isError}
         email={email}
@@ -886,6 +905,7 @@ export function EmailReviewView({
       filteredComments={filteredComments}
       filter={commentStatusFilter}
       hoveredCommentId={hoveredCommentId}
+      staleCommentIds={reviewBlockFreshness.changedAfterCommentCommentIds}
       isError={commentsQuery.isError}
       isLoading={commentsQuery.isLoading}
       isResolving={resolveMutation.isPending}
@@ -1902,7 +1922,126 @@ function buildEditableFieldsPayload(
   };
 }
 
-function commentToTarget(comment: EmailComment): ReviewCommentTarget {
+type ReviewBlockFreshness = {
+  changedAfterApprovalBlocks: Set<string>;
+  changedAfterCommentBlocks: Set<string>;
+  changedAfterCommentCommentIds: Set<string>;
+};
+
+function buildReviewBlockFreshness(
+  comments: EmailComment[],
+  activities: EmailActivityItem[]
+): ReviewBlockFreshness {
+  const changedAfterApprovalBlocks = new Set<string>();
+  const changedAfterCommentBlocks = new Set<string>();
+  const changedAfterCommentCommentIds = new Set<string>();
+  const latestApprovalAt = latestApprovalTimestamp(activities);
+  const commentsByBlock = new Map<string, EmailComment[]>();
+
+  comments.forEach((comment) => {
+    commentsByBlock.set(comment.review_block, [
+      ...(commentsByBlock.get(comment.review_block) ?? []),
+      comment,
+    ]);
+  });
+
+  activities
+    .filter((activity) => activity.type === "email_updated")
+    .forEach((activity) => {
+      const updatedAt = timestamp(activity.created_at);
+      if (updatedAt === null) {
+        return;
+      }
+
+      const changedBlocks = stringArrayMetadata(
+        activity.metadata,
+        "changed_review_blocks"
+      );
+      changedBlocks.forEach((reviewBlock) => {
+        if (latestApprovalAt !== null && updatedAt > latestApprovalAt) {
+          changedAfterApprovalBlocks.add(reviewBlock);
+        }
+
+        for (const comment of commentsByBlock.get(reviewBlock) ?? []) {
+          const commentCreatedAt = timestamp(comment.created_at);
+          if (commentCreatedAt !== null && updatedAt > commentCreatedAt) {
+            changedAfterCommentBlocks.add(reviewBlock);
+            changedAfterCommentCommentIds.add(comment.id);
+          }
+        }
+      });
+    });
+
+  return {
+    changedAfterApprovalBlocks,
+    changedAfterCommentBlocks,
+    changedAfterCommentCommentIds,
+  };
+}
+
+function buildChangedBlockTargets({
+  changedAfterApprovalBlocks,
+  changedAfterCommentBlocks,
+}: ReviewBlockFreshness): ReviewChangedBlockTarget[] {
+  const reviewBlocks = new Set([
+    ...changedAfterApprovalBlocks,
+    ...changedAfterCommentBlocks,
+  ]);
+
+  return Array.from(reviewBlocks)
+    .sort()
+    .map((reviewBlock) => ({
+      reason: changedBlockReason(
+        changedAfterCommentBlocks.has(reviewBlock),
+        changedAfterApprovalBlocks.has(reviewBlock)
+      ),
+      reviewBlock,
+    }));
+}
+
+function changedBlockReason(
+  changedAfterComment: boolean,
+  changedAfterApproval: boolean
+): ReviewChangedBlockReason {
+  if (changedAfterComment && changedAfterApproval) {
+    return "comment_and_approval";
+  }
+  return changedAfterApproval ? "approval" : "comment";
+}
+
+function latestApprovalTimestamp(activities: EmailActivityItem[]) {
+  const approvalTimes = activities
+    .filter((activity) => activity.type === "email_review_status_updated")
+    .filter((activity) => {
+      const reviewStatus = activity.changes.review_status;
+      return (
+        isRecord(reviewStatus) &&
+        typeof reviewStatus.after === "string" &&
+        reviewStatus.after === "approved"
+      );
+    })
+    .map((activity) => timestamp(activity.created_at))
+    .filter((value): value is number => value !== null);
+
+  return approvalTimes.length > 0 ? Math.max(...approvalTimes) : null;
+}
+
+function stringArrayMetadata(metadata: Record<string, unknown>, key: string) {
+  const value = metadata[key];
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
+}
+
+function timestamp(value: string) {
+  const parsed = new Date(value).getTime();
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+function commentToTarget(
+  comment: EmailComment,
+  staleAfterEdit: boolean
+): ReviewCommentTarget {
   return {
     authorKey: comment.author_email ?? comment.user_id ?? "unknown",
     id: comment.id,
@@ -1910,6 +2049,7 @@ function commentToTarget(comment: EmailComment): ReviewCommentTarget {
     selectedText: comment.selected_text,
     startOffset: comment.start_offset,
     endOffset: comment.end_offset,
+    staleAfterEdit,
     status: comment.status,
     severity: comment.severity,
   };
@@ -1932,6 +2072,7 @@ function CommentsPanel({
   onResolve,
   onSelectComment,
   replyingCommentId,
+  staleCommentIds,
 }: {
   activeCommentId: string | null;
   comments: EmailComment[];
@@ -1949,6 +2090,7 @@ function CommentsPanel({
   onResolve: (commentId: string) => void;
   onSelectComment: (comment: EmailComment) => void;
   replyingCommentId: string | null;
+  staleCommentIds: Set<string>;
 }) {
   const commentItemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
@@ -2049,6 +2191,7 @@ function CommentsPanel({
               comment={comment}
               isReplying={comment.id === replyingCommentId}
               isResolving={isResolving}
+              isStaleAfterEdit={staleCommentIds.has(comment.id)}
               itemRef={registerCommentItem(comment.id)}
               key={comment.id}
               onHover={onHoverComment}
@@ -2178,6 +2321,7 @@ function CommentItem({
   isHovered,
   isReplying,
   isResolving,
+  isStaleAfterEdit,
   itemRef,
   onHover,
   onReply,
@@ -2189,6 +2333,7 @@ function CommentItem({
   isHovered: boolean;
   isReplying: boolean;
   isResolving: boolean;
+  isStaleAfterEdit: boolean;
   itemRef: RefCallback<HTMLDivElement>;
   onHover: (comment: EmailComment | null) => void;
   onReply: (commentId: string, body: string) => void;
@@ -2277,6 +2422,11 @@ function CommentItem({
         <Text className={styles.commentQuote} size="sm">
           {comment.selected_text}
         </Text>
+        {isStaleAfterEdit ? (
+          <Badge color="orange" size="sm" variant="light">
+            Edited after this comment
+          </Badge>
+        ) : null}
 
         <Stack className={styles.commentMessages} gap={8}>
           {messages.map((message) => (

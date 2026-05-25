@@ -34,7 +34,10 @@ import type {
   EmailCommentSeverity,
   EmailDetail,
 } from "./types";
-import type { ReviewCommentTarget } from "./reviewOverlayTypes";
+import type {
+  ReviewChangedBlockTarget,
+  ReviewCommentTarget,
+} from "./reviewOverlayTypes";
 import { useReviewOverlayRects } from "./useReviewOverlayRects";
 import styles from "./EmailPreviewDrawer.module.css";
 
@@ -77,6 +80,7 @@ type MailPreviewProps = {
   activeCommentId?: string | null;
   canEditContent?: boolean;
   canEditHTML?: boolean;
+  changedBlockTargets?: ReviewChangedBlockTarget[];
   commentTargets?: ReviewCommentTarget[];
   createCommentError?: boolean;
   email: EmailDetail;
@@ -102,6 +106,7 @@ export function MailPreview({
   activeCommentId = null,
   canEditContent = false,
   canEditHTML = false,
+  changedBlockTargets = [],
   commentTargets = [],
   createCommentError = false,
   email,
@@ -267,6 +272,7 @@ export function MailPreview({
   };
   const overlay = useReviewOverlayRects({
     activeCommentId,
+    changedBlockTargets: shouldShowCommentOverlay ? changedBlockTargets : [],
     commentTargets: shouldShowCommentOverlay ? commentTargets : [],
     frameOverlayLayerRef,
     frameLoadVersion,
@@ -570,6 +576,7 @@ export function MailPreview({
               <ReviewCommentOverlay
                 activeCommentId={activeCommentId}
                 badges={overlay.frameBadges}
+                changedBlockRects={overlay.frameChangedBlockRects}
                 hoveredCommentId={hoveredCommentId}
                 layerRef={frameOverlayLayerRef}
                 onBadgeClick={onCommentBadgeClick}
@@ -582,6 +589,7 @@ export function MailPreview({
             <ReviewCommentOverlay
               activeCommentId={activeCommentId}
               badges={overlay.externalBadges}
+              changedBlockRects={overlay.externalChangedBlockRects}
               hoveredCommentId={hoveredCommentId}
               onBadgeClick={onCommentBadgeClick}
               onBadgeHover={onCommentBadgeHover}

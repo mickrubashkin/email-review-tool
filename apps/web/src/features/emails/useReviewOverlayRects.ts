@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 
 import {
+  buildChangedBlockFrameRects,
+  buildExternalChangedBlockRects,
   buildReviewOverlayBadges,
   buildExternalReviewOverlayRects,
   buildReviewOverlayFrameRects,
@@ -8,20 +10,25 @@ import {
   scrollReviewTargetIntoView,
 } from "./reviewOverlayGeometry";
 import type {
+  ReviewChangedBlockRect,
+  ReviewChangedBlockTarget,
   ReviewOverlayBadge,
   ReviewCommentTarget,
   ReviewOverlayRect,
 } from "./reviewOverlayTypes";
 
 type ReviewOverlayState = {
+  externalChangedBlockRects: ReviewChangedBlockRect[];
   externalBadges: ReviewOverlayBadge[];
   externalRects: ReviewOverlayRect[];
+  frameChangedBlockRects: ReviewChangedBlockRect[];
   frameBadges: ReviewOverlayBadge[];
   frameRects: ReviewOverlayRect[];
 };
 
 export function useReviewOverlayRects({
   activeCommentId,
+  changedBlockTargets,
   commentTargets,
   frameOverlayLayerRef,
   frameLoadVersion,
@@ -30,6 +37,7 @@ export function useReviewOverlayRects({
   viewport,
 }: {
   activeCommentId: string | null;
+  changedBlockTargets: ReviewChangedBlockTarget[];
   commentTargets: ReviewCommentTarget[];
   frameOverlayLayerRef: React.RefObject<HTMLElement | null>;
   frameLoadVersion: number;
@@ -38,8 +46,10 @@ export function useReviewOverlayRects({
   viewport: string;
 }) {
   const [overlayState, setOverlayState] = useState<ReviewOverlayState>({
+    externalChangedBlockRects: [],
     externalBadges: [],
     externalRects: [],
+    frameChangedBlockRects: [],
     frameBadges: [],
     frameRects: [],
   });
@@ -57,8 +67,10 @@ export function useReviewOverlayRects({
     const overlayRoot = overlayRootRef.current;
     if (!frame || !overlayRoot) {
       setOverlayState({
+        externalChangedBlockRects: [],
         externalBadges: [],
         externalRects: [],
+        frameChangedBlockRects: [],
         frameBadges: [],
         frameRects: [],
       });
@@ -66,18 +78,34 @@ export function useReviewOverlayRects({
     }
 
     const frameRects = buildReviewOverlayFrameRects(frame, commentTargets);
+    const frameChangedBlockRects = buildChangedBlockFrameRects(
+      frame,
+      changedBlockTargets
+    );
     const externalRects = buildExternalReviewOverlayRects(
       overlayRoot,
       commentTargets
     );
+    const externalChangedBlockRects = buildExternalChangedBlockRects(
+      overlayRoot,
+      changedBlockTargets
+    );
     syncFrameOverlayScroll();
     setOverlayState({
+      externalChangedBlockRects,
       externalBadges: buildReviewOverlayBadges(externalRects),
       externalRects,
+      frameChangedBlockRects,
       frameBadges: buildReviewOverlayBadges(frameRects),
       frameRects,
     });
-  }, [commentTargets, frameRef, overlayRootRef, syncFrameOverlayScroll]);
+  }, [
+    changedBlockTargets,
+    commentTargets,
+    frameRef,
+    overlayRootRef,
+    syncFrameOverlayScroll,
+  ]);
 
   useEffect(() => {
     const frame = frameRef.current;
@@ -86,8 +114,10 @@ export function useReviewOverlayRects({
     const overlayRoot = overlayRootRef.current;
     if (!frame || !frameWindow || !overlayRoot) {
       setOverlayState({
+        externalChangedBlockRects: [],
         externalBadges: [],
         externalRects: [],
+        frameChangedBlockRects: [],
         frameBadges: [],
         frameRects: [],
       });
