@@ -3,13 +3,14 @@ import { Badge, Group, Stack, Text } from "@mantine/core";
 
 import { EmailCard } from "./EmailCard";
 import { stageColors } from "./stages";
-import type { EmailReviewStatus, StageColumn } from "./types";
+import type { EmailListItem, EmailReviewStatus, StageColumn } from "./types";
 import styles from "./StageColumnView.module.css";
 
 type StageColumnViewProps = {
   column: StageColumn;
   columnIndex: number;
   selectedVersionByGroup: Record<string, string>;
+  sequenceEmails: EmailListItem[];
   onOpenVersionGroup: (groupKey: string, emailId: string) => void;
   onReviewStatusChange: (emailId: string, reviewStatus: EmailReviewStatus) => void;
   onSelectVersion: (groupKey: string, emailId: string) => void;
@@ -19,6 +20,7 @@ export function StageColumnView({
   column,
   columnIndex,
   selectedVersionByGroup,
+  sequenceEmails,
   onOpenVersionGroup,
   onReviewStatusChange,
   onSelectVersion,
@@ -53,6 +55,7 @@ export function StageColumnView({
             emailGroup={emailGroup}
             key={emailGroup.key}
             selectedEmailId={selectedVersionByGroup[emailGroup.key]}
+            sequenceEmails={sequenceEmails}
             onOpen={onOpenVersionGroup}
             onReviewStatusChange={onReviewStatusChange}
             onSelectVersion={onSelectVersion}

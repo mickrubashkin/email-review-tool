@@ -17,9 +17,15 @@ import {
   ScrollArea,
 } from "@mantine/core";
 import { CheckIcon, DotsThreeVerticalIcon } from "@phosphor-icons/react";
+import { notifications } from "@mantine/notifications";
 import { useNavigate } from "react-router-dom";
 
-import type { EmailReviewStatus, EmailVariant, EmailVersionGroup } from "./types";
+import type {
+  EmailListItem,
+  EmailReviewStatus,
+  EmailVariant,
+  EmailVersionGroup,
+} from "./types";
 import {
   emailReviewStatusOptions,
   formatEmailReviewStatus,
@@ -38,6 +44,7 @@ import styles from "./EmailCard.module.css";
 type EmailCardProps = {
   emailGroup: EmailVersionGroup;
   selectedEmailId: string | undefined;
+  sequenceEmails: EmailListItem[];
   onOpen: (groupKey: string, emailId: string) => void;
   onReviewStatusChange: (emailId: string, reviewStatus: EmailReviewStatus) => void;
   onSelectVersion: (groupKey: string, emailId: string) => void;
@@ -190,6 +197,7 @@ function formatVariantOptionLabel(
 export function EmailCard({
   emailGroup,
   selectedEmailId,
+  sequenceEmails,
   onOpen,
   onReviewStatusChange,
   onSelectVersion,
@@ -233,6 +241,11 @@ export function EmailCard({
   const dueDateTone = selectedEmail.due_date
     ? getDueDateTone(selectedEmail.due_date)
     : undefined;
+  const sequenceManifest = buildSequenceHandoffManifest(
+    selectedEmail.sequence,
+    sequenceEmails
+  );
+  const sequenceManifestJSON = JSON.stringify(sequenceManifest, null, 2);
 
   const handleVersionClick = (
     event: MouseEvent<HTMLButtonElement>,
@@ -599,6 +612,28 @@ export function EmailCard({
                     </Menu.Sub.Dropdown>
                   </Menu.Sub>
                 ) : null}
+
+                <Menu.Divider />
+
+                <Menu.Item
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    void copyPlainText(sequenceManifestJSON, "Sequence manifest");
+                  }}
+                >
+                  Copy sequence handoff
+                </Menu.Item>
+                <Menu.Item
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    downloadJSON(
+                      sequenceManifestJSON,
+                      `${selectedEmail.sequence}-handoff.json`
+                    );
+                  }}
+                >
+                  Download sequence handoff
+                </Menu.Item>
               </Menu.Dropdown>
             </Menu>
           </Group>
@@ -631,5 +666,97 @@ export function EmailCard({
         </Group>
       </Stack>
     </Card>
+  );
+}
+
+function buildSequenceHandoffManifest(
+  sequence: string,
+  sequenceEmails: EmailListItem[]
+) {
+  const emails = sequenceEmails.map((email, index) => ({
+    adaptation: email.adaptation_label,
+    due_date: email.due_date,
+    id: email.id,
+    implementation_notes: email.implementation_notes,
+    language: email.language,
+    open_blocking_comment_count: email.open_blocking_comment_count,
+    open_comment_count: email.open_comment_count,
+    order: index + 1,
+    preheader: email.preheader,
+    review_status: email.review_status,
+    send_timing: email.send_timing,
+    stage: email.stage,
+    subject: email.subject,
+    title: email.title,
+    variant: email.variant,
+  }));
+  const approvedCount = emails.filter(
+    (email) => email.review_status === "approved"
+  ).length;
+  const openBlockingCommentCount = emails.reduce(
+    (total, email) => total + email.open_blocking_comment_count,
+    0
+  );
+
+  return {
+    approved_count: approvedCount,
+    email_count: emails.length,
+    emails,
+    open_blocking_comment_count: openBlockingCommentCount,
+    ready_for_handoff:
+      emails.length > 0 &&
+      approvedCount === emails.length &&
+      openBlockingCommentCount === 0,
+    sequence,
+  };
+}
+
+async function copyPlainText(value: string, label: string) {
+  try {
+    await navigator.clipboard.writeText(value);
+    notifications.show({
+      color: "green",
+      message: `${label} copied to clipboard.`,
+      title: "Copied",
+    });
+  } catch {
+    notifications.show({
+      color: "red",
+      message: "Browser blocked clipboard access.",
+      title: "Copy failed",
+    });
+  }
+}
+
+function downloadJSON(json: string, fileName: string) {
+  const blob = new Blob([json], {
+    type: "application/json;charset=utf-8",
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = sanitizeDownloadFileName(fileName);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+
+  notifications.show({
+    color: "green",
+    message: `${link.download} is ready.`,
+    title: "Downloaded",
+  });
+}
+
+function sanitizeDownloadFileName(fileName: string) {
+  return (
+    fileName
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, "-")
+      .replace(/[^a-z0-9_.-]+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "") || "handoff.json"
   );
 }

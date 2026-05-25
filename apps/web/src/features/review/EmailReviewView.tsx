@@ -85,9 +85,7 @@ import {
   formatEmailUpdateSummary,
 } from "../emails/changeSummary";
 import {
-  copyOriginalHTML,
   copyRenderedHTML,
-  downloadOriginalHTML,
   downloadRenderedHTML,
 } from "../emails/exportHtml";
 import {
@@ -969,7 +967,6 @@ export function EmailReviewView({
       openCommentCount={openCommentCount}
       renderedHTML={renderedEmailQuery.data?.html ?? ""}
       renderedHTMLError={renderedEmailQuery.isError}
-      sequenceEmails={orderedSequenceEmails(stageColumns)}
     />
   );
   const activityContent = (
@@ -1193,33 +1190,6 @@ export function EmailReviewView({
                   ) : null}
                   <Menu.Item
                     disabled={!email}
-                    leftSection={
-                      <CopyIcon aria-hidden="true" size={15} />
-                    }
-                    onClick={() => {
-                      if (email) {
-                        copyOriginalHTML(email);
-                      }
-                    }}
-                  >
-                    Copy original HTML
-                  </Menu.Item>
-                  <Menu.Item
-                    disabled={!email}
-                    leftSection={
-                      <DownloadSimpleIcon aria-hidden="true" size={15} />
-                    }
-                    onClick={() => {
-                      if (email) {
-                        downloadOriginalHTML(email);
-                      }
-                    }}
-                  >
-                    Download original HTML
-                  </Menu.Item>
-                  <Menu.Divider />
-                  <Menu.Item
-                    disabled={!email}
                     leftSection={<SparkleIcon aria-hidden="true" size={15} />}
                     onClick={handleAnalyze}
                   >
@@ -1306,46 +1276,6 @@ export function EmailReviewView({
                     <div className={styles.actionDivider} aria-hidden="true" />
                   </>
                 ) : null}
-
-                <Group className={styles.actionGroup} gap="xs" wrap="nowrap">
-                  <Tooltip label="Copy original HTML">
-                    <ActionIcon
-                      aria-label="Copy original HTML"
-                      className={styles.headerIconButton}
-                      disabled={!email}
-                      onClick={() => {
-                        if (email) {
-                          copyOriginalHTML(email);
-                        }
-                      }}
-                      radius="md"
-                      size="lg"
-                      variant="light"
-                    >
-                      <CopyIcon aria-hidden="true" size={16} />
-                    </ActionIcon>
-                  </Tooltip>
-
-                  <Tooltip label="Download original HTML">
-                    <ActionIcon
-                      aria-label="Download original HTML"
-                      className={styles.headerIconButton}
-                      disabled={!email}
-                      onClick={() => {
-                        if (email) {
-                          downloadOriginalHTML(email);
-                        }
-                      }}
-                      radius="md"
-                      size="lg"
-                      variant="light"
-                    >
-                      <DownloadSimpleIcon aria-hidden="true" size={16} />
-                    </ActionIcon>
-                  </Tooltip>
-                </Group>
-
-                <div className={styles.actionDivider} aria-hidden="true" />
 
                 <Group className={styles.actionGroup} gap="xs" wrap="nowrap">
                   <Tooltip label="View the shared AI analysis for this email">
@@ -1770,7 +1700,6 @@ function HandoffPanel({
   openCommentCount,
   renderedHTML,
   renderedHTMLError,
-  sequenceEmails,
 }: {
   approvalActivity: EmailActivityItem | null;
   email: EmailDetail | undefined;
@@ -1779,7 +1708,6 @@ function HandoffPanel({
   openCommentCount: number;
   renderedHTML: string;
   renderedHTMLError: boolean;
-  sequenceEmails: EmailListItem[];
 }) {
   if (!email) {
     return (
@@ -1793,11 +1721,6 @@ function HandoffPanel({
   const approvalLabel = approvalActivity
     ? `${approvalActivity.actor_email ?? "System"} on ${formatCommentDate(approvalActivity.created_at)}`
     : "Approved";
-  const sequenceManifest = buildSequenceHandoffManifest(
-    email.sequence,
-    sequenceEmails
-  );
-  const sequenceManifestJSON = JSON.stringify(sequenceManifest, null, 2);
 
   return (
     <Stack gap="sm">
@@ -1912,90 +1835,6 @@ function HandoffPanel({
         )}
       </Stack>
 
-      <Stack className={styles.handoffSection} gap="xs">
-        <Group justify="space-between" gap="xs" wrap="nowrap">
-          <Text fw={700} size="sm">
-            Sequence handoff
-          </Text>
-          <Badge
-            color={sequenceManifest.ready_for_handoff ? "green" : "yellow"}
-            radius="sm"
-            variant="light"
-          >
-            {sequenceManifest.ready_for_handoff ? "Ready" : "Needs review"}
-          </Badge>
-        </Group>
-        <Group gap="xs" wrap="wrap">
-          <Badge color="gray" radius="sm" variant="light">
-            {sequenceManifest.email_count} emails
-          </Badge>
-          <Badge color="green" radius="sm" variant="light">
-            {sequenceManifest.approved_count} approved
-          </Badge>
-          <Badge
-            color={sequenceManifest.open_blocking_comment_count > 0 ? "red" : "gray"}
-            radius="sm"
-            variant="light"
-          >
-            {sequenceManifest.open_blocking_comment_count} blockers
-          </Badge>
-        </Group>
-        <Stack gap={4}>
-          {sequenceManifest.emails.map((sequenceEmail) => (
-            <Group
-              className={styles.handoffSequenceRow}
-              gap="xs"
-              key={sequenceEmail.id}
-              justify="space-between"
-              wrap="nowrap"
-            >
-              <Stack gap={0} miw={0}>
-                <Text className={styles.handoffSequenceTitle} fw={600} size="sm">
-                  {sequenceEmail.title}
-                </Text>
-                <Text c="dimmed" size="xs">
-                  {sequenceEmail.send_timing || "No send timing"}
-                </Text>
-              </Stack>
-              <Group gap={6} justify="flex-end" wrap="nowrap">
-                {sequenceEmail.open_blocking_comment_count > 0 ? (
-                  <Badge color="red" radius="sm" size="xs" variant="light">
-                    {sequenceEmail.open_blocking_comment_count} blockers
-                  </Badge>
-                ) : null}
-                <Badge
-                  color={emailReviewStatusColor(sequenceEmail.review_status)}
-                  radius="sm"
-                  size="xs"
-                  variant="light"
-                >
-                  {formatEmailReviewStatus(sequenceEmail.review_status)}
-                </Badge>
-              </Group>
-            </Group>
-          ))}
-        </Stack>
-        <Group gap="xs" grow>
-          <Button
-            disabled={sequenceManifest.email_count === 0}
-            leftSection={<CopyIcon aria-hidden="true" size={15} />}
-            size="xs"
-            variant="light"
-            onClick={() => void copyPlainText(sequenceManifestJSON, "Sequence manifest")}
-          >
-            Copy manifest
-          </Button>
-          <Button
-            disabled={sequenceManifest.email_count === 0}
-            leftSection={<DownloadSimpleIcon aria-hidden="true" size={15} />}
-            size="xs"
-            variant="light"
-            onClick={() => downloadJSON(sequenceManifestJSON, `${email.sequence}-handoff.json`)}
-          >
-            Download
-          </Button>
-        </Group>
-      </Stack>
     </Stack>
   );
 }
@@ -2060,87 +1899,6 @@ function formatByteSize(value: string) {
     return `${bytes} B`;
   }
   return `${(bytes / 1024).toFixed(1)} KB`;
-}
-
-function downloadJSON(json: string, fileName: string) {
-  const blob = new Blob([json], {
-    type: "application/json;charset=utf-8",
-  });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-
-  link.href = url;
-  link.download = sanitizeDownloadFileName(fileName);
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-
-  notifications.show({
-    color: "green",
-    message: `${link.download} is ready.`,
-    title: "Downloaded",
-  });
-}
-
-function sanitizeDownloadFileName(fileName: string) {
-  return (
-    fileName
-      .toLowerCase()
-      .trim()
-      .replace(/\s+/g, "-")
-      .replace(/[^a-z0-9_.-]+/g, "-")
-      .replace(/-+/g, "-")
-      .replace(/^-|-$/g, "") || "handoff.json"
-  );
-}
-
-function orderedSequenceEmails(stageColumns: ReturnType<typeof buildStageColumns>) {
-  return stageColumns.flatMap((column) =>
-    column.emailGroups.flatMap((group) => group.versions)
-  );
-}
-
-function buildSequenceHandoffManifest(
-  sequence: string,
-  sequenceEmails: EmailListItem[]
-) {
-  const emails = sequenceEmails.map((email, index) => ({
-    adaptation: email.adaptation_label,
-    due_date: email.due_date,
-    id: email.id,
-    implementation_notes: email.implementation_notes,
-    language: email.language,
-    open_blocking_comment_count: email.open_blocking_comment_count,
-    open_comment_count: email.open_comment_count,
-    order: index + 1,
-    preheader: email.preheader,
-    review_status: email.review_status,
-    send_timing: email.send_timing,
-    stage: email.stage,
-    subject: email.subject,
-    title: email.title,
-    variant: email.variant,
-  }));
-  const approvedCount = emails.filter(
-    (email) => email.review_status === "approved"
-  ).length;
-  const openBlockingCommentCount = emails.reduce(
-    (total, email) => total + email.open_blocking_comment_count,
-    0
-  );
-
-  return {
-    approved_count: approvedCount,
-    email_count: emails.length,
-    emails,
-    open_blocking_comment_count: openBlockingCommentCount,
-    ready_for_handoff:
-      emails.length > 0 &&
-      approvedCount === emails.length &&
-      openBlockingCommentCount === 0,
-    sequence,
-  };
 }
 
 function assigneeOptions(
