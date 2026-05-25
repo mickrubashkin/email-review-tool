@@ -45,6 +45,7 @@ func registerAuthRoutes(r chi.Router, dbpool *pgxpool.Pool, emailSender EmailSen
 	r.Get("/api/auth/me", meHandler(dbpool))
 	r.Post("/api/auth/logout", logoutHandler(dbpool))
 	r.Get("/api/admin/users", listAdminUsersHandler(dbpool))
+	r.Post("/api/admin/users", createAdminUserHandler(dbpool))
 	r.Patch("/api/admin/users/{id}/role", updateAdminUserRoleHandler(dbpool))
 }
 
@@ -451,6 +452,11 @@ type updateUserRoleRequest struct {
 	Role string `json:"role"`
 }
 
+type createUserRequest struct {
+	Email string `json:"email"`
+	Role  string `json:"role"`
+}
+
 func listAdminUsersHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		user, ok := authUserFromContext(r)
@@ -458,7 +464,7 @@ func listAdminUsersHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
-		if !isSuperAdminUser(user) {
+		if !isAdminUser(user) {
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
 		}
@@ -490,6 +496,75 @@ func listAdminUsersHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(users)
+	}
+}
+
+func createAdminUserHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := authUserFromContext(r)
+		if !ok {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		if !isAdminUser(user) {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+
+		var request createUserRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+
+		email := normalizeEmail(request.Email)
+		if email == "" || !strings.Contains(email, "@") {
+			http.Error(w, "invalid email", http.StatusBadRequest)
+			return
+		}
+		role := strings.ToLower(strings.TrimSpace(request.Role))
+		if !isValidUserRole(role) {
+			http.Error(w, "invalid role", http.StatusBadRequest)
+			return
+		}
+		if !canCreateUserRole(user, role) {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+
+		var createdUser UserAdminItem
+		err := dbpool.QueryRow(r.Context(), `
+			INSERT INTO users (email, role)
+			VALUES ($1, $2)
+			ON CONFLICT (email) DO NOTHING
+			RETURNING id, email, role, created_at, updated_at, last_seen_at;
+		`, email, role).Scan(
+			&createdUser.ID,
+			&createdUser.Email,
+			&createdUser.Role,
+			&createdUser.CreatedAt,
+			&createdUser.UpdatedAt,
+			&createdUser.LastSeenAt,
+		)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				http.Error(w, "user already exists", http.StatusConflict)
+				return
+			}
+			http.Error(w, "failed to create user", http.StatusInternalServerError)
+			return
+		}
+
+		logAuthEvent(r.Context(), dbpool, r, AuthEvent{
+			UserID:    &createdUser.ID,
+			Email:     createdUser.Email,
+			EventType: "admin_user_created",
+			Success:   true,
+		})
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(w).Encode(createdUser)
 	}
 }
 
@@ -557,6 +632,13 @@ func isSuperAdminUser(user AuthUser) bool {
 
 func isValidUserRole(role string) bool {
 	return role == "super_admin" || role == "admin" || role == "reviewer"
+}
+
+func canCreateUserRole(actor AuthUser, role string) bool {
+	if isSuperAdminUser(actor) {
+		return true
+	}
+	return actor.Role == "admin" && role == "reviewer"
 }
 
 func bootstrapSuperAdminEmail() string {

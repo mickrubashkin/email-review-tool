@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -220,7 +221,7 @@ func TestIsRequestCanceledError(t *testing.T) {
 
 func TestListAdminUsersRequiresSuperAdmin(t *testing.T) {
 	dbpool := testDBPool(t)
-	user := createTestUserWithRole(t, dbpool, "admin")
+	user := createTestUserWithRole(t, dbpool, "reviewer")
 
 	router := chi.NewRouter()
 	registerAuthRoutes(router, dbpool, &recordingEmailSender{})
@@ -232,6 +233,23 @@ func TestListAdminUsersRequiresSuperAdmin(t *testing.T) {
 
 	if response.Code != http.StatusForbidden {
 		t.Fatalf("expected GET status 403, got %d: %s", response.Code, response.Body.String())
+	}
+}
+
+func TestAdminCanListUsers(t *testing.T) {
+	dbpool := testDBPool(t)
+	user := createTestUserWithRole(t, dbpool, "admin")
+
+	router := chi.NewRouter()
+	registerAuthRoutes(router, dbpool, &recordingEmailSender{})
+
+	request := httptest.NewRequest(http.MethodGet, "/api/admin/users", nil)
+	request = withAuthUser(request, user)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected GET status 200, got %d: %s", response.Code, response.Body.String())
 	}
 }
 
@@ -279,6 +297,114 @@ func TestSuperAdminCanListAndUpdateUsers(t *testing.T) {
 	}
 	if updated.ID != reviewer.ID || updated.Role != "admin" {
 		t.Fatalf("expected reviewer to become admin, got %#v", updated)
+	}
+}
+
+func TestAdminCanCreateReviewerUser(t *testing.T) {
+	dbpool := testDBPool(t)
+	admin := createTestUserWithRole(t, dbpool, "admin")
+
+	router := chi.NewRouter()
+	registerAuthRoutes(router, dbpool, &recordingEmailSender{})
+
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/api/admin/users",
+		bytes.NewReader([]byte(`{ "email": "New.Reviewer@Example.com", "role": "reviewer" }`)),
+	)
+	request = withAuthUser(request, admin)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusCreated {
+		t.Fatalf("expected POST status 201, got %d: %s", response.Code, response.Body.String())
+	}
+
+	var created UserAdminItem
+	if err := json.NewDecoder(response.Body).Decode(&created); err != nil {
+		t.Fatalf("failed to decode created user: %v", err)
+	}
+	if created.Email != "new.reviewer@example.com" || created.Role != "reviewer" {
+		t.Fatalf("expected normalized reviewer user, got %#v", created)
+	}
+
+	var eventCount int
+	if err := dbpool.QueryRow(context.Background(), `
+		SELECT count(*)::int
+		FROM auth_events
+		WHERE user_id = $1
+			AND email = $2
+			AND event_type = 'admin_user_created'
+			AND success = true;
+	`, created.ID, created.Email).Scan(&eventCount); err != nil {
+		t.Fatalf("failed to count created user auth events: %v", err)
+	}
+	if eventCount != 1 {
+		t.Fatalf("expected one admin_user_created event, got %d", eventCount)
+	}
+}
+
+func TestSuperAdminCanCreateAdminUser(t *testing.T) {
+	dbpool := testDBPool(t)
+	superAdmin := createTestUserWithRole(t, dbpool, "super_admin")
+
+	router := chi.NewRouter()
+	registerAuthRoutes(router, dbpool, &recordingEmailSender{})
+
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/api/admin/users",
+		bytes.NewReader([]byte(`{ "email": "new-admin@example.com", "role": "admin" }`)),
+	)
+	request = withAuthUser(request, superAdmin)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusCreated {
+		t.Fatalf("expected POST status 201, got %d: %s", response.Code, response.Body.String())
+	}
+}
+
+func TestAdminCannotCreateAdminUser(t *testing.T) {
+	dbpool := testDBPool(t)
+	admin := createTestUserWithRole(t, dbpool, "admin")
+
+	router := chi.NewRouter()
+	registerAuthRoutes(router, dbpool, &recordingEmailSender{})
+
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/api/admin/users",
+		bytes.NewReader([]byte(`{ "email": "blocked-admin@example.com", "role": "admin" }`)),
+	)
+	request = withAuthUser(request, admin)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("expected POST status 403, got %d: %s", response.Code, response.Body.String())
+	}
+}
+
+func TestCreateAdminUserRejectsDuplicateEmail(t *testing.T) {
+	dbpool := testDBPool(t)
+	admin := createTestUserWithRole(t, dbpool, "admin")
+	existing := createTestUserWithRole(t, dbpool, "reviewer")
+
+	router := chi.NewRouter()
+	registerAuthRoutes(router, dbpool, &recordingEmailSender{})
+
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/api/admin/users",
+		bytes.NewReader([]byte(fmt.Sprintf(`{ "email": %q, "role": "reviewer" }`, existing.Email))),
+	)
+	request = withAuthUser(request, admin)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusConflict {
+		t.Fatalf("expected POST status 409, got %d: %s", response.Code, response.Body.String())
 	}
 }
 

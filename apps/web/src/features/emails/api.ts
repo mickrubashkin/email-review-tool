@@ -5,6 +5,7 @@ import type {
   AuthEventItem,
   AuthUser,
   Board,
+  CreateAdminUserPayload,
   CreateBoardPayload,
   CreateBoardStagePayload,
   CreateCommentMessagePayload,
@@ -357,6 +358,18 @@ export function archiveEmail(emailId: string): Promise<void> {
 
 export function fetchAdminUsers(): Promise<UserAdminItem[]> {
   return fetchJson<UserAdminItem[]>("/api/admin/users");
+}
+
+export function createAdminUser(
+  payload: CreateAdminUserPayload
+): Promise<UserAdminItem> {
+  return fetchJson<UserAdminItem>("/api/admin/users", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
 }
 
 export function updateAdminUserRole(

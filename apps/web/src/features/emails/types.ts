@@ -238,6 +238,11 @@ export type UserAdminItem = {
   last_seen_at: string | null;
 };
 
+export type CreateAdminUserPayload = {
+  email: string;
+  role: UserRole;
+};
+
 export type AuthEventItem = {
   id: string;
   user_id: string | null;

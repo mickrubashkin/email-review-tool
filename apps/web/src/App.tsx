@@ -175,7 +175,10 @@ function AuthenticatedApp() {
     <Routes>
       <Route path="/ai-logs" element={<AIAnalysisLogsView />} />
       <Route path="/auth-events" element={<AuthEventsView />} />
-      <Route path="/admin/users" element={<AdminUsersView />} />
+      <Route
+        path="/admin/users"
+        element={<AdminUsersView currentUserRole={currentUserQuery.data.role} />}
+      />
       <Route path="/admin/email-events" element={<EmailEventsView />} />
       <Route path="/admin/operational-events" element={<OperationalEventsView />} />
       <Route
@@ -803,6 +806,10 @@ function EmailBoardApp({
                       <Menu.Item component={Link} to="/admin/email-events">
                         Email events
                       </Menu.Item>
+                    </>
+                  ) : null}
+                  {currentUser.role === "admin" || currentUser.role === "super_admin" ? (
+                    <>
                       <Menu.Item component={Link} to="/admin/users">
                         Users
                       </Menu.Item>
@@ -926,6 +933,11 @@ function EmailBoardApp({
                           <Menu.Item component={Link} to="/admin/email-events">
                             Email events
                           </Menu.Item>
+                        </>
+                      ) : null}
+                      {currentUser.role === "admin" || currentUser.role === "super_admin" ? (
+                        <>
+                          {currentUser.role !== "super_admin" ? <Menu.Divider /> : null}
                           <Menu.Item component={Link} to="/admin/users">
                             Users
                           </Menu.Item>

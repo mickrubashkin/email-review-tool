@@ -10,6 +10,7 @@ import {
   Stack,
   Table,
   Text,
+  TextInput,
   Title,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
@@ -17,7 +18,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { HouseIcon } from "@phosphor-icons/react";
 import { Link } from "react-router-dom";
 
-import { fetchAdminUsers, updateAdminUserRole } from "../emails/api";
+import { createAdminUser, fetchAdminUsers, updateAdminUserRole } from "../emails/api";
 import type { UserAdminItem, UserRole } from "../emails/types";
 import styles from "../auth-events/AuthEventsView.module.css";
 
@@ -36,12 +37,44 @@ const defaultSort = {
   key: "email" as UserSortKey,
 };
 
-export function AdminUsersView() {
+type AdminUsersViewProps = {
+  currentUserRole: UserRole;
+};
+
+export function AdminUsersView({ currentUserRole }: AdminUsersViewProps) {
   const queryClient = useQueryClient();
   const [sort, setSort] = useState(defaultSort);
+  const [emailDraft, setEmailDraft] = useState("");
+  const [roleDraft, setRoleDraft] = useState<UserRole>(
+    currentUserRole === "super_admin" ? "reviewer" : "reviewer"
+  );
   const usersQuery = useQuery({
     queryKey: ["admin", "users"],
     queryFn: fetchAdminUsers,
+  });
+  const createUserMutation = useMutation({
+    mutationFn: ({ email, role }: { email: string; role: UserRole }) =>
+      createAdminUser({ email, role }),
+    onSuccess: (createdUser) => {
+      queryClient.setQueryData<UserAdminItem[]>(
+        ["admin", "users"],
+        (currentUsers) => [...(currentUsers ?? []), createdUser]
+      );
+      setEmailDraft("");
+      setRoleDraft("reviewer");
+      notifications.show({
+        color: "green",
+        message: `${createdUser.email} can now log in with OTP.`,
+        title: "User added",
+      });
+    },
+    onError: () => {
+      notifications.show({
+        color: "red",
+        message: "Check the email, role, and whether the user already exists.",
+        title: "User add failed",
+      });
+    },
   });
   const updateRoleMutation = useMutation({
     mutationFn: ({ role, userId }: { role: UserRole; userId: string }) =>
@@ -74,6 +107,12 @@ export function AdminUsersView() {
     () => sortItems(usersQuery.data ?? [], sort),
     [usersQuery.data, sort]
   );
+  const createRoleOptions =
+    currentUserRole === "super_admin"
+      ? roleOptions
+      : roleOptions.filter((option) => option.value === "reviewer");
+  const canUpdateRoles = currentUserRole === "super_admin";
+  const trimmedEmailDraft = emailDraft.trim();
 
   return (
     <div className={styles.page}>
@@ -94,6 +133,45 @@ export function AdminUsersView() {
         </Button>
       </header>
 
+      <section className={styles.filters}>
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (!trimmedEmailDraft) {
+              return;
+            }
+            createUserMutation.mutate({
+              email: trimmedEmailDraft,
+              role: roleDraft,
+            });
+          }}
+        >
+          <Group align="end" gap="sm">
+            <TextInput
+              label="Email"
+              placeholder="new.user@example.com"
+              value={emailDraft}
+              onChange={(event) => setEmailDraft(event.currentTarget.value)}
+            />
+            <Select
+              allowDeselect={false}
+              data={createRoleOptions}
+              label="Role"
+              value={roleDraft}
+              w={180}
+              onChange={(value) => setRoleDraft((value as UserRole | null) ?? "reviewer")}
+            />
+            <Button
+              disabled={!trimmedEmailDraft}
+              loading={createUserMutation.isPending}
+              type="submit"
+            >
+              Add user
+            </Button>
+          </Group>
+        </form>
+      </section>
+
       <section className={styles.tableShell}>
         {usersQuery.isLoading ? (
           <Stack align="center" justify="center" h={240}>
@@ -104,7 +182,7 @@ export function AdminUsersView() {
 
         {usersQuery.isError ? (
           <Alert color="red" title="Failed to load users">
-            Super admin access is required.
+            Admin access is required.
           </Alert>
         ) : null}
 
@@ -149,7 +227,7 @@ export function AdminUsersView() {
                         <Select
                           allowDeselect={false}
                           data={roleOptions}
-                          disabled={updateRoleMutation.isPending}
+                          disabled={!canUpdateRoles || updateRoleMutation.isPending}
                           size="xs"
                           value={user.role}
                           w={160}
