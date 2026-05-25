@@ -427,7 +427,10 @@ function formatChangedFields(event: EmailEventItem) {
     );
   }
 
-  return fields.length > 0 ? fields.join(", ") : "-";
+  const changedFields = fields.length > 0 ? fields.join(", ") : "";
+  return (
+    joinEventParts([changedFields, formatApprovalSnapshot(event)]) || "-"
+  );
 }
 
 function targetLabel(event: EmailEventItem) {
@@ -467,6 +470,15 @@ function formatChangedReviewStatus(event: EmailEventItem) {
     : "new value";
 }
 
+function formatApprovalSnapshot(event: EmailEventItem) {
+  const contentHash = stringMetadata(event, "approved_content_hash");
+  if (!contentHash) {
+    return "";
+  }
+
+  return `content snapshot ${shortHash(contentHash)}`;
+}
+
 function stringMetadata(event: EmailEventItem, key: string) {
   const value = event.metadata[key];
   return typeof value === "string" ? value : "";
@@ -474,6 +486,10 @@ function stringMetadata(event: EmailEventItem, key: string) {
 
 function joinEventParts(parts: string[]) {
   return parts.filter(Boolean).join(" · ");
+}
+
+function shortHash(value: string) {
+  return value.length > 10 ? value.slice(0, 10) : value;
 }
 
 function isStaleApprovalEvent(event: EmailEventItem) {

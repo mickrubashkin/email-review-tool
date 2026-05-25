@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -933,13 +935,27 @@ func updateEmailReviewStatusHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 		var slug string
 		var title string
 		var currentStatus string
+		var currentSubject *string
+		var currentPreheader *string
+		var currentTemplateHash *string
+		var currentTemplateHTML string
+		var currentEditableFieldsText string
 		err = tx.QueryRow(r.Context(), `
-			SELECT slug, title, review_status
+			SELECT slug, title, review_status, subject, preheader, template_hash, template_html, editable_fields::text
 			FROM emails
 			WHERE id = $1
 				AND archived_at IS NULL
 			FOR UPDATE;
-		`, id).Scan(&slug, &title, &currentStatus)
+		`, id).Scan(
+			&slug,
+			&title,
+			&currentStatus,
+			&currentSubject,
+			&currentPreheader,
+			&currentTemplateHash,
+			&currentTemplateHTML,
+			&currentEditableFieldsText,
+		)
 		if err != nil {
 			http.Error(w, "email not found", http.StatusNotFound)
 			return
@@ -966,6 +982,18 @@ func updateEmailReviewStatusHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			}
 
 			eventMetadata := map[string]any{}
+			if nextStatus == "approved" {
+				for key, value := range approvalContentSnapshot(
+					title,
+					currentSubject,
+					currentPreheader,
+					currentTemplateHash,
+					currentTemplateHTML,
+					currentEditableFieldsText,
+				) {
+					eventMetadata[key] = value
+				}
+			}
 			if currentStatus == "changes_requested" && nextStatus == "approved" {
 				eventMetadata["reason"] = "reapproved"
 				reapprovesStaleEdit, err := latestReviewStatusEventMarkedApprovalStale(r.Context(), tx, id)
@@ -1043,6 +1071,41 @@ func latestReviewStatusEventMarkedApprovalStale(ctx context.Context, db emailEve
 	}
 
 	return reason == "approval_stale_after_edit", nil
+}
+
+func approvalContentSnapshot(
+	title string,
+	subject *string,
+	preheader *string,
+	templateHash *string,
+	templateHTML string,
+	editableFieldsText string,
+) map[string]any {
+	templateFingerprint := stringFromPointer(templateHash)
+	if templateFingerprint == "" {
+		templateFingerprint = contentHash(templateHTML)
+	}
+	editableFieldsHash := contentHash(editableFieldsText)
+	contentHashValue := contentHash(strings.Join([]string{
+		"approval-snapshot-v1",
+		title,
+		stringFromPointer(subject),
+		stringFromPointer(preheader),
+		templateFingerprint,
+		editableFieldsHash,
+	}, "\x00"))
+
+	return map[string]any{
+		"approval_snapshot_version":     1,
+		"approved_content_hash":         contentHashValue,
+		"approved_editable_fields_hash": editableFieldsHash,
+		"approved_template_hash":        templateFingerprint,
+	}
+}
+
+func contentHash(value string) string {
+	hash := sha256.Sum256([]byte(value))
+	return hex.EncodeToString(hash[:])
 }
 
 func isValidEmailReviewStatus(status string) bool {

@@ -2603,7 +2603,10 @@ function activityDetail(activity: EmailActivityItem) {
     case "comment_replied":
       return metadataText(activity, "review_block");
     case "email_review_status_updated":
-      return formatReviewStatusChange(activity);
+      return joinActivityParts([
+        formatReviewStatusChange(activity),
+        formatApprovalSnapshot(activity),
+      ]);
     case "email_updated":
       return joinActivityParts([
         formatActivityChangedFields(activity.changes),
@@ -2658,6 +2661,15 @@ function formatReviewStatusChange(activity: EmailActivityItem) {
   return joinActivityParts([before, after ? `to ${after}` : ""]);
 }
 
+function formatApprovalSnapshot(activity: EmailActivityItem) {
+  const contentHash = metadataText(activity, "approved_content_hash");
+  if (!contentHash) {
+    return "";
+  }
+
+  return `Content snapshot ${shortHash(contentHash)}`;
+}
+
 function isStaleApprovalActivity(activity: EmailActivityItem) {
   return (
     activity.type === "email_review_status_updated" &&
@@ -2699,6 +2711,10 @@ function metadataText(activity: EmailActivityItem, key: string) {
 function metadataNumber(activity: EmailActivityItem, key: string) {
   const value = activity.metadata[key];
   return typeof value === "number" ? `${value}ms` : "";
+}
+
+function shortHash(value: string) {
+  return value.length > 10 ? value.slice(0, 10) : value;
 }
 
 function joinActivityParts(parts: string[]) {

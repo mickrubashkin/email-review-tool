@@ -52,9 +52,9 @@ The most promising first external ICP remains CRM, lifecycle, and email marketin
   - [x] owner and reviewer can be selected from existing users, with saved-email fallback;
   - [x] owner, reviewer, and due date are visible from board card menus;
   - [x] admins can update send timing and the displayed adaptation name.
-- [ ] Connect email editing to review state:
-  - store review decisions against a specific email version;
-  - keep comments open after edits until a user resolves them explicitly;
+- [x] Connect email editing to review state:
+  - [x] store review decisions against a specific email content snapshot;
+  - [x] keep comments open after edits until a user resolves them explicitly;
   - [x] mark approvals stale when the email changes after approval;
   - [x] highlight review blocks changed after related comments or approvals.
 - [x] Add approval stale behavior after edits:

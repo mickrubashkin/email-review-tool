@@ -410,19 +410,37 @@ func TestUpdateEmailReviewStatus(t *testing.T) {
 	}
 
 	var changes []byte
+	var metadata []byte
 	if err := dbpool.QueryRow(context.Background(), `
-		SELECT changes
+		SELECT changes, metadata
 		FROM email_events
 		WHERE email_id = $1
 			AND action = 'email_review_status_updated'
 		ORDER BY created_at DESC
 		LIMIT 1;
-	`, emailID).Scan(&changes); err != nil {
+	`, emailID).Scan(&changes, &metadata); err != nil {
 		t.Fatalf("failed to load review status event: %v", err)
 	}
 	if !strings.Contains(string(changes), `"before": "in_review"`) ||
 		!strings.Contains(string(changes), `"after": "approved"`) {
 		t.Fatalf("expected review status changes, got %s", string(changes))
+	}
+	var approvalMetadata map[string]any
+	if err := json.Unmarshal(metadata, &approvalMetadata); err != nil {
+		t.Fatalf("failed to decode approval metadata: %v", err)
+	}
+	for _, key := range []string{
+		"approved_content_hash",
+		"approved_editable_fields_hash",
+		"approved_template_hash",
+	} {
+		value, ok := approvalMetadata[key].(string)
+		if !ok || len(value) != 64 {
+			t.Fatalf("expected approval metadata %s hash, got %#v", key, approvalMetadata[key])
+		}
+	}
+	if approvalMetadata["approval_snapshot_version"] != float64(1) {
+		t.Fatalf("expected approval snapshot version 1, got %#v", approvalMetadata["approval_snapshot_version"])
 	}
 }
 
@@ -1276,10 +1294,12 @@ func TestUpdateEmailEditableFieldsKeepsOpenCommentsOpen(t *testing.T) {
 			body,
 			status
 		)
-		VALUES ($1, 'intro', 'Old intro', 0, 9, 'Open comment body', 'open');
+		VALUES
+			($1, 'intro', 'Old intro', 0, 9, 'Open comment body', 'open'),
+			($1, 'intro', 'Old intro', 0, 9, 'Resolved comment body', 'resolved');
 	`, emailID)
 	if err != nil {
-		t.Fatalf("failed to seed open comment: %v", err)
+		t.Fatalf("failed to seed comments: %v", err)
 	}
 
 	router := chi.NewRouter()
@@ -1303,16 +1323,21 @@ func TestUpdateEmailEditableFieldsKeepsOpenCommentsOpen(t *testing.T) {
 	}
 
 	var openCommentCount int
+	var resolvedCommentCount int
 	if err := dbpool.QueryRow(context.Background(), `
-		SELECT count(*)::int
+		SELECT
+			count(*) FILTER (WHERE status = 'open')::int,
+			count(*) FILTER (WHERE status = 'resolved')::int
 		FROM comments
-		WHERE email_id = $1
-			AND status = 'open';
-	`, emailID).Scan(&openCommentCount); err != nil {
-		t.Fatalf("failed to count open comments: %v", err)
+		WHERE email_id = $1;
+	`, emailID).Scan(&openCommentCount, &resolvedCommentCount); err != nil {
+		t.Fatalf("failed to count comments by status: %v", err)
 	}
 	if openCommentCount != 1 {
 		t.Fatalf("expected one open comment after edit, got %d", openCommentCount)
+	}
+	if resolvedCommentCount != 1 {
+		t.Fatalf("expected one resolved comment after edit, got %d", resolvedCommentCount)
 	}
 }
 
