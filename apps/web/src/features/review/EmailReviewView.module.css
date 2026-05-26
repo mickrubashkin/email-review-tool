@@ -61,6 +61,21 @@
   gap: 6px;
 }
 
+.moreMenuButton {
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--mantine-color-gray-2);
+  border-radius: 999px;
+  color: var(--mantine-color-gray-7);
+  background: var(--mantine-color-white);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.moreMenuButton:hover {
+  background: var(--mantine-color-gray-0);
+}
+
 .headerIconButton {
   width: 36px;
   height: 36px;
@@ -257,6 +272,32 @@
   border: 1px solid var(--mantine-color-gray-2);
   border-radius: var(--mantine-radius-sm);
   background: var(--mantine-color-white);
+}
+
+.reviewPanelHeader {
+  padding: var(--mantine-spacing-sm) var(--mantine-spacing-sm) 0;
+}
+
+.panelTabsList {
+  gap: 6px;
+  padding: 8px var(--mantine-spacing-sm) 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.panelTabsList::-webkit-scrollbar {
+  display: none;
+}
+
+.panelTab {
+  flex: 0 0 auto;
+  height: 30px;
+  min-width: 0;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .tabPanel {

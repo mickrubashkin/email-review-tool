@@ -2,7 +2,6 @@ import {
   ActionIcon,
   Alert,
   Badge,
-  Burger,
   Button,
   Group,
   Loader,
@@ -1185,11 +1184,15 @@ export function EmailReviewView({
                 onChange={setActionMenuOpened}
               >
                 <Menu.Target>
-                  <Burger
+                  <Button
                     aria-label="Open actions menu"
-                    opened={actionMenuOpened}
-                    size="sm"
-                  />
+                    className={styles.moreMenuButton}
+                    leftSection={<CaretDownIcon aria-hidden="true" size={12} />}
+                    size="xs"
+                    variant="subtle"
+                  >
+                    More
+                  </Button>
                 </Menu.Target>
                 <Menu.Dropdown>
                   {email ? (
@@ -1310,105 +1313,87 @@ export function EmailReviewView({
                 </Menu.Dropdown>
               </Menu>
             ) : (
-              <>
-                {canManageEmail ? (
-                  <>
-                    <Group className={styles.actionGroup} gap="xs" wrap="nowrap">
-                      <Tooltip label="Duplicate as...">
-                        <ActionIcon
-                          aria-label="Duplicate as"
-                          className={styles.headerIconButton}
-                          disabled={!email}
-                          onClick={() => {
-                            duplicateEmailMutation.reset();
-                            setDuplicateModalOpened(true);
-                          }}
-                          radius="md"
-                          size="lg"
-                          variant="light"
-                        >
-                          <StackPlusIcon aria-hidden="true" size={16} />
-                        </ActionIcon>
-                      </Tooltip>
-
-                      <Tooltip label="Archive email">
-                        <ActionIcon
-                          aria-label="Archive email"
-                          className={styles.headerIconButton}
-                          color="red"
-                          loading={archiveEmailMutation.isPending}
-                          onClick={() => setArchiveModalOpened(true)}
-                          radius="md"
-                          size="lg"
-                          variant="light"
-                        >
-                          <ArchiveIcon aria-hidden="true" size={16} />
-                        </ActionIcon>
-                      </Tooltip>
-                    </Group>
-
-                    <div className={styles.actionDivider} aria-hidden="true" />
-                  </>
-                ) : null}
-
-                <Group className={styles.actionGroup} gap="xs" wrap="nowrap">
-                  <Tooltip label="View the shared AI analysis for this email">
-                    <ActionIcon
-                      aria-label="View shared AI analysis"
-                      className={styles.headerIconButton}
-                      loading={isAnalyzingCurrentEmail}
-                      onClick={handleAnalyze}
-                      radius="md"
-                      size="lg"
-                      variant="light"
-                    >
-                      <SparkleIcon aria-hidden="true" size={16} />
-                    </ActionIcon>
-                  </Tooltip>
-
-                  <Tooltip label="Creates a new shared analysis for this email and replaces the current one for everyone. Limited to 10 per day per email.">
-                    <ActionIcon
-                      aria-label="Generate new shared AI analysis"
-                      className={styles.headerIconButton}
-                      disabled={isAnalyzingCurrentEmail}
-                      onClick={handleReanalyze}
-                      radius="md"
-                      size="lg"
-                      variant="light"
-                    >
-                      <ArrowsClockwiseIcon aria-hidden="true" size={16} />
-                    </ActionIcon>
-                  </Tooltip>
-                </Group>
-
-                <div className={styles.actionDivider} aria-hidden="true" />
-
-                <Group className={styles.actionGroup} gap="xs" wrap="nowrap">
-                  <Tooltip
-                    label={
-                      nextEmailWithOpenComments
-                        ? "Next email with open comments"
-                        : "No later emails with open comments"
-                    }
+              <Menu
+                opened={actionMenuOpened}
+                position="bottom-end"
+                width={240}
+                withinPortal
+                onChange={setActionMenuOpened}
+              >
+                <Menu.Target>
+                  <Button
+                    aria-label="Open actions menu"
+                    className={styles.moreMenuButton}
+                    leftSection={<CaretDownIcon aria-hidden="true" size={12} />}
+                    size="xs"
+                    variant="subtle"
                   >
-                    <ActionIcon
-                      aria-label="Next email with open comments"
-                      className={styles.headerIconButton}
-                      disabled={!nextEmailWithOpenComments}
-                      onClick={() => {
-                        if (nextEmailWithOpenComments) {
-                          navigateToReview(nextEmailWithOpenComments.id);
+                    More
+                  </Button>
+                </Menu.Target>
+                <Menu.Dropdown>
+                  <Menu.Label>Actions</Menu.Label>
+                  {canManageEmail ? (
+                    <>
+                      <Menu.Item
+                        disabled={!email}
+                        leftSection={
+                          <StackPlusIcon aria-hidden="true" size={15} />
                         }
-                      }}
-                      radius="md"
-                      size="lg"
-                      variant="light"
-                    >
-                      <ArrowRightIcon aria-hidden="true" size={16} />
-                    </ActionIcon>
-                  </Tooltip>
-                </Group>
-              </>
+                        onClick={() => {
+                          duplicateEmailMutation.reset();
+                          setDuplicateModalOpened(true);
+                        }}
+                      >
+                        Duplicate as...
+                      </Menu.Item>
+                      <Menu.Item
+                        color="red"
+                        disabled={!email}
+                        leftSection={
+                          <ArchiveIcon aria-hidden="true" size={15} />
+                        }
+                        onClick={() => setArchiveModalOpened(true)}
+                      >
+                        {archiveEmailMutation.isPending
+                          ? "Archiving"
+                          : "Archive email"}
+                      </Menu.Item>
+                      <Menu.Divider />
+                    </>
+                  ) : null}
+                  <Menu.Item
+                    disabled={!email}
+                    leftSection={<SparkleIcon aria-hidden="true" size={15} />}
+                    onClick={handleAnalyze}
+                  >
+                    {isAnalyzingCurrentEmail
+                      ? "Analyzing"
+                      : "View shared AI analysis"}
+                  </Menu.Item>
+                  <Menu.Item
+                    disabled={!email || isAnalyzingCurrentEmail}
+                    leftSection={
+                      <ArrowsClockwiseIcon aria-hidden="true" size={15} />
+                    }
+                    onClick={handleReanalyze}
+                  >
+                    Generate new shared AI analysis
+                  </Menu.Item>
+                  <Menu.Divider />
+                  <Menu.Item
+                    disabled={!nextEmailWithOpenComments}
+                    leftSection={<ArrowRightIcon aria-hidden="true" size={15} />}
+                    onClick={() => {
+                      if (nextEmailWithOpenComments) {
+                        navigateToReview(nextEmailWithOpenComments.id);
+                      }
+                    }}
+                  >
+                    Next with open comments
+                  </Menu.Item>
+                </Menu.Dropdown>
+              </Menu>
             )}
           </Group>
         </div>
@@ -1557,53 +1542,77 @@ export function EmailReviewView({
           />
 
           <aside className={styles.reviewPanel}>
-            <Tabs
-              value={activePanelTab}
-              onChange={(value) =>
-                setActivePanelTab((value as ReviewPanelTab | null) ?? "comments")
-              }
-            >
-              <Tabs.List grow>
-                <Tabs.Tab value="planning">Plan</Tabs.Tab>
-                <Tabs.Tab value="approvals">Approvals</Tabs.Tab>
-                <Tabs.Tab value="handoff">Handoff</Tabs.Tab>
-                <Tabs.Tab value="ai">AI</Tabs.Tab>
-                <Tabs.Tab
-                  value="comments"
-                  leftSection={
-                    <ChatTextIcon aria-hidden="true" size={15} />
-                  }
-                >
-                  {openCommentCount > 0
-                    ? `Comments ${openCommentCount}`
-                    : "Comments"}
-                </Tabs.Tab>
-                <Tabs.Tab value="activity">Activity</Tabs.Tab>
-              </Tabs.List>
+            <Stack gap={0}>
+              <Group className={styles.reviewPanelHeader} justify="space-between">
+                <Text c="dimmed" fw={600} size="xs" tt="uppercase">
+                  Sections
+                </Text>
+                <Text c="dimmed" size="xs">
+                  {formatPanelTabLabel(activePanelTab)}
+                </Text>
+              </Group>
 
-              <Tabs.Panel value="planning" className={styles.tabPanel}>
-                {planningContent}
-              </Tabs.Panel>
+              <Tabs
+                value={activePanelTab}
+                onChange={(value) =>
+                  setActivePanelTab(
+                    (value as ReviewPanelTab | null) ?? "comments"
+                  )
+                }
+              >
+                <Tabs.List className={styles.panelTabsList}>
+                  <Tabs.Tab className={styles.panelTab} value="planning">
+                    Plan
+                  </Tabs.Tab>
+                  <Tabs.Tab className={styles.panelTab} value="approvals">
+                    Approvals
+                  </Tabs.Tab>
+                  <Tabs.Tab className={styles.panelTab} value="handoff">
+                    Handoff
+                  </Tabs.Tab>
+                  <Tabs.Tab className={styles.panelTab} value="ai">
+                    AI
+                  </Tabs.Tab>
+                  <Tabs.Tab
+                    className={styles.panelTab}
+                    value="comments"
+                    leftSection={
+                      <ChatTextIcon aria-hidden="true" size={15} />
+                    }
+                  >
+                    {openCommentCount > 0
+                      ? `Comments ${openCommentCount}`
+                      : "Comments"}
+                  </Tabs.Tab>
+                  <Tabs.Tab className={styles.panelTab} value="activity">
+                    Activity
+                  </Tabs.Tab>
+                </Tabs.List>
 
-              <Tabs.Panel value="approvals" className={styles.tabPanel}>
-                {approvalsContent}
-              </Tabs.Panel>
+                <Tabs.Panel value="planning" className={styles.tabPanel}>
+                  {planningContent}
+                </Tabs.Panel>
 
-              <Tabs.Panel value="handoff" className={styles.tabPanel}>
-                {handoffContent}
-              </Tabs.Panel>
+                <Tabs.Panel value="approvals" className={styles.tabPanel}>
+                  {approvalsContent}
+                </Tabs.Panel>
 
-              <Tabs.Panel value="ai" className={styles.tabPanel}>
-                {analysisContent}
-              </Tabs.Panel>
+                <Tabs.Panel value="handoff" className={styles.tabPanel}>
+                  {handoffContent}
+                </Tabs.Panel>
 
-              <Tabs.Panel value="comments" className={styles.tabPanel}>
-                {commentsContent}
-              </Tabs.Panel>
-              <Tabs.Panel value="activity" className={styles.tabPanel}>
-                {activityContent}
-              </Tabs.Panel>
-            </Tabs>
+                <Tabs.Panel value="ai" className={styles.tabPanel}>
+                  {analysisContent}
+                </Tabs.Panel>
+
+                <Tabs.Panel value="comments" className={styles.tabPanel}>
+                  {commentsContent}
+                </Tabs.Panel>
+                <Tabs.Panel value="activity" className={styles.tabPanel}>
+                  {activityContent}
+                </Tabs.Panel>
+              </Tabs>
+            </Stack>
           </aside>
         </main>
       )}
@@ -2303,6 +2312,23 @@ function formatEmailTitle(title: string) {
       return "Second Follow-up";
     default:
       return title;
+  }
+}
+
+function formatPanelTabLabel(tab: ReviewPanelTab) {
+  switch (tab) {
+    case "planning":
+      return "Plan";
+    case "approvals":
+      return "Approvals";
+    case "handoff":
+      return "Handoff";
+    case "ai":
+      return "AI";
+    case "comments":
+      return "Comments";
+    case "activity":
+      return "Activity";
   }
 }
 
