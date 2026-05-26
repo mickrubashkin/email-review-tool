@@ -94,7 +94,7 @@ import type {
   EmailReviewStatus,
   StageColumn,
 } from "./features/emails/types";
-import { EmailReviewView } from "./features/review/EmailReviewView";
+import { EmailReview } from "./features/review/EmailReview";
 import styles from "./App.module.css";
 
 const boardSelectedVersionsStorageKey = "reviewdesk.board.selectedVersions";
@@ -250,7 +250,7 @@ function EmailReviewRoute({
 }) {
   const { emailId } = useParams();
   return emailId ? (
-    <EmailReviewView currentUserRole={currentUserRole} emailId={emailId} />
+    <EmailReview currentUserRole={currentUserRole} emailId={emailId} />
   ) : (
     <Navigate replace to="/" />
   );

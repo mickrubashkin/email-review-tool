@@ -1,0 +1,742 @@
+import { notifications } from "@mantine/notifications";
+
+import {
+  ActionIcon,
+  Alert,
+  Badge,
+  Button,
+  Group,
+  Loader,
+  Select,
+  Skeleton,
+  Stack,
+  Text,
+  Textarea,
+  TextInput,
+  Timeline,
+  Tooltip,
+} from "@mantine/core";
+
+import {
+  CheckIcon,
+  CopyIcon,
+  DownloadSimpleIcon,
+} from "@phosphor-icons/react";
+
+import { useState } from "react";
+
+import { copyRenderedHTML, downloadRenderedHTML } from "../../emails/exportHtml";
+import {
+  emailReviewStatusColor,
+  formatEmailReviewStatus,
+} from "../../emails/reviewStatus";
+import type {
+  EmailAreaApproval,
+  EmailActivityItem,
+  EmailDetail,
+  UpdateEmailPlanningFieldsPayload,
+  UserAdminItem,
+  UserRole,
+} from "../../emails/types";
+
+import {
+  activityColor,
+  activityDetail,
+  activitySummary,
+  areaApprovalStatusColor,
+  formatActivityType,
+  formatAreaApprovalStatus,
+  formatCommentDate,
+  nullableTrimmed,
+} from "./EmailReview.helpers";
+
+import styles from "./EmailReview.module.css";
+
+async function copyPlainText(value: string, label: string) {
+  try {
+    await navigator.clipboard.writeText(value);
+    notifications.show({
+      color: "green",
+      message: label + " copied to clipboard.",
+      title: "Copied",
+    });
+  } catch {
+    notifications.show({
+      color: "red",
+      message: "Browser blocked clipboard access.",
+      title: "Copy failed",
+    });
+  }
+}
+
+export function PlanningPanel({
+  adminUsers,
+  canManage,
+  email,
+  isLoadingUsers,
+  isSaving,
+  onSubmit,
+}: {
+  adminUsers: UserAdminItem[];
+  canManage: boolean;
+  email: EmailDetail | undefined;
+  isLoadingUsers: boolean;
+  isSaving: boolean;
+  onSubmit: (payload: UpdateEmailPlanningFieldsPayload) => void;
+}) {
+  const [ownerEmail, setOwnerEmail] = useState(email?.owner_email ?? "");
+  const [reviewerEmail, setReviewerEmail] = useState(email?.reviewer_email ?? "");
+  const [dueDate, setDueDate] = useState(email?.due_date ?? "");
+  const [implementationNotes, setImplementationNotes] = useState(
+    email?.implementation_notes ?? ""
+  );
+  const [sendTiming, setSendTiming] = useState(email?.send_timing ?? "");
+  const [adaptationLabel, setAdaptationLabel] = useState(
+    email?.adaptation_label ?? "Default"
+  );
+
+  if (!email) {
+    return (
+      <Stack className={styles.emptyState} align="center" justify="center">
+        <Loader size="sm" />
+      </Stack>
+    );
+  }
+
+  const payload = {
+    owner_email: nullableTrimmed(ownerEmail),
+    reviewer_email: nullableTrimmed(reviewerEmail),
+    due_date: nullableTrimmed(dueDate),
+    implementation_notes: nullableTrimmed(implementationNotes),
+    send_timing: nullableTrimmed(sendTiming),
+    adaptation_label: adaptationLabel.trim() || "Default",
+  };
+  const isDirty =
+    payload.owner_email !== (email.owner_email ?? null) ||
+    payload.reviewer_email !== (email.reviewer_email ?? null) ||
+    payload.due_date !== (email.due_date ?? null) ||
+    payload.implementation_notes !== (email.implementation_notes ?? null) ||
+    payload.send_timing !== (email.send_timing ?? null) ||
+    payload.adaptation_label !== email.adaptation_label;
+  const ownerOptions = assigneeOptions(adminUsers, ownerEmail, [
+    "admin",
+    "super_admin",
+  ]);
+  const reviewerOptions = assigneeOptions(adminUsers, reviewerEmail, [
+    "reviewer",
+    "admin",
+    "super_admin",
+  ]);
+
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (canManage && isDirty) {
+          onSubmit(payload);
+        }
+      }}
+    >
+      <Stack gap="sm">
+        <Select
+          clearable
+          disabled={!canManage || isSaving}
+          label="Owner"
+          nothingFoundMessage="No users found"
+          placeholder="owner@example.com"
+          searchable
+          data={ownerOptions}
+          value={ownerEmail || null}
+          onChange={(value) => setOwnerEmail(value ?? "")}
+        />
+        <Select
+          clearable
+          disabled={!canManage || isSaving}
+          label="Reviewer"
+          nothingFoundMessage="No users found"
+          placeholder="reviewer@example.com"
+          searchable
+          data={reviewerOptions}
+          value={reviewerEmail || null}
+          onChange={(value) => setReviewerEmail(value ?? "")}
+        />
+        {canManage && isLoadingUsers ? (
+          <Text c="dimmed" size="xs">
+            Loading user options
+          </Text>
+        ) : null}
+        <TextInput
+          disabled={!canManage || isSaving}
+          label="Due date"
+          type="date"
+          value={dueDate}
+          onChange={(event) => setDueDate(event.currentTarget.value)}
+        />
+        <Group grow align="flex-start">
+          <TextInput
+            disabled={!canManage || isSaving}
+            label="Send timing"
+            placeholder="Day 3"
+            value={sendTiming}
+            onChange={(event) => setSendTiming(event.currentTarget.value)}
+          />
+          <TextInput
+            disabled={!canManage || isSaving}
+            label="Adaptation"
+            placeholder="Default"
+            value={adaptationLabel}
+            onChange={(event) => setAdaptationLabel(event.currentTarget.value)}
+          />
+        </Group>
+        <Textarea
+          autosize
+          disabled={!canManage || isSaving}
+          label="Implementation notes"
+          minRows={4}
+          value={implementationNotes}
+          onChange={(event) => setImplementationNotes(event.currentTarget.value)}
+        />
+        {canManage ? (
+          <Group justify="flex-end">
+            <Button disabled={!isDirty} loading={isSaving} type="submit">
+              Save
+            </Button>
+          </Group>
+        ) : null}
+      </Stack>
+    </form>
+  );
+}
+
+
+export function AreaApprovalsPanel({
+  approvals,
+  canManage,
+  isError,
+  isLoading,
+  onSubmit,
+  pendingArea,
+}: {
+  approvals: EmailAreaApproval[];
+  canManage: boolean;
+  isError: boolean;
+  isLoading: boolean;
+  onSubmit: (
+    area: string,
+    status: "approved" | "changes_requested",
+    decisionNote: string | null
+  ) => void;
+  pendingArea: string | null;
+}) {
+  const [notesByArea, setNotesByArea] = useState<Record<string, string>>({});
+
+  if (isLoading) {
+    return (
+      <Stack className={styles.emptyState} align="center" justify="center">
+        <Loader size="sm" />
+      </Stack>
+    );
+  }
+
+  if (isError) {
+    return (
+      <Alert color="red" title="Could not load approvals" variant="light">
+        Try refreshing the page or check the API server.
+      </Alert>
+    );
+  }
+
+  if (approvals.length === 0) {
+    return (
+      <Alert color="gray" title="No approval areas" variant="light">
+        Add approval areas in board settings.
+      </Alert>
+    );
+  }
+
+  return (
+    <Stack gap="sm">
+      {approvals.map((approval) => {
+        const noteDraft =
+          notesByArea[approval.area] ?? approval.decision_note ?? "";
+        const isPending = pendingArea === approval.area;
+
+        return (
+          <Stack
+            className={styles.approvalAreaItem}
+            gap="xs"
+            key={approval.board_approval_area_id}
+          >
+            <Group justify="space-between" gap="xs" wrap="nowrap">
+              <Stack gap={2}>
+                <Group gap={6} wrap="nowrap">
+                  <Text fw={700} size="sm">
+                    {approval.name}
+                  </Text>
+                  {approval.required ? (
+                    <Badge color="blue" radius="sm" size="xs" variant="light">
+                      Required
+                    </Badge>
+                  ) : (
+                    <Badge color="gray" radius="sm" size="xs" variant="light">
+                      Optional
+                    </Badge>
+                  )}
+                </Group>
+                {approval.decided_by_email && approval.decided_at ? (
+                  <Text c="dimmed" size="xs">
+                    {approval.decided_by_email} ·{" "}
+                    {formatCommentDate(approval.decided_at)}
+                  </Text>
+                ) : null}
+              </Stack>
+              <Badge
+                color={areaApprovalStatusColor(approval.status)}
+                radius="sm"
+                variant="light"
+              >
+                {formatAreaApprovalStatus(approval.status)}
+              </Badge>
+            </Group>
+
+            {approval.decision_note ? (
+              <Text c="dimmed" size="sm" style={{ whiteSpace: "pre-wrap" }}>
+                {approval.decision_note}
+              </Text>
+            ) : null}
+
+            {canManage ? (
+              <>
+                <Textarea
+                  autosize
+                  disabled={isPending}
+                  minRows={2}
+                  placeholder="Decision note"
+                  value={noteDraft}
+                  onChange={(event) =>
+                    setNotesByArea((current) => ({
+                      ...current,
+                      [approval.area]: event.currentTarget.value,
+                    }))
+                  }
+                />
+                <Group gap="xs" grow>
+                  <Button
+                    color="green"
+                    disabled={isPending}
+                    leftSection={<CheckIcon aria-hidden="true" size={15} />}
+                    loading={isPending}
+                    size="xs"
+                    variant="light"
+                    onClick={() =>
+                      onSubmit(
+                        approval.area,
+                        "approved",
+                        nullableTrimmed(noteDraft)
+                      )
+                    }
+                  >
+                    Approve
+                  </Button>
+                  <Button
+                    color="yellow"
+                    disabled={isPending}
+                    loading={isPending}
+                    size="xs"
+                    variant="light"
+                    onClick={() =>
+                      onSubmit(
+                        approval.area,
+                        "changes_requested",
+                        nullableTrimmed(noteDraft)
+                      )
+                    }
+                  >
+                    Request changes
+                  </Button>
+                </Group>
+              </>
+            ) : null}
+          </Stack>
+        );
+      })}
+    </Stack>
+  );
+}
+
+
+export function HandoffPanel({
+  approvalActivity,
+  areaApprovals,
+  email,
+  isLoadingRenderedHTML,
+  openBlockingCommentCount,
+  openCommentCount,
+  renderedHTML,
+  renderedHTMLError,
+}: {
+  approvalActivity: EmailActivityItem | null;
+  areaApprovals: EmailAreaApproval[];
+  email: EmailDetail | undefined;
+  isLoadingRenderedHTML: boolean;
+  openBlockingCommentCount: number;
+  openCommentCount: number;
+  renderedHTML: string;
+  renderedHTMLError: boolean;
+}) {
+  if (!email) {
+    return (
+      <Stack className={styles.emptyState} align="center" justify="center">
+        <Loader size="sm" />
+      </Stack>
+    );
+  }
+
+  const isApproved = email.review_status === "approved";
+  const incompleteRequiredApprovals = areaApprovals.filter(
+    (approval) => approval.required && approval.status !== "approved"
+  );
+  const approvalLabel = approvalActivity
+    ? `${approvalActivity.actor_email ?? "System"} on ${formatCommentDate(approvalActivity.created_at)}`
+    : "Approved";
+
+  return (
+    <Stack gap="sm">
+      {!isApproved ? (
+        <Alert color="gray" title="Handoff not ready" variant="light">
+          Approve this email to prepare handoff.
+        </Alert>
+      ) : null}
+
+      {openBlockingCommentCount > 0 ? (
+        <Alert color="red" title="Open blocking comments" variant="light">
+          Resolve blocking comments before production handoff.
+        </Alert>
+      ) : null}
+
+      {incompleteRequiredApprovals.length > 0 ? (
+        <Alert color="red" title="Required approvals incomplete" variant="light">
+          Complete required area approvals before production handoff.
+        </Alert>
+      ) : null}
+
+      <Stack className={styles.handoffSection} gap="xs">
+        <Group justify="space-between" gap="xs" wrap="nowrap">
+          <Text fw={700} size="sm">
+            Package
+          </Text>
+          <Badge
+            color={emailReviewStatusColor(email.review_status)}
+            radius="sm"
+            variant="light"
+          >
+            {formatEmailReviewStatus(email.review_status)}
+          </Badge>
+        </Group>
+        <HandoffRow label="Title" value={email.title} />
+        <HandoffRow label="Subject" value={email.subject ?? ""} copyable />
+        <HandoffRow label="Preheader" value={email.preheader ?? ""} copyable />
+        <HandoffRow label="Language" value={email.language.toUpperCase()} />
+        <HandoffRow label="Version" value={email.variant} />
+        <HandoffRow label="Adaptation" value={email.adaptation_label} />
+        <HandoffRow label="Send timing" value={email.send_timing ?? ""} />
+      </Stack>
+
+      <Stack className={styles.handoffSection} gap="xs">
+        <Text fw={700} size="sm">
+          Approval
+        </Text>
+        <HandoffRow label="Status" value={formatEmailReviewStatus(email.review_status)} />
+        {isApproved ? <HandoffRow label="Approved by" value={approvalLabel} /> : null}
+        <HandoffRow
+          label="Open comments"
+          value={`${openCommentCount}${openBlockingCommentCount > 0 ? ` (${openBlockingCommentCount} blocking)` : ""}`}
+        />
+      </Stack>
+
+      {areaApprovals.length > 0 ? (
+        <Stack className={styles.handoffSection} gap="xs">
+          <Text fw={700} size="sm">
+            Area approvals
+          </Text>
+          {areaApprovals.map((approval) => (
+            <Group
+              className={styles.handoffRow}
+              gap="xs"
+              justify="space-between"
+              key={approval.board_approval_area_id}
+              wrap="nowrap"
+            >
+              <Group gap={6} wrap="nowrap">
+                <Text c="dimmed" size="sm">
+                  {approval.name}
+                </Text>
+                {approval.required ? (
+                  <Badge color="blue" radius="sm" size="xs" variant="light">
+                    Required
+                  </Badge>
+                ) : null}
+              </Group>
+              <Badge
+                color={areaApprovalStatusColor(approval.status)}
+                radius="sm"
+                size="sm"
+                variant="light"
+              >
+                {formatAreaApprovalStatus(approval.status)}
+              </Badge>
+            </Group>
+          ))}
+        </Stack>
+      ) : null}
+
+      {email.implementation_notes ? (
+        <Stack className={styles.handoffSection} gap={6}>
+          <Text fw={700} size="sm">
+            Implementation notes
+          </Text>
+          <Text c="dimmed" size="sm" style={{ whiteSpace: "pre-wrap" }}>
+            {email.implementation_notes}
+          </Text>
+        </Stack>
+      ) : null}
+
+      <Stack className={styles.handoffSection} gap="xs">
+        <Group justify="space-between" gap="xs" wrap="nowrap">
+          <Text fw={700} size="sm">
+            Final HTML
+          </Text>
+          {renderedHTML ? (
+            <Text c="dimmed" size="xs">
+              {formatByteSize(renderedHTML)}
+            </Text>
+          ) : null}
+        </Group>
+
+        {renderedHTMLError ? (
+          <Alert color="red" title="Failed to render HTML" variant="light">
+            Try refreshing the page or check the email source.
+          </Alert>
+        ) : (
+          <>
+            <Textarea
+              autosize
+              disabled={!isApproved || isLoadingRenderedHTML}
+              maxRows={8}
+              minRows={5}
+              readOnly
+              value={
+                isLoadingRenderedHTML
+                  ? "Loading rendered HTML..."
+                  : renderedHTML
+              }
+            />
+            <Group gap="xs" grow>
+              <Button
+                disabled={!isApproved || !renderedHTML}
+                leftSection={<CopyIcon aria-hidden="true" size={15} />}
+                size="xs"
+                variant="light"
+                onClick={() => void copyRenderedHTML(renderedHTML)}
+              >
+                Copy HTML
+              </Button>
+              <Button
+                disabled={!isApproved || !renderedHTML}
+                leftSection={<DownloadSimpleIcon aria-hidden="true" size={15} />}
+                size="xs"
+                variant="light"
+                onClick={() => downloadRenderedHTML(email, renderedHTML)}
+              >
+                Download
+              </Button>
+            </Group>
+          </>
+        )}
+      </Stack>
+
+    </Stack>
+  );
+}
+
+
+function HandoffRow({
+  copyable = false,
+  label,
+  value,
+}: {
+  copyable?: boolean;
+  label: string;
+  value: string;
+}) {
+  const displayValue = value.trim() || "Not set";
+
+  return (
+    <Group className={styles.handoffRow} gap="xs" justify="space-between" wrap="nowrap">
+      <Text c="dimmed" size="sm">
+        {label}
+      </Text>
+      <Group gap={4} justify="flex-end" wrap="nowrap">
+        <Text className={styles.handoffValue} fw={600} size="sm">
+          {displayValue}
+        </Text>
+        {copyable && value.trim() ? (
+          <Tooltip label={`Copy ${label.toLowerCase()}`}>
+            <ActionIcon
+              aria-label={`Copy ${label.toLowerCase()}`}
+              size="sm"
+              variant="subtle"
+              onClick={() => void copyPlainText(value, label)}
+            >
+              <CopyIcon aria-hidden="true" size={14} />
+            </ActionIcon>
+          </Tooltip>
+        ) : null}
+      </Group>
+    </Group>
+  );
+}
+
+
+function formatByteSize(value: string) {
+  const bytes = new Blob([value]).size;
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+  return `${(bytes / 1024).toFixed(1)} KB`;
+}
+
+
+function assigneeOptions(
+  users: UserAdminItem[],
+  currentEmail: string,
+  allowedRoles: UserRole[]
+) {
+  const allowedRoleSet = new Set<UserRole>(allowedRoles);
+  const options = users
+    .filter((user) => allowedRoleSet.has(user.role))
+    .map((user) => ({
+      label: `${user.email} (${formatUserRole(user.role)})`,
+      value: user.email,
+    }));
+  const normalizedCurrentEmail = currentEmail.trim();
+  if (
+    normalizedCurrentEmail &&
+    !options.some((option) => option.value === normalizedCurrentEmail)
+  ) {
+    options.unshift({
+      label: normalizedCurrentEmail,
+      value: normalizedCurrentEmail,
+    });
+  }
+
+  return options;
+}
+
+
+function formatUserRole(role: UserRole) {
+  return role.replaceAll("_", " ");
+}
+
+
+export function ReviewPreviewSkeleton() {
+  return (
+    <div className={styles.previewSkeleton}>
+      <Stack gap="md">
+        <Group gap="sm" wrap="nowrap">
+          <Skeleton circle h={40} w={40} />
+          <Stack gap={6} flex={1}>
+            <Skeleton h={12} w={140} />
+            <Skeleton h={12} w="60%" />
+            <Skeleton h={10} w={180} />
+          </Stack>
+        </Group>
+        <Skeleton h={220} radius="md" />
+        <Stack gap="sm">
+          <Skeleton h={14} w="42%" />
+          <Skeleton h={14} w="72%" />
+          <Skeleton h={14} w="68%" />
+          <Skeleton h={14} w="58%" />
+        </Stack>
+      </Stack>
+    </div>
+  );
+}
+
+
+export function ActivityPanel({
+  activities,
+  isError,
+  isLoading,
+}: {
+  activities: EmailActivityItem[];
+  isError: boolean;
+  isLoading: boolean;
+}) {
+  if (isLoading) {
+    return (
+      <Stack className={styles.emptyState} align="center" justify="center">
+        <Loader size="sm" />
+        <Text c="dimmed" size="sm">
+          Loading activity
+        </Text>
+      </Stack>
+    );
+  }
+
+  if (isError) {
+    return (
+      <Alert color="red" title="Failed to load activity">
+        Activity is unavailable right now.
+      </Alert>
+    );
+  }
+
+  if (activities.length === 0) {
+    return (
+      <Stack className={styles.emptyState} align="center" justify="center" gap="xs">
+        <Text fw={600}>No activity yet</Text>
+        <Text c="dimmed" ta="center" size="sm">
+          Review actions will appear here as this email changes.
+        </Text>
+      </Stack>
+    );
+  }
+
+  return (
+    <Timeline active={activities.length} bulletSize={24} lineWidth={2}>
+      {activities.map((activity) => (
+        <Timeline.Item
+          color={activityColor(activity.type)}
+          key={activity.id}
+          title={
+            <Group justify="space-between" gap="xs" wrap="nowrap">
+              <Stack gap={2}>
+                <Text fw={700} size="xs">
+                  {activity.actor_email ?? "System"}
+                </Text>
+                <Text c="dimmed" size="xs">
+                  {formatCommentDate(activity.created_at)}
+                </Text>
+              </Stack>
+              <Badge color={activityColor(activity.type)} size="sm" variant="light">
+                {formatActivityType(activity)}
+              </Badge>
+            </Group>
+          }
+        >
+          <Stack className={styles.activityItem} gap={6}>
+            <Text size="sm">{activitySummary(activity)}</Text>
+            {activityDetail(activity) ? (
+              <Text c="dimmed" size="xs">
+                {activityDetail(activity)}
+              </Text>
+            ) : null}
+          </Stack>
+        </Timeline.Item>
+      ))}
+    </Timeline>
+  );
+}
+
+
