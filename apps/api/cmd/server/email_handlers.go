@@ -966,20 +966,13 @@ func updateEmailReviewStatusHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 
 		if currentStatus != nextStatus {
 			if nextStatus == "approved" {
-				var openBlockingCommentCount int
-				err = tx.QueryRow(r.Context(), `
-					SELECT count(*)::int
-					FROM comments
-					WHERE email_id = $1
-						AND status = 'open'
-						AND severity = 'blocking';
-				`, id).Scan(&openBlockingCommentCount)
+				blockers, err := emailApprovalGateBlockers(r.Context(), tx, id)
 				if err != nil {
 					http.Error(w, "failed to update review status", http.StatusInternalServerError)
 					return
 				}
-				if openBlockingCommentCount > 0 {
-					http.Error(w, "resolve blocking comments before approving", http.StatusConflict)
+				if len(blockers) > 0 {
+					http.Error(w, strings.Join(blockers, "; "), http.StatusConflict)
 					return
 				}
 			}
@@ -1054,6 +1047,62 @@ func updateEmailReviewStatusHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(updateEmailReviewStatusResponse{ReviewStatus: nextStatus})
 	}
+}
+
+func emailApprovalGateBlockers(ctx context.Context, db emailEventExecutor, emailID string) ([]string, error) {
+	blockers := []string{}
+
+	var openBlockingCommentCount int
+	err := db.QueryRow(ctx, `
+		SELECT count(*)::int
+		FROM comments
+		WHERE email_id = $1
+			AND status = 'open'
+			AND severity = 'blocking';
+	`, emailID).Scan(&openBlockingCommentCount)
+	if err != nil {
+		return nil, err
+	}
+	if openBlockingCommentCount > 0 {
+		blockers = append(blockers, "resolve blocking comments before approving")
+	}
+
+	rows, err := db.Query(ctx, `
+		SELECT board_approval_areas.name, coalesce(email_area_approvals.status, 'pending') AS status
+		FROM emails
+		JOIN boards ON boards.key = coalesce(nullif(trim(emails.sequence), ''), 'onboarding')
+		JOIN board_approval_areas ON board_approval_areas.board_id = boards.id
+			AND board_approval_areas.archived_at IS NULL
+			AND board_approval_areas.required = true
+		LEFT JOIN email_area_approvals ON email_area_approvals.email_id = emails.id
+			AND email_area_approvals.board_approval_area_id = board_approval_areas.id
+		WHERE emails.id = $1
+			AND emails.archived_at IS NULL
+			AND coalesce(email_area_approvals.status, 'pending') <> 'approved'
+		ORDER BY board_approval_areas.sort_order, board_approval_areas.created_at;
+	`, emailID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	pendingRequiredAreas := []string{}
+	for rows.Next() {
+		var name string
+		var status string
+		if err := rows.Scan(&name, &status); err != nil {
+			return nil, err
+		}
+		pendingRequiredAreas = append(pendingRequiredAreas, fmt.Sprintf("%s (%s)", name, status))
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if len(pendingRequiredAreas) > 0 {
+		blockers = append(blockers, "complete required approvals before approving: "+strings.Join(pendingRequiredAreas, ", "))
+	}
+
+	return blockers, nil
 }
 
 func latestReviewStatusEventMarkedApprovalStale(ctx context.Context, db emailEventExecutor, emailID string) (bool, error) {

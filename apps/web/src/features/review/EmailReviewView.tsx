@@ -68,12 +68,14 @@ import {
   duplicateEmail,
   fetchAdminUsers,
   fetchEmailActivity,
+  listEmailAreaApprovals,
   fetchEmailComments,
   fetchEmailDetail,
   fetchEmails,
   fetchRenderedEmail,
   fetchSharedEmailAnalysis,
   resolveComment,
+  updateEmailAreaApproval,
   updateEmailEditableFields,
   updateEmailPlanningFields,
   updateEmailReviewStatus,
@@ -115,6 +117,7 @@ import { buildStreamPreview } from "../emails/streamPreview";
 import type {
   AuthUser,
   DuplicateEmailPayload,
+  EmailAreaApproval,
   EmailActivityItem,
   EmailComment,
   EmailCommentSeverity,
@@ -140,11 +143,18 @@ type ReviewViewport = "desktop" | "mobile";
 type ReviewContentTab =
   | "email"
   | "planning"
+  | "approvals"
   | "handoff"
   | "ai"
   | "comments"
   | "activity";
-type ReviewPanelTab = "planning" | "handoff" | "ai" | "comments" | "activity";
+type ReviewPanelTab =
+  | "planning"
+  | "approvals"
+  | "handoff"
+  | "ai"
+  | "comments"
+  | "activity";
 type CommentStatusFilter = "open" | "all";
 
 const minRightPanelPercent = 24;
@@ -193,6 +203,11 @@ export function EmailReviewView({
   const activityQuery = useQuery({
     queryKey: ["email-activity", emailId],
     queryFn: () => fetchEmailActivity(emailId),
+    enabled: emailId.trim() !== "",
+  });
+  const areaApprovalsQuery = useQuery({
+    queryKey: ["email-area-approvals", emailId],
+    queryFn: () => listEmailAreaApprovals(emailId),
     enabled: emailId.trim() !== "",
   });
   const renderedEmailQuery = useQuery({
@@ -335,6 +350,15 @@ export function EmailReviewView({
   const effectiveOpenBlockingCommentCount = Math.max(
     openBlockingCommentCount,
     email?.open_blocking_comment_count ?? 0
+  );
+  const incompleteRequiredApprovalCount = (areaApprovalsQuery.data ?? []).filter(
+    (approval) => approval.required && approval.status !== "approved"
+  ).length;
+  const approvalBlockedCount =
+    effectiveOpenBlockingCommentCount + incompleteRequiredApprovalCount;
+  const approvalBlockedMessage = buildApprovalBlockedMessage(
+    effectiveOpenBlockingCommentCount,
+    incompleteRequiredApprovalCount
   );
   const filteredComments = useMemo(
     () =>
@@ -485,16 +509,14 @@ export function EmailReviewView({
       });
     },
     onError: (error) => {
+      const conflictMessage =
+        error instanceof ApiError && error.status === 409
+          ? error.message.trim() || approvalBlockedMessage
+          : null;
       notifications.show({
         color: "red",
-        message:
-          error instanceof ApiError && error.status === 409
-            ? "Resolve blocking comments before approval."
-            : "Try again or check that you have admin access.",
-        title:
-          error instanceof ApiError && error.status === 409
-            ? "Approval blocked"
-            : "Status update failed",
+        message: conflictMessage ?? "Try again or check that you have admin access.",
+        title: conflictMessage ? "Approval blocked" : "Status update failed",
       });
     },
   });
@@ -527,6 +549,41 @@ export function EmailReviewView({
         color: "red",
         message: "Try again or check that you have admin access.",
         title: "Planning update failed",
+      });
+    },
+  });
+  const areaApprovalMutation = useMutation({
+    mutationFn: ({
+      area,
+      decisionNote,
+      status,
+    }: {
+      area: string;
+      decisionNote: string | null;
+      status: "approved" | "changes_requested";
+    }) =>
+      updateEmailAreaApproval(emailId, area, {
+        decision_note: decisionNote,
+        status,
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ["email-area-approvals", emailId],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["email-activity", emailId],
+      });
+      notifications.show({
+        color: "green",
+        message: "Approval area updated.",
+        title: "Approval updated",
+      });
+    },
+    onError: () => {
+      notifications.show({
+        color: "red",
+        message: "Try again or check that you have admin access.",
+        title: "Approval update failed",
       });
     },
   });
@@ -723,10 +780,10 @@ export function EmailReviewView({
     if (!email || !value || value === email.review_status) {
       return;
     }
-    if (value === "approved" && effectiveOpenBlockingCommentCount > 0) {
+    if (value === "approved" && approvalBlockedCount > 0) {
       notifications.show({
         color: "red",
-        message: "Resolve blocking comments before approval.",
+        message: approvalBlockedMessage,
         title: "Approval blocked",
       });
       return;
@@ -943,9 +1000,26 @@ export function EmailReviewView({
       onSubmit={handlePlanningFieldsSubmit}
     />
   );
+  const approvalsContent = (
+    <AreaApprovalsPanel
+      approvals={areaApprovalsQuery.data ?? []}
+      canManage={canManageEmail}
+      isError={areaApprovalsQuery.isError}
+      isLoading={areaApprovalsQuery.isLoading}
+      pendingArea={
+        areaApprovalMutation.isPending
+          ? areaApprovalMutation.variables?.area ?? null
+          : null
+      }
+      onSubmit={(area, status, decisionNote) =>
+        areaApprovalMutation.mutate({ area, decisionNote, status })
+      }
+    />
+  );
   const handoffContent = (
     <HandoffPanel
       approvalActivity={latestApprovalActivity(activityQuery.data ?? [])}
+      areaApprovals={areaApprovalsQuery.data ?? []}
       email={email}
       isLoadingRenderedHTML={renderedEmailQuery.isLoading}
       openBlockingCommentCount={effectiveOpenBlockingCommentCount}
@@ -1039,7 +1113,8 @@ export function EmailReviewView({
 
             {!isCompactReview && email ? (
               <ReviewStatusControl
-                approvalBlockedCount={effectiveOpenBlockingCommentCount}
+                approvalBlockedCount={approvalBlockedCount}
+                approvalBlockedMessage={approvalBlockedMessage}
                 canManage={canManageEmail}
                 isUpdating={reviewStatusMutation.isPending}
                 status={email.review_status}
@@ -1122,7 +1197,8 @@ export function EmailReviewView({
                       <Menu.Label>Review status</Menu.Label>
                       <div className={styles.menuControls}>
                         <ReviewStatusControl
-                          approvalBlockedCount={effectiveOpenBlockingCommentCount}
+                          approvalBlockedCount={approvalBlockedCount}
+                          approvalBlockedMessage={approvalBlockedMessage}
                           canManage={canManageEmail}
                           isUpdating={reviewStatusMutation.isPending}
                           status={email.review_status}
@@ -1413,6 +1489,7 @@ export function EmailReviewView({
             <Tabs.List className={styles.mobileTabsList} grow>
               <Tabs.Tab value="email">Email</Tabs.Tab>
               <Tabs.Tab value="planning">Plan</Tabs.Tab>
+              <Tabs.Tab value="approvals">Approvals</Tabs.Tab>
               <Tabs.Tab value="handoff">Handoff</Tabs.Tab>
               <Tabs.Tab value="ai">AI</Tabs.Tab>
               <Tabs.Tab
@@ -1434,6 +1511,10 @@ export function EmailReviewView({
 
             <Tabs.Panel value="planning" className={styles.mobileTabPanel}>
               {planningContent}
+            </Tabs.Panel>
+
+            <Tabs.Panel value="approvals" className={styles.mobileTabPanel}>
+              {approvalsContent}
             </Tabs.Panel>
 
             <Tabs.Panel value="handoff" className={styles.mobileTabPanel}>
@@ -1484,6 +1565,7 @@ export function EmailReviewView({
             >
               <Tabs.List grow>
                 <Tabs.Tab value="planning">Plan</Tabs.Tab>
+                <Tabs.Tab value="approvals">Approvals</Tabs.Tab>
                 <Tabs.Tab value="handoff">Handoff</Tabs.Tab>
                 <Tabs.Tab value="ai">AI</Tabs.Tab>
                 <Tabs.Tab
@@ -1501,6 +1583,10 @@ export function EmailReviewView({
 
               <Tabs.Panel value="planning" className={styles.tabPanel}>
                 {planningContent}
+              </Tabs.Panel>
+
+              <Tabs.Panel value="approvals" className={styles.tabPanel}>
+                {approvalsContent}
               </Tabs.Panel>
 
               <Tabs.Panel value="handoff" className={styles.tabPanel}>
@@ -1673,8 +1759,164 @@ function PlanningPanel({
   );
 }
 
+function AreaApprovalsPanel({
+  approvals,
+  canManage,
+  isError,
+  isLoading,
+  onSubmit,
+  pendingArea,
+}: {
+  approvals: EmailAreaApproval[];
+  canManage: boolean;
+  isError: boolean;
+  isLoading: boolean;
+  onSubmit: (
+    area: string,
+    status: "approved" | "changes_requested",
+    decisionNote: string | null
+  ) => void;
+  pendingArea: string | null;
+}) {
+  const [notesByArea, setNotesByArea] = useState<Record<string, string>>({});
+
+  if (isLoading) {
+    return (
+      <Stack className={styles.emptyState} align="center" justify="center">
+        <Loader size="sm" />
+      </Stack>
+    );
+  }
+
+  if (isError) {
+    return (
+      <Alert color="red" title="Could not load approvals" variant="light">
+        Try refreshing the page or check the API server.
+      </Alert>
+    );
+  }
+
+  if (approvals.length === 0) {
+    return (
+      <Alert color="gray" title="No approval areas" variant="light">
+        Add approval areas in board settings.
+      </Alert>
+    );
+  }
+
+  return (
+    <Stack gap="sm">
+      {approvals.map((approval) => {
+        const noteDraft =
+          notesByArea[approval.area] ?? approval.decision_note ?? "";
+        const isPending = pendingArea === approval.area;
+
+        return (
+          <Stack
+            className={styles.approvalAreaItem}
+            gap="xs"
+            key={approval.board_approval_area_id}
+          >
+            <Group justify="space-between" gap="xs" wrap="nowrap">
+              <Stack gap={2}>
+                <Group gap={6} wrap="nowrap">
+                  <Text fw={700} size="sm">
+                    {approval.name}
+                  </Text>
+                  {approval.required ? (
+                    <Badge color="blue" radius="sm" size="xs" variant="light">
+                      Required
+                    </Badge>
+                  ) : (
+                    <Badge color="gray" radius="sm" size="xs" variant="light">
+                      Optional
+                    </Badge>
+                  )}
+                </Group>
+                {approval.decided_by_email && approval.decided_at ? (
+                  <Text c="dimmed" size="xs">
+                    {approval.decided_by_email} ·{" "}
+                    {formatCommentDate(approval.decided_at)}
+                  </Text>
+                ) : null}
+              </Stack>
+              <Badge
+                color={areaApprovalStatusColor(approval.status)}
+                radius="sm"
+                variant="light"
+              >
+                {formatAreaApprovalStatus(approval.status)}
+              </Badge>
+            </Group>
+
+            {approval.decision_note ? (
+              <Text c="dimmed" size="sm" style={{ whiteSpace: "pre-wrap" }}>
+                {approval.decision_note}
+              </Text>
+            ) : null}
+
+            {canManage ? (
+              <>
+                <Textarea
+                  autosize
+                  disabled={isPending}
+                  minRows={2}
+                  placeholder="Decision note"
+                  value={noteDraft}
+                  onChange={(event) =>
+                    setNotesByArea((current) => ({
+                      ...current,
+                      [approval.area]: event.currentTarget.value,
+                    }))
+                  }
+                />
+                <Group gap="xs" grow>
+                  <Button
+                    color="green"
+                    disabled={isPending}
+                    leftSection={<CheckIcon aria-hidden="true" size={15} />}
+                    loading={isPending}
+                    size="xs"
+                    variant="light"
+                    onClick={() =>
+                      onSubmit(
+                        approval.area,
+                        "approved",
+                        nullableTrimmed(noteDraft)
+                      )
+                    }
+                  >
+                    Approve
+                  </Button>
+                  <Button
+                    color="yellow"
+                    disabled={isPending}
+                    loading={isPending}
+                    size="xs"
+                    variant="light"
+                    onClick={() =>
+                      onSubmit(
+                        approval.area,
+                        "changes_requested",
+                        nullableTrimmed(noteDraft)
+                      )
+                    }
+                  >
+                    Request changes
+                  </Button>
+                </Group>
+              </>
+            ) : null}
+          </Stack>
+        );
+      })}
+    </Stack>
+  );
+}
+
 function HandoffPanel({
   approvalActivity,
+  areaApprovals,
   email,
   isLoadingRenderedHTML,
   openBlockingCommentCount,
@@ -1683,6 +1925,7 @@ function HandoffPanel({
   renderedHTMLError,
 }: {
   approvalActivity: EmailActivityItem | null;
+  areaApprovals: EmailAreaApproval[];
   email: EmailDetail | undefined;
   isLoadingRenderedHTML: boolean;
   openBlockingCommentCount: number;
@@ -1699,6 +1942,9 @@ function HandoffPanel({
   }
 
   const isApproved = email.review_status === "approved";
+  const incompleteRequiredApprovals = areaApprovals.filter(
+    (approval) => approval.required && approval.status !== "approved"
+  );
   const approvalLabel = approvalActivity
     ? `${approvalActivity.actor_email ?? "System"} on ${formatCommentDate(approvalActivity.created_at)}`
     : "Approved";
@@ -1714,6 +1960,12 @@ function HandoffPanel({
       {openBlockingCommentCount > 0 ? (
         <Alert color="red" title="Open blocking comments" variant="light">
           Resolve blocking comments before production handoff.
+        </Alert>
+      ) : null}
+
+      {incompleteRequiredApprovals.length > 0 ? (
+        <Alert color="red" title="Required approvals incomplete" variant="light">
+          Complete required area approvals before production handoff.
         </Alert>
       ) : null}
 
@@ -1750,6 +2002,42 @@ function HandoffPanel({
           value={`${openCommentCount}${openBlockingCommentCount > 0 ? ` (${openBlockingCommentCount} blocking)` : ""}`}
         />
       </Stack>
+
+      {areaApprovals.length > 0 ? (
+        <Stack className={styles.handoffSection} gap="xs">
+          <Text fw={700} size="sm">
+            Area approvals
+          </Text>
+          {areaApprovals.map((approval) => (
+            <Group
+              className={styles.handoffRow}
+              gap="xs"
+              justify="space-between"
+              key={approval.board_approval_area_id}
+              wrap="nowrap"
+            >
+              <Group gap={6} wrap="nowrap">
+                <Text c="dimmed" size="sm">
+                  {approval.name}
+                </Text>
+                {approval.required ? (
+                  <Badge color="blue" radius="sm" size="xs" variant="light">
+                    Required
+                  </Badge>
+                ) : null}
+              </Group>
+              <Badge
+                color={areaApprovalStatusColor(approval.status)}
+                radius="sm"
+                size="sm"
+                variant="light"
+              >
+                {formatAreaApprovalStatus(approval.status)}
+              </Badge>
+            </Group>
+          ))}
+        </Stack>
+      ) : null}
 
       {email.implementation_notes ? (
         <Stack className={styles.handoffSection} gap={6}>
@@ -1855,6 +2143,56 @@ function HandoffRow({
       </Group>
     </Group>
   );
+}
+
+function formatAreaApprovalStatus(status: string) {
+  switch (status) {
+    case "pending":
+      return "Pending";
+    case "approved":
+      return "Approved";
+    case "changes_requested":
+      return "Changes requested";
+    case "stale":
+      return "Stale";
+    default:
+      return status.replaceAll("_", " ");
+  }
+}
+
+function buildApprovalBlockedMessage(
+  openBlockingCommentCount: number,
+  incompleteRequiredApprovalCount: number
+) {
+  const blockers: string[] = [];
+
+  if (openBlockingCommentCount > 0) {
+    blockers.push("Resolve blocking comments");
+  }
+  if (incompleteRequiredApprovalCount > 0) {
+    blockers.push("complete required approvals");
+  }
+
+  if (blockers.length === 0) {
+    return "";
+  }
+
+  return `${blockers.join(" and ")} before approval.`;
+}
+
+function areaApprovalStatusColor(status: string) {
+  switch (status) {
+    case "approved":
+      return "green";
+    case "changes_requested":
+      return "yellow";
+    case "stale":
+      return "orange";
+    case "pending":
+      return "gray";
+    default:
+      return "gray";
+  }
 }
 
 async function copyPlainText(value: string, label: string) {
@@ -1970,12 +2308,14 @@ function formatEmailTitle(title: string) {
 
 function ReviewStatusControl({
   approvalBlockedCount,
+  approvalBlockedMessage,
   canManage,
   isUpdating,
   onChange,
   status,
 }: {
   approvalBlockedCount: number;
+  approvalBlockedMessage: string;
   canManage: boolean;
   isUpdating: boolean;
   onChange: (value: string | null) => void;
@@ -2015,7 +2355,7 @@ function ReviewStatusControl({
   }
 
   return (
-    <Tooltip label="Resolve blocking comments before approval">
+    <Tooltip label={approvalBlockedMessage}>
       <div>{select}</div>
     </Tooltip>
   );

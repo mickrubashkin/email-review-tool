@@ -372,6 +372,7 @@ func TestUpdateEmailReviewStatus(t *testing.T) {
 	dbpool := testDBPool(t)
 	emailID := createTestEmail(t, dbpool)
 	user := createTestUserWithRole(t, dbpool, "admin")
+	approveRequiredTestAreas(t, dbpool, emailID, user)
 
 	router := chi.NewRouter()
 	registerEmailRoutes(router, dbpool)
@@ -448,6 +449,7 @@ func TestUpdateEmailReviewStatusMarksReapprovalAfterStaleEdit(t *testing.T) {
 	dbpool := testDBPool(t)
 	emailID := createTestEmail(t, dbpool)
 	user := createTestUserWithRole(t, dbpool, "admin")
+	approveRequiredTestAreas(t, dbpool, emailID, user)
 
 	_, err := dbpool.Exec(context.Background(), `
 		UPDATE emails
@@ -1027,6 +1029,7 @@ func TestUpdateEmailReviewStatusAllowsApprovalWithResolvedBlockingComment(t *tes
 	dbpool := testDBPool(t)
 	emailID := createTestEmail(t, dbpool)
 	user := createTestUserWithRole(t, dbpool, "admin")
+	approveRequiredTestAreas(t, dbpool, emailID, user)
 
 	if _, err := dbpool.Exec(context.Background(), `
 		INSERT INTO comments (
@@ -1066,6 +1069,62 @@ func TestUpdateEmailReviewStatusAllowsApprovalWithResolvedBlockingComment(t *tes
 	}
 	if payload.ReviewStatus != "approved" {
 		t.Fatalf("expected approved status, got %q", payload.ReviewStatus)
+	}
+}
+
+func TestUpdateEmailReviewStatusRejectsApprovalWithPendingRequiredArea(t *testing.T) {
+	dbpool := testDBPool(t)
+	boardKey := createTestBoard(t, dbpool, "approval-gate-board", []string{"review"})
+	createTestBoardApprovalArea(t, dbpool, boardKey, "legal", "Legal", true, 10)
+	createTestBoardApprovalArea(t, dbpool, boardKey, "brand", "Brand", false, 20)
+	emailID := createBoardTestEmail(t, dbpool, boardKey, "review")
+	user := createTestUserWithRole(t, dbpool, "admin")
+
+	router := chi.NewRouter()
+	registerEmailRoutes(router, dbpool)
+
+	request := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/emails/"+emailID+"/review-status",
+		bytes.NewReader([]byte(`{"review_status":"approved"}`)),
+	)
+	request = withAuthUser(request, user)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusConflict {
+		t.Fatalf("expected PATCH status 409, got %d: %s", response.Code, response.Body.String())
+	}
+	if !strings.Contains(response.Body.String(), "complete required approvals before approving") ||
+		!strings.Contains(response.Body.String(), "Legal") ||
+		strings.Contains(response.Body.String(), "Brand") {
+		t.Fatalf("expected required area approval error, got %q", response.Body.String())
+	}
+}
+
+func TestUpdateEmailReviewStatusAllowsApprovalWhenRequiredAreasApproved(t *testing.T) {
+	dbpool := testDBPool(t)
+	boardKey := createTestBoard(t, dbpool, "approval-gate-approved-board", []string{"review"})
+	createTestBoardApprovalArea(t, dbpool, boardKey, "legal", "Legal", true, 10)
+	createTestBoardApprovalArea(t, dbpool, boardKey, "brand", "Brand", false, 20)
+	emailID := createBoardTestEmail(t, dbpool, boardKey, "review")
+	user := createTestUserWithRole(t, dbpool, "admin")
+	approveRequiredTestAreas(t, dbpool, emailID, user)
+
+	router := chi.NewRouter()
+	registerEmailRoutes(router, dbpool)
+
+	request := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/emails/"+emailID+"/review-status",
+		bytes.NewReader([]byte(`{"review_status":"approved"}`)),
+	)
+	request = withAuthUser(request, user)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected PATCH status 200, got %d: %s", response.Code, response.Body.String())
 	}
 }
 
@@ -2766,6 +2825,46 @@ func createTestUserWithRole(t *testing.T, dbpool *pgxpool.Pool, role string) Aut
 
 func withAuthUser(request *http.Request, user AuthUser) *http.Request {
 	return request.WithContext(context.WithValue(request.Context(), authUserContextKey, user))
+}
+
+func approveRequiredTestAreas(t *testing.T, dbpool *pgxpool.Pool, emailID string, user AuthUser) {
+	t.Helper()
+
+	_, err := dbpool.Exec(context.Background(), `
+		INSERT INTO email_area_approvals (
+			email_id,
+			board_approval_area_id,
+			status,
+			decided_by_user_id,
+			decided_by_email,
+			content_snapshot_hash,
+			decided_at
+		)
+		SELECT
+			emails.id,
+			board_approval_areas.id,
+			'approved',
+			$2,
+			$3,
+			repeat('a', 64),
+			now()
+		FROM emails
+		JOIN boards ON boards.key = coalesce(nullif(trim(emails.sequence), ''), 'onboarding')
+		JOIN board_approval_areas ON board_approval_areas.board_id = boards.id
+			AND board_approval_areas.archived_at IS NULL
+			AND board_approval_areas.required = true
+		WHERE emails.id = $1
+		ON CONFLICT (email_id, board_approval_area_id) DO UPDATE SET
+			status = EXCLUDED.status,
+			decided_by_user_id = EXCLUDED.decided_by_user_id,
+			decided_by_email = EXCLUDED.decided_by_email,
+			content_snapshot_hash = EXCLUDED.content_snapshot_hash,
+			decided_at = EXCLUDED.decided_at,
+			updated_at = now();
+	`, emailID, user.ID, user.Email)
+	if err != nil {
+		t.Fatalf("failed to approve required test areas: %v", err)
+	}
 }
 
 func loadTestEmailEditableFields(t *testing.T, dbpool *pgxpool.Pool, emailID string) map[string]struct {
