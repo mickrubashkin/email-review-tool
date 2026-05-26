@@ -39,3 +39,8 @@ ReviewDesk is an internal tool for reviewing HTML email sequences.
 - Use direct SQL; no heavy ORM.
 - Prefer small, simple changes and existing structure.
 - Do not add new libraries unless necessary.
+
+## Frontend conventions
+- Web UI uses Mantine. When changing Mantine components, styling APIs, forms, tabs, modals, selects, or layout behavior, use the `mantine` MCP server when available.
+- If the Mantine MCP server is unavailable, use the LLM documentation index as the fallback reference: https://mantine.dev/llms.txt.
+- Prefer documented Mantine APIs, existing Mantine components, and CSS modules over private CSS variables, internal class names, or new UI libraries.

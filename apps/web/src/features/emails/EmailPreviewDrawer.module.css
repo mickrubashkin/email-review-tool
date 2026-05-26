@@ -321,7 +321,7 @@
 }
 
 .mailHeader {
-  padding: 20px 22px;
+  padding: 12px 18px;
   border-bottom: 1px solid var(--mantine-color-gray-2);
   background: var(--mantine-color-white);
 }
@@ -350,8 +350,8 @@
 .mailAvatar {
   display: grid;
   flex: 0 0 auto;
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   place-items: center;
   border-radius: 999px;
   color: white;

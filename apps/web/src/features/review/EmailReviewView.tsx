@@ -1,3 +1,14 @@
+import { useMediaQuery } from "@mantine/hooks";
+import { notifications } from "@mantine/notifications";
+import { useNavigate } from "react-router-dom";
+
+import {
+  type QueryClient,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
+
 import {
   ActionIcon,
   Alert,
@@ -18,16 +29,6 @@ import {
   Timeline,
   Tooltip,
 } from "@mantine/core";
-import { useMediaQuery } from "@mantine/hooks";
-import { notifications } from "@mantine/notifications";
-import { useNavigate } from "react-router-dom";
-
-import {
-  type QueryClient,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
 
 import {
   ArchiveIcon,
@@ -37,10 +38,15 @@ import {
   CaretDownIcon,
   ChatTextIcon,
   CheckIcon,
+  ChecksIcon,
+  ClockCounterClockwiseIcon,
   CopyIcon,
   DeviceMobileIcon,
   DownloadSimpleIcon,
+  EnvelopeSimpleIcon,
+  HandshakeIcon,
   HouseIcon,
+  ListChecksIcon,
   MonitorIcon,
   SparkleIcon,
   StackPlusIcon,
@@ -52,6 +58,7 @@ import {
   type KeyboardEvent,
   type PointerEvent,
   type RefCallback,
+  type ReactNode,
   useEffect,
   useMemo,
   useRef,
@@ -59,6 +66,7 @@ import {
 } from "react";
 
 import { AnalysisPanel } from "../emails/AnalysisPanel";
+
 import {
   ApiError,
   archiveEmail,
@@ -79,30 +87,36 @@ import {
   updateEmailPlanningFields,
   updateEmailReviewStatus,
 } from "../emails/api";
+
 import {
   formatEmailUpdateChangedFields,
   formatEmailUpdateChangedReviewBlocks,
   formatEmailUpdateSummary,
 } from "../emails/changeSummary";
+
 import {
   copyRenderedHTML,
   downloadRenderedHTML,
 } from "../emails/exportHtml";
+
 import {
   MailPreview,
   type InlineEditUpdate,
   type ReviewTextSelection,
 } from "../emails/MailPreview";
+
 import type {
   ReviewChangedBlockReason,
   ReviewChangedBlockTarget,
   ReviewCommentTarget,
 } from "../emails/reviewOverlayTypes";
+
 import {
   emailReviewStatusColor,
   emailReviewStatusOptions,
   formatEmailReviewStatus,
 } from "../emails/reviewStatus";
+
 import {
   buildStageColumns,
   getAvailableAdaptations,
@@ -112,7 +126,9 @@ import {
   getVersionForVariant,
   getVersionsForVariantAndAdaptation,
 } from "../emails/stages";
+
 import { buildStreamPreview } from "../emails/streamPreview";
+
 import type {
   AuthUser,
   DuplicateEmailPayload,
@@ -130,7 +146,9 @@ import type {
   UpdateEditableFieldsPayload,
   UpdateEmailPlanningFieldsPayload,
 } from "../emails/types";
+
 import { useEmailAnalysisStream } from "../emails/useEmailAnalysisStream";
+
 import styles from "./EmailReviewView.module.css";
 
 type EmailReviewViewProps = {
@@ -139,22 +157,22 @@ type EmailReviewViewProps = {
 };
 
 type ReviewViewport = "desktop" | "mobile";
+
 type ReviewContentTab =
   | "email"
-  | "planning"
-  | "approvals"
-  | "handoff"
   | "ai"
   | "comments"
-  | "activity";
-type ReviewPanelTab =
-  | "planning"
-  | "approvals"
-  | "handoff"
-  | "ai"
-  | "comments"
-  | "activity";
+  | "more";
+
+type ReviewPanelTab = "ai" | "comments";
+type ReviewUtilityPanel = "planning" | "approvals" | "handoff" | "activity";
 type CommentStatusFilter = "open" | "all";
+type CommentBlockOption = {
+  label: string;
+  reviewBlock: string;
+  selectedText: string;
+  value: string;
+};
 
 const minRightPanelPercent = 24;
 const maxRightPanelPercent = 48;
@@ -168,6 +186,8 @@ export function EmailReviewView({
   const [actionMenuOpened, setActionMenuOpened] = useState(false);
   const [activeContentTab, setActiveContentTab] =
     useState<ReviewContentTab>("email");
+  const [activeUtilityPanel, setActiveUtilityPanel] =
+    useState<ReviewUtilityPanel | null>(null);
   const [archiveModalOpened, setArchiveModalOpened] = useState(false);
   const [duplicateModalOpened, setDuplicateModalOpened] = useState(false);
   const [sourceHTMLModalOpened, setSourceHTMLModalOpened] = useState(false);
@@ -266,10 +286,10 @@ export function EmailReviewView({
     : email?.adaptation_key ?? "default";
   const selectedVariantVersions = emailGroup
     ? getVersionsForVariantAndAdaptation(
-        emailGroup.versions,
-        selectedVariant,
-        selectedAdaptation
-      )
+      emailGroup.versions,
+      selectedVariant,
+      selectedAdaptation
+    )
     : [];
   const languageVersions =
     selectedVariantVersions.length > 0 || !email
@@ -397,10 +417,10 @@ export function EmailReviewView({
       return currentEmails.map((currentEmail) =>
         currentEmail.id === emailId
           ? {
-              ...currentEmail,
-              open_comment_count: openCommentCount,
-              open_blocking_comment_count: openBlockingCommentCount,
-            }
+            ...currentEmail,
+            open_comment_count: openCommentCount,
+            open_blocking_comment_count: openBlockingCommentCount,
+          }
           : currentEmail
       );
     });
@@ -415,10 +435,10 @@ export function EmailReviewView({
           return currentEmails.map((currentEmail) =>
             currentEmail.id === emailId
               ? {
-                  ...currentEmail,
-                  open_comment_count: openCommentCount,
-                  open_blocking_comment_count: openBlockingCommentCount,
-                }
+                ...currentEmail,
+                open_comment_count: openCommentCount,
+                open_blocking_comment_count: openBlockingCommentCount,
+              }
               : currentEmail
           );
         }
@@ -430,10 +450,10 @@ export function EmailReviewView({
       (currentEmail) =>
         currentEmail
           ? {
-              ...currentEmail,
-              open_comment_count: openCommentCount,
-              open_blocking_comment_count: openBlockingCommentCount,
-            }
+            ...currentEmail,
+            open_comment_count: openCommentCount,
+            open_blocking_comment_count: openBlockingCommentCount,
+          }
           : currentEmail
     );
   }, [
@@ -666,9 +686,9 @@ export function EmailReviewView({
           currentComments?.map((comment) =>
             comment.id === variables.commentId
               ? {
-                  ...comment,
-                  messages: [...(comment.messages ?? []), message],
-                }
+                ...comment,
+                messages: [...(comment.messages ?? []), message],
+              }
               : comment
           ) ?? currentComments
       );
@@ -951,24 +971,39 @@ export function EmailReviewView({
         <>
           <Text fw={600}>No AI analysis yet</Text>
           <Text c="dimmed" ta="center" size="sm">
-            View or generate the shared AI analysis from the header controls.
+            Generate a shared review for this email.
           </Text>
+          <Button
+            disabled={!email}
+            leftSection={<SparkleIcon aria-hidden="true" size={15} />}
+            loading={isAnalyzingCurrentEmail}
+            size="xs"
+            variant="light"
+            onClick={handleAnalyze}
+          >
+            Generate AI analysis
+          </Button>
         </>
       )}
     </Stack>
   );
+  const commentBlockOptions = buildCommentBlockOptions(email);
   const commentsContent = (
     <CommentsPanel
       activeCommentId={activeCommentId}
+      blockOptions={commentBlockOptions}
       comments={comments}
+      createCommentError={createCommentMutation.isError}
       filteredComments={filteredComments}
       filter={commentStatusFilter}
       hoveredCommentId={hoveredCommentId}
       staleCommentIds={reviewBlockFreshness.changedAfterCommentCommentIds}
+      isCreatingComment={createCommentMutation.isPending}
       isError={commentsQuery.isError}
       isLoading={commentsQuery.isLoading}
       isResolving={resolveMutation.isPending}
       nextEmailWithOpenComments={nextEmailWithOpenComments}
+      onCreateComment={handleCreateReviewComment}
       onFilterChange={setCommentStatusFilter}
       onHoverComment={handleHoverComment}
       onNextEmailWithOpenComments={() => {
@@ -1034,65 +1069,84 @@ export function EmailReviewView({
       isLoading={activityQuery.isLoading}
     />
   );
+  const selectedUtilityPanel = activeUtilityPanel ?? "planning";
+  const utilityContentByPanel: Record<ReviewUtilityPanel, ReactNode> = {
+    activity: activityContent,
+    approvals: approvalsContent,
+    handoff: handoffContent,
+    planning: planningContent,
+  };
+  const utilityPanelContent = utilityContentByPanel[selectedUtilityPanel];
+  const handleUtilityPanelSelect = (panel: ReviewUtilityPanel) => {
+    setActiveUtilityPanel(panel);
+    if (isCompactReview) {
+      setActiveContentTab("more");
+    }
+  };
+  const handleEmailPanelSelect = () => {
+    setActiveUtilityPanel(null);
+    setActiveContentTab("email");
+  };
+  const desktopPrimaryContent = activeUtilityPanel ? (
+    <UtilityPanelFrame title={formatUtilityPanelLabel(activeUtilityPanel)}>
+      {utilityContentByPanel[activeUtilityPanel]}
+    </UtilityPanelFrame>
+  ) : (
+    previewContent
+  );
 
   return (
     <div className={styles.page}>
       <header className={styles.header}>
         <div className={styles.headerInner}>
           <Group className={styles.headerMain} gap="sm" wrap="nowrap">
-            <Tooltip label="Back to board">
+            <ActionIcon
+              aria-label="Back to board"
+              className={styles.headerIconButton}
+              onClick={handleBackToBoard}
+              radius="md"
+              size="lg"
+              variant="subtle"
+            >
+              <HouseIcon aria-hidden="true" size={18} />
+            </ActionIcon>
+
+            <Group className={styles.boardNavigation} gap={4} wrap="nowrap">
               <ActionIcon
-                aria-label="Back to board"
+                aria-label="Previous email on board"
                 className={styles.headerIconButton}
-                onClick={handleBackToBoard}
+                disabled={!previousBoardEmail}
+                onClick={() => {
+                  if (previousBoardEmail) {
+                    navigateToReview(previousBoardEmail.id);
+                  }
+                }}
                 radius="md"
                 size="lg"
                 variant="subtle"
               >
-                <HouseIcon aria-hidden="true" size={18} />
+                <ArrowLeftIcon aria-hidden="true" size={17} />
               </ActionIcon>
-            </Tooltip>
-
-            <Group className={styles.boardNavigation} gap={4} wrap="nowrap">
-              <Tooltip label="Previous email on board">
-                <ActionIcon
-                  aria-label="Previous email on board"
-                  className={styles.headerIconButton}
-                  disabled={!previousBoardEmail}
-                  onClick={() => {
-                    if (previousBoardEmail) {
-                      navigateToReview(previousBoardEmail.id);
-                    }
-                  }}
-                  radius="md"
-                  size="lg"
-                  variant="subtle"
-                >
-                  <ArrowLeftIcon aria-hidden="true" size={17} />
-                </ActionIcon>
-              </Tooltip>
-              <Tooltip label="Next email on board">
-                <ActionIcon
-                  aria-label="Next email on board"
-                  className={styles.headerIconButton}
-                  disabled={!nextBoardEmail}
-                  onClick={() => {
-                    if (nextBoardEmail) {
-                      navigateToReview(nextBoardEmail.id);
-                    }
-                  }}
-                  radius="md"
-                  size="lg"
-                  variant="subtle"
-                >
-                  <ArrowRightIcon aria-hidden="true" size={17} />
-                </ActionIcon>
-              </Tooltip>
+              <ActionIcon
+                aria-label="Next email on board"
+                className={styles.headerIconButton}
+                disabled={!nextBoardEmail}
+                onClick={() => {
+                  if (nextBoardEmail) {
+                    navigateToReview(nextBoardEmail.id);
+                  }
+                }}
+                radius="md"
+                size="lg"
+                variant="subtle"
+              >
+                <ArrowRightIcon aria-hidden="true" size={17} />
+              </ActionIcon>
             </Group>
 
             <Group className={styles.breadcrumbs} gap={6} wrap="nowrap">
               {currentStage?.title ? (
-                <Text className={styles.breadcrumbText} size="sm" fw={600}>
+                <Text className={styles.breadcrumbText} size="sm" fw={650}>
                   {currentStage.title}
                 </Text>
               ) : (
@@ -1102,24 +1156,13 @@ export function EmailReviewView({
                 /
               </Text>
               {email ? (
-                <Text className={styles.titleText} size="sm" fw={600}>
+                <Text className={styles.titleText} size="sm" fw={650}>
                   {formatEmailTitle(email.title)}
                 </Text>
               ) : (
                 <Skeleton className={styles.titleText} h={14} w={120} />
               )}
             </Group>
-
-            {!isCompactReview && email ? (
-              <ReviewStatusControl
-                approvalBlockedCount={approvalBlockedCount}
-                approvalBlockedMessage={approvalBlockedMessage}
-                canManage={canManageEmail}
-                isUpdating={reviewStatusMutation.isPending}
-                status={email.review_status}
-                onChange={handleReviewStatusChange}
-              />
-            ) : null}
 
             {!isCompactReview ? (
               <>
@@ -1187,7 +1230,8 @@ export function EmailReviewView({
                   <Button
                     aria-label="Open actions menu"
                     className={styles.moreMenuButton}
-                    leftSection={<CaretDownIcon aria-hidden="true" size={12} />}
+                    data-expanded={actionMenuOpened || undefined}
+                    rightSection={<CaretDownIcon aria-hidden="true" size={12} />}
                     size="xs"
                     variant="subtle"
                   >
@@ -1251,6 +1295,51 @@ export function EmailReviewView({
                       />
                     )}
                   </div>
+                  <Menu.Divider />
+
+                  <Menu.Label>Sections</Menu.Label>
+                  <Menu.Item
+                    className={styles.sectionMenuItem}
+                    data-active={!activeUtilityPanel || undefined}
+                    leftSection={<EnvelopeSimpleIcon aria-hidden="true" size={15} />}
+                    onClick={handleEmailPanelSelect}
+                  >
+                    Email
+                  </Menu.Item>
+                  <Menu.Item
+                    className={styles.sectionMenuItem}
+                    data-active={activeUtilityPanel === "planning" || undefined}
+                    leftSection={<ListChecksIcon aria-hidden="true" size={15} />}
+                    onClick={() => handleUtilityPanelSelect("planning")}
+                  >
+                    Plan
+                  </Menu.Item>
+                  <Menu.Item
+                    className={styles.sectionMenuItem}
+                    data-active={activeUtilityPanel === "approvals" || undefined}
+                    leftSection={<ChecksIcon aria-hidden="true" size={15} />}
+                    onClick={() => handleUtilityPanelSelect("approvals")}
+                  >
+                    Approvals
+                  </Menu.Item>
+                  <Menu.Item
+                    className={styles.sectionMenuItem}
+                    data-active={activeUtilityPanel === "handoff" || undefined}
+                    leftSection={<HandshakeIcon aria-hidden="true" size={15} />}
+                    onClick={() => handleUtilityPanelSelect("handoff")}
+                  >
+                    Handoff
+                  </Menu.Item>
+                  <Menu.Item
+                    className={styles.sectionMenuItem}
+                    data-active={activeUtilityPanel === "activity" || undefined}
+                    leftSection={
+                      <ClockCounterClockwiseIcon aria-hidden="true" size={15} />
+                    }
+                    onClick={() => handleUtilityPanelSelect("activity")}
+                  >
+                    Activity
+                  </Menu.Item>
                   <Menu.Divider />
 
                   {canManageEmail ? (
@@ -1324,7 +1413,8 @@ export function EmailReviewView({
                   <Button
                     aria-label="Open actions menu"
                     className={styles.moreMenuButton}
-                    leftSection={<CaretDownIcon aria-hidden="true" size={12} />}
+                    data-expanded={actionMenuOpened || undefined}
+                    rightSection={<CaretDownIcon aria-hidden="true" size={12} />}
                     size="xs"
                     variant="subtle"
                   >
@@ -1332,6 +1422,66 @@ export function EmailReviewView({
                   </Button>
                 </Menu.Target>
                 <Menu.Dropdown>
+                  {email ? (
+                    <>
+                      <Menu.Label>Review status</Menu.Label>
+                      <div className={styles.menuControls}>
+                        <ReviewStatusControl
+                          approvalBlockedCount={approvalBlockedCount}
+                          approvalBlockedMessage={approvalBlockedMessage}
+                          canManage={canManageEmail}
+                          isUpdating={reviewStatusMutation.isPending}
+                          status={email.review_status}
+                          onChange={handleReviewStatusChange}
+                        />
+                      </div>
+                      <Menu.Divider />
+                    </>
+                  ) : null}
+                  <Menu.Label>Sections</Menu.Label>
+                  <Menu.Item
+                    className={styles.sectionMenuItem}
+                    data-active={!activeUtilityPanel || undefined}
+                    leftSection={<EnvelopeSimpleIcon aria-hidden="true" size={15} />}
+                    onClick={handleEmailPanelSelect}
+                  >
+                    Email
+                  </Menu.Item>
+                  <Menu.Item
+                    className={styles.sectionMenuItem}
+                    data-active={activeUtilityPanel === "planning" || undefined}
+                    leftSection={<ListChecksIcon aria-hidden="true" size={15} />}
+                    onClick={() => handleUtilityPanelSelect("planning")}
+                  >
+                    Plan
+                  </Menu.Item>
+                  <Menu.Item
+                    className={styles.sectionMenuItem}
+                    data-active={activeUtilityPanel === "approvals" || undefined}
+                    leftSection={<ChecksIcon aria-hidden="true" size={15} />}
+                    onClick={() => handleUtilityPanelSelect("approvals")}
+                  >
+                    Approvals
+                  </Menu.Item>
+                  <Menu.Item
+                    className={styles.sectionMenuItem}
+                    data-active={activeUtilityPanel === "handoff" || undefined}
+                    leftSection={<HandshakeIcon aria-hidden="true" size={15} />}
+                    onClick={() => handleUtilityPanelSelect("handoff")}
+                  >
+                    Handoff
+                  </Menu.Item>
+                  <Menu.Item
+                    className={styles.sectionMenuItem}
+                    data-active={activeUtilityPanel === "activity" || undefined}
+                    leftSection={
+                      <ClockCounterClockwiseIcon aria-hidden="true" size={15} />
+                    }
+                    onClick={() => handleUtilityPanelSelect("activity")}
+                  >
+                    Activity
+                  </Menu.Item>
+                  <Menu.Divider />
                   <Menu.Label>Actions</Menu.Label>
                   {canManageEmail ? (
                     <>
@@ -1467,16 +1617,24 @@ export function EmailReviewView({
         <main className={styles.mobileContent}>
           <Tabs
             value={activeContentTab}
-            onChange={(value) =>
-              setActiveContentTab((value as ReviewContentTab | null) ?? "email")
-            }
+            onChange={(value) => {
+              const nextValue = (value as ReviewContentTab | null) ?? "email";
+              setActiveContentTab(nextValue);
+              if (nextValue === "email") {
+                setActiveUtilityPanel(null);
+              }
+              if (nextValue === "more" && !activeUtilityPanel) {
+                setActiveUtilityPanel("planning");
+              }
+            }}
           >
             <Tabs.List className={styles.mobileTabsList} grow>
-              <Tabs.Tab value="email">Email</Tabs.Tab>
-              <Tabs.Tab value="planning">Plan</Tabs.Tab>
-              <Tabs.Tab value="approvals">Approvals</Tabs.Tab>
-              <Tabs.Tab value="handoff">Handoff</Tabs.Tab>
-              <Tabs.Tab value="ai">AI</Tabs.Tab>
+              <Tabs.Tab
+                value="email"
+                leftSection={<EnvelopeSimpleIcon aria-hidden="true" size={15} />}
+              >
+                Email
+              </Tabs.Tab>
               <Tabs.Tab
                 value="comments"
                 leftSection={
@@ -1487,34 +1645,62 @@ export function EmailReviewView({
                   ? `Comments ${openCommentCount}`
                   : "Comments"}
               </Tabs.Tab>
-              <Tabs.Tab value="activity">Activity</Tabs.Tab>
+              <Tabs.Tab
+                value="ai"
+                leftSection={<SparkleIcon aria-hidden="true" size={15} />}
+              >
+                AI
+              </Tabs.Tab>
+              <Tabs.Tab
+                value="more"
+                leftSection={<CaretDownIcon aria-hidden="true" size={15} />}
+              >
+                More
+              </Tabs.Tab>
             </Tabs.List>
 
             <Tabs.Panel value="email" className={styles.mobileTabPanel}>
               {previewContent}
             </Tabs.Panel>
 
-            <Tabs.Panel value="planning" className={styles.mobileTabPanel}>
-              {planningContent}
-            </Tabs.Panel>
-
-            <Tabs.Panel value="approvals" className={styles.mobileTabPanel}>
-              {approvalsContent}
-            </Tabs.Panel>
-
-            <Tabs.Panel value="handoff" className={styles.mobileTabPanel}>
-              {handoffContent}
-            </Tabs.Panel>
-
-            <Tabs.Panel value="ai" className={styles.mobileTabPanel}>
-              {analysisContent}
-            </Tabs.Panel>
-
             <Tabs.Panel value="comments" className={styles.mobileTabPanel}>
               {commentsContent}
             </Tabs.Panel>
-            <Tabs.Panel value="activity" className={styles.mobileTabPanel}>
-              {activityContent}
+            <Tabs.Panel value="ai" className={styles.mobileTabPanel}>
+              {analysisContent}
+            </Tabs.Panel>
+            <Tabs.Panel value="more" className={styles.mobileTabPanel}>
+              <UtilityPanelFrame title={formatUtilityPanelLabel(selectedUtilityPanel)}>
+                <Group className={styles.mobileUtilityNav} gap={2} wrap="nowrap">
+                  <UtilityNavButton
+                    active={selectedUtilityPanel === "planning"}
+                    icon={<ListChecksIcon aria-hidden="true" size={15} />}
+                    label="Plan"
+                    onClick={() => handleUtilityPanelSelect("planning")}
+                  />
+                  <UtilityNavButton
+                    active={selectedUtilityPanel === "approvals"}
+                    icon={<ChecksIcon aria-hidden="true" size={15} />}
+                    label="Approvals"
+                    onClick={() => handleUtilityPanelSelect("approvals")}
+                  />
+                  <UtilityNavButton
+                    active={selectedUtilityPanel === "handoff"}
+                    icon={<HandshakeIcon aria-hidden="true" size={15} />}
+                    label="Handoff"
+                    onClick={() => handleUtilityPanelSelect("handoff")}
+                  />
+                  <UtilityNavButton
+                    active={selectedUtilityPanel === "activity"}
+                    icon={
+                      <ClockCounterClockwiseIcon aria-hidden="true" size={15} />
+                    }
+                    label="Activity"
+                    onClick={() => handleUtilityPanelSelect("activity")}
+                  />
+                </Group>
+                {utilityPanelContent}
+              </UtilityPanelFrame>
             </Tabs.Panel>
           </Tabs>
         </main>
@@ -1528,7 +1714,7 @@ export function EmailReviewView({
             } as CSSProperties
           }
         >
-          <section className={styles.previewColumn}>{previewContent}</section>
+          <section className={styles.previewColumn}>{desktopPrimaryContent}</section>
 
           <div
             aria-label="Resize review panel"
@@ -1543,15 +1729,6 @@ export function EmailReviewView({
 
           <aside className={styles.reviewPanel}>
             <Stack gap={0}>
-              <Group className={styles.reviewPanelHeader} justify="space-between">
-                <Text c="dimmed" fw={600} size="xs" tt="uppercase">
-                  Sections
-                </Text>
-                <Text c="dimmed" size="xs">
-                  {formatPanelTabLabel(activePanelTab)}
-                </Text>
-              </Group>
-
               <Tabs
                 value={activePanelTab}
                 onChange={(value) =>
@@ -1561,18 +1738,6 @@ export function EmailReviewView({
                 }
               >
                 <Tabs.List className={styles.panelTabsList}>
-                  <Tabs.Tab className={styles.panelTab} value="planning">
-                    Plan
-                  </Tabs.Tab>
-                  <Tabs.Tab className={styles.panelTab} value="approvals">
-                    Approvals
-                  </Tabs.Tab>
-                  <Tabs.Tab className={styles.panelTab} value="handoff">
-                    Handoff
-                  </Tabs.Tab>
-                  <Tabs.Tab className={styles.panelTab} value="ai">
-                    AI
-                  </Tabs.Tab>
                   <Tabs.Tab
                     className={styles.panelTab}
                     value="comments"
@@ -1584,32 +1749,20 @@ export function EmailReviewView({
                       ? `Comments ${openCommentCount}`
                       : "Comments"}
                   </Tabs.Tab>
-                  <Tabs.Tab className={styles.panelTab} value="activity">
-                    Activity
+                  <Tabs.Tab
+                    className={styles.panelTab}
+                    value="ai"
+                    leftSection={<SparkleIcon aria-hidden="true" size={15} />}
+                  >
+                    AI
                   </Tabs.Tab>
                 </Tabs.List>
-
-                <Tabs.Panel value="planning" className={styles.tabPanel}>
-                  {planningContent}
-                </Tabs.Panel>
-
-                <Tabs.Panel value="approvals" className={styles.tabPanel}>
-                  {approvalsContent}
-                </Tabs.Panel>
-
-                <Tabs.Panel value="handoff" className={styles.tabPanel}>
-                  {handoffContent}
-                </Tabs.Panel>
-
-                <Tabs.Panel value="ai" className={styles.tabPanel}>
-                  {analysisContent}
-                </Tabs.Panel>
 
                 <Tabs.Panel value="comments" className={styles.tabPanel}>
                   {commentsContent}
                 </Tabs.Panel>
-                <Tabs.Panel value="activity" className={styles.tabPanel}>
-                  {activityContent}
+                <Tabs.Panel value="ai" className={styles.tabPanel}>
+                  {analysisContent}
                 </Tabs.Panel>
               </Tabs>
             </Stack>
@@ -1627,6 +1780,49 @@ function clampPercent(value: number, min: number, max: number) {
 function nullableTrimmed(value: string) {
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
+}
+
+function UtilityNavButton({
+  active,
+  icon,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  icon: ReactNode;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      className={styles.utilityNavButton}
+      data-active={active || undefined}
+      type="button"
+      onClick={onClick}
+    >
+      {icon}
+      <span>{label}</span>
+    </button>
+  );
+}
+
+function UtilityPanelFrame({
+  children,
+  title,
+}: {
+  children: ReactNode;
+  title: string;
+}) {
+  return (
+    <section className={styles.utilityPanelFrame}>
+      <Group className={styles.utilityPanelHeader} justify="space-between">
+        <Text fw={700} size="sm">
+          {title}
+        </Text>
+      </Group>
+      <div className={styles.utilityPanelBody}>{children}</div>
+    </section>
+  );
 }
 
 function PlanningPanel({
@@ -2315,7 +2511,7 @@ function formatEmailTitle(title: string) {
   }
 }
 
-function formatPanelTabLabel(tab: ReviewPanelTab) {
+function formatUtilityPanelLabel(tab: ReviewUtilityPanel) {
   switch (tab) {
     case "planning":
       return "Plan";
@@ -2323,10 +2519,6 @@ function formatPanelTabLabel(tab: ReviewPanelTab) {
       return "Approvals";
     case "handoff":
       return "Handoff";
-    case "ai":
-      return "AI";
-    case "comments":
-      return "Comments";
     case "activity":
       return "Activity";
   }
@@ -2360,11 +2552,12 @@ function ReviewStatusControl({
   }
 
   const approvalBlocked = approvalBlockedCount > 0 && status !== "approved";
-  const select = (
+  return (
     <Select
       allowDeselect={false}
-      aria-label="Review status"
+      aria-label={approvalBlocked ? approvalBlockedMessage : "Review status"}
       className={styles.reviewStatusSelect}
+      classNames={{ input: styles.headerSelectInput }}
       data={emailReviewStatusOptions.map((option) => ({
         ...option,
         disabled: option.value === "approved" && approvalBlocked,
@@ -2374,16 +2567,6 @@ function ReviewStatusControl({
       value={status}
       onChange={onChange}
     />
-  );
-
-  if (!approvalBlocked) {
-    return select;
-  }
-
-  return (
-    <Tooltip label={approvalBlockedMessage}>
-      <div>{select}</div>
-    </Tooltip>
   );
 }
 
@@ -2603,16 +2786,104 @@ function commentToTarget(
   };
 }
 
+function buildCommentBlockOptions(
+  email: EmailDetail | undefined
+): CommentBlockOption[] {
+  if (!email) {
+    return [];
+  }
+
+  const options: CommentBlockOption[] = [];
+  const seenBlocks = new Set<string>();
+  const addOption = (reviewBlock: string, selectedText: string) => {
+    const normalizedText = selectedText.trim();
+    if (!normalizedText || seenBlocks.has(reviewBlock)) {
+      return;
+    }
+
+    seenBlocks.add(reviewBlock);
+    options.push({
+      label: formatReviewBlockOptionLabel(reviewBlock, normalizedText),
+      reviewBlock,
+      selectedText: normalizedText,
+      value: reviewBlock,
+    });
+  };
+
+  addOption("subject", email.subject ?? email.title);
+  if (email.preheader) {
+    addOption("preheader", email.preheader);
+  }
+
+  if (typeof DOMParser === "undefined") {
+    return options;
+  }
+
+  const document = new DOMParser().parseFromString(
+    email.review_html || email.original_html,
+    "text/html"
+  );
+  document.querySelectorAll("[data-review-block]").forEach((block) => {
+    if (block.querySelector("[data-review-block]")) {
+      return;
+    }
+
+    const reviewBlock = block.getAttribute("data-review-block");
+    if (reviewBlock) {
+      addOption(reviewBlock, getReviewBlockOptionText(block));
+    }
+  });
+
+  return options;
+}
+
+function getReviewBlockOptionText(block: Element) {
+  const text = block.textContent?.trim();
+  if (text) {
+    return text;
+  }
+
+  const image = block.matches("img") ? block : block.querySelector("img");
+  if (!image) {
+    return "";
+  }
+
+  const imageLabel =
+    image.getAttribute("alt")?.trim() ||
+    image.getAttribute("aria-label")?.trim() ||
+    image.getAttribute("title")?.trim();
+  if (imageLabel) {
+    return imageLabel;
+  }
+
+  const imageSource = image.getAttribute("src")?.trim();
+  if (imageSource) {
+    return `Image: ${imageSource.split("/").pop() ?? imageSource}`;
+  }
+
+  return `Image: ${block.getAttribute("data-review-block") ?? "review block"}`;
+}
+
+function formatReviewBlockOptionLabel(reviewBlock: string, selectedText: string) {
+  const label = formatReviewBlockLabel(reviewBlock);
+  const preview = selectedText.replace(/\s+/g, " ").slice(0, 44);
+  return `${label} - ${preview}${selectedText.length > 44 ? "..." : ""}`;
+}
+
 function CommentsPanel({
   activeCommentId,
+  blockOptions,
   comments,
+  createCommentError,
   filteredComments,
   filter,
   hoveredCommentId,
+  isCreatingComment,
   isError,
   isLoading,
   isResolving,
   nextEmailWithOpenComments,
+  onCreateComment,
   onFilterChange,
   onHoverComment,
   onNextEmailWithOpenComments,
@@ -2623,14 +2894,22 @@ function CommentsPanel({
   staleCommentIds,
 }: {
   activeCommentId: string | null;
+  blockOptions: CommentBlockOption[];
   comments: EmailComment[];
+  createCommentError: boolean;
   filteredComments: EmailComment[];
   filter: CommentStatusFilter;
   hoveredCommentId: string | null;
+  isCreatingComment: boolean;
   isError: boolean;
   isLoading: boolean;
   isResolving: boolean;
   nextEmailWithOpenComments: EmailListItem | null;
+  onCreateComment: (
+    selection: ReviewTextSelection,
+    body: string,
+    severity: EmailCommentSeverity
+  ) => void;
   onFilterChange: (filter: CommentStatusFilter) => void;
   onHoverComment: (comment: EmailComment | null) => void;
   onNextEmailWithOpenComments: () => void;
@@ -2641,6 +2920,29 @@ function CommentsPanel({
   staleCommentIds: Set<string>;
 }) {
   const commentItemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const wasCreatingCommentRef = useRef(false);
+  const [isComposerOpen, setIsComposerOpen] = useState(false);
+  const [selectedBlockValue, setSelectedBlockValue] = useState<string | null>(
+    blockOptions[0]?.value ?? null
+  );
+  const [draftComment, setDraftComment] = useState("");
+  const [draftSeverity, setDraftSeverity] =
+    useState<EmailCommentSeverity>("issue");
+  const selectedBlock =
+    blockOptions.find((option) => option.value === selectedBlockValue) ??
+    blockOptions[0] ??
+    null;
+  const trimmedDraftComment = draftComment.trim();
+
+  useEffect(() => {
+    if (wasCreatingCommentRef.current && !isCreatingComment && !createCommentError) {
+      setDraftComment("");
+      setDraftSeverity("issue");
+      setIsComposerOpen(false);
+    }
+
+    wasCreatingCommentRef.current = isCreatingComment;
+  }, [createCommentError, isCreatingComment]);
 
   useEffect(() => {
     if (!activeCommentId) {
@@ -2657,16 +2959,34 @@ function CommentsPanel({
     return () => window.cancelAnimationFrame(animationFrame);
   }, [activeCommentId, filteredComments]);
 
+  const handlePanelCommentSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!selectedBlock || !trimmedDraftComment) {
+      return;
+    }
+
+    onCreateComment(
+      {
+        endOffset: selectedBlock.selectedText.length,
+        reviewBlock: selectedBlock.reviewBlock,
+        selectedText: selectedBlock.selectedText,
+        startOffset: 0,
+      },
+      trimmedDraftComment,
+      draftSeverity
+    );
+  };
+
   const registerCommentItem =
     (commentId: string): RefCallback<HTMLDivElement> =>
-    (node) => {
-      if (node) {
-        commentItemRefs.current.set(commentId, node);
-        return;
-      }
+      (node) => {
+        if (node) {
+          commentItemRefs.current.set(commentId, node);
+          return;
+        }
 
-      commentItemRefs.current.delete(commentId);
-    };
+        commentItemRefs.current.delete(commentId);
+      };
 
   if (isLoading) {
     return (
@@ -2698,7 +3018,7 @@ function CommentsPanel({
   return (
     <Stack gap="sm">
       {comments.length > 0 ? (
-        <Group className={styles.commentFilterBar} justify="space-between" gap="xs">
+        <Stack className={styles.commentFilterBar} gap="xs">
           <Group gap={6} wrap="nowrap">
             <Badge color="yellow" size="sm" variant="light">
               Open {openCount}
@@ -2716,18 +3036,103 @@ function CommentsPanel({
             </Badge>
           </Group>
 
-          <SegmentedControl
-            aria-label="Comment status filter"
-            className={styles.commentFilterControl}
-            data={[
-              { label: "Open", value: "open" },
-              { label: "All", value: "all" },
-            ]}
-            size="xs"
-            value={filter}
-            onChange={(value) => onFilterChange(value as CommentStatusFilter)}
-          />
-        </Group>
+          <Group justify="space-between" gap="xs" wrap="nowrap">
+            <Button
+              leftSection={<ChatTextIcon aria-hidden="true" size={14} />}
+              size="xs"
+              variant="light"
+              onClick={() => setIsComposerOpen((opened) => !opened)}
+            >
+              Add comment
+            </Button>
+            <SegmentedControl
+              aria-label="Comment status filter"
+              className={styles.commentFilterControl}
+              data={[
+                { label: "Open", value: "open" },
+                { label: "All", value: "all" },
+              ]}
+              size="xs"
+              value={filter}
+              onChange={(value) => onFilterChange(value as CommentStatusFilter)}
+            />
+          </Group>
+        </Stack>
+      ) : null}
+
+      {isComposerOpen ? (
+        <form className={styles.panelCommentComposer} onSubmit={handlePanelCommentSubmit}>
+          <Stack gap="xs">
+            <Select
+              disabled={isCreatingComment || blockOptions.length === 0}
+              label="Review block"
+              placeholder="Select a block"
+              data={blockOptions.map((option) => ({
+                label: option.label,
+                value: option.value,
+              }))}
+              value={selectedBlock?.value ?? null}
+              onChange={setSelectedBlockValue}
+            />
+            {selectedBlock ? (
+              <Text className={styles.commentQuote} lineClamp={3} size="sm">
+                {selectedBlock.selectedText}
+              </Text>
+            ) : (
+              <Text c="dimmed" size="sm">
+                No review blocks found. Select text in the preview instead.
+              </Text>
+            )}
+            <Textarea
+              autosize
+              disabled={isCreatingComment || !selectedBlock}
+              minRows={3}
+              placeholder="Add a comment"
+              value={draftComment}
+              onChange={(event) => setDraftComment(event.currentTarget.value)}
+            />
+            <SegmentedControl
+              data={[
+                { label: "Suggestion", value: "suggestion" },
+                { label: "Issue", value: "issue" },
+                { label: "Blocking", value: "blocking" },
+              ]}
+              disabled={isCreatingComment}
+              size="xs"
+              value={draftSeverity}
+              onChange={(value) =>
+                setDraftSeverity(value as EmailCommentSeverity)
+              }
+            />
+            {createCommentError ? (
+              <Text c="red" size="xs">
+                Failed to create comment.
+              </Text>
+            ) : null}
+            <Text c="dimmed" size="xs">
+              For precise text comments, select text or click a block in the
+              email preview.
+            </Text>
+            <Group justify="flex-end" gap="xs">
+              <Button
+                disabled={isCreatingComment}
+                size="xs"
+                variant="subtle"
+                onClick={() => setIsComposerOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                disabled={!selectedBlock || !trimmedDraftComment}
+                loading={isCreatingComment}
+                size="xs"
+                type="submit"
+              >
+                Add comment
+              </Button>
+            </Group>
+          </Stack>
+        </form>
       ) : null}
 
       {filteredComments.length > 0 ? (
@@ -2771,7 +3176,7 @@ function CommentsPanel({
             </Button>
           ) : null}
         </Stack>
-      ) : (
+      ) : !isComposerOpen ? (
         <Stack
           className={styles.emptyState}
           align="center"
@@ -2780,10 +3185,19 @@ function CommentsPanel({
         >
           <Text fw={600}>No comments yet</Text>
           <Text c="dimmed" ta="center" size="sm">
-            Add the first comment to start reviewing this email.
+            Select text or click a reviewable block in the email preview to add
+            the first comment.
           </Text>
+          <Button
+            disabled={blockOptions.length === 0}
+            size="xs"
+            variant="light"
+            onClick={() => setIsComposerOpen(true)}
+          >
+            Add comment
+          </Button>
         </Stack>
-      )}
+      ) : null}
     </Stack>
   );
 }
@@ -2896,16 +3310,16 @@ function CommentItem({
     (comment.messages?.length ?? 0) > 0
       ? comment.messages
       : [
-          {
-            author_email: comment.author_email,
-            body: comment.body,
-            comment_id: comment.id,
-            created_at: comment.created_at,
-            id: `${comment.id}-legacy-body`,
-            updated_at: comment.created_at,
-            user_id: comment.user_id,
-          },
-        ];
+        {
+          author_email: comment.author_email,
+          body: comment.body,
+          comment_id: comment.id,
+          created_at: comment.created_at,
+          id: `${comment.id}-legacy-body`,
+          updated_at: comment.created_at,
+          user_id: comment.user_id,
+        },
+      ];
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
@@ -3613,26 +4027,24 @@ function LanguageSelect({
   versions: Array<{ id: string; language: string }>;
 }) {
   return (
-    <label className={styles.selectWrap}>
-      <select
-        aria-label="Email language"
-        className={styles.select}
-        disabled={versions.length <= 1}
-        value={selectedEmailId}
-        onChange={(event) => onSelect(event.currentTarget.value)}
-      >
-        {versions.map((version) => (
-          <option key={version.id} value={version.id}>
-            {version.language.toUpperCase()}
-          </option>
-        ))}
-      </select>
-      <CaretDownIcon
-        aria-hidden="true"
-        className={styles.selectIcon}
-        size={14}
-      />
-    </label>
+    <Select
+      allowDeselect={false}
+      aria-label="Email language"
+      className={styles.headerCompactSelect}
+      classNames={{ input: styles.headerSelectInput }}
+      data={versions.map((version) => ({
+        label: version.language.toUpperCase(),
+        value: version.id,
+      }))}
+      disabled={versions.length <= 1}
+      size="xs"
+      value={selectedEmailId}
+      onChange={(value) => {
+        if (value) {
+          onSelect(value);
+        }
+      }}
+    />
   );
 }
 
@@ -3646,28 +4058,23 @@ function AdaptationSelect({
   selectedAdaptation: string;
 }) {
   return (
-    <label className={styles.selectWrap}>
-      <select
-        aria-label="Email adaptation"
-        className={styles.select}
-        value={selectedAdaptation}
-        onChange={(event) => onSelect(event.currentTarget.value)}
-      >
-        {adaptations.map((adaptation) => (
-          <option
-            key={adaptation.adaptation_key}
-            value={adaptation.adaptation_key}
-          >
-            {adaptation.adaptation_label}
-          </option>
-        ))}
-      </select>
-      <CaretDownIcon
-        aria-hidden="true"
-        className={styles.selectIcon}
-        size={14}
-      />
-    </label>
+    <Select
+      allowDeselect={false}
+      aria-label="Email adaptation"
+      className={styles.headerVersionSelect}
+      classNames={{ input: styles.headerSelectInput }}
+      data={adaptations.map((adaptation) => ({
+        label: adaptation.adaptation_label,
+        value: adaptation.adaptation_key,
+      }))}
+      size="xs"
+      value={selectedAdaptation}
+      onChange={(value) => {
+        if (value) {
+          onSelect(value);
+        }
+      }}
+    />
   );
 }
 
@@ -3681,25 +4088,23 @@ function VariantSelect({
   selectedVariant: EmailVariant;
 }) {
   return (
-    <label className={styles.selectWrap}>
-      <select
-        aria-label="Email version"
-        className={styles.select}
-        value={selectedVariant}
-        onChange={(event) => onSelect(event.currentTarget.value)}
-      >
-        {availableVariants.map((variant) => (
-          <option key={variant} value={variant}>
-            {variant}
-          </option>
-        ))}
-      </select>
-      <CaretDownIcon
-        aria-hidden="true"
-        className={styles.selectIcon}
-        size={14}
-      />
-    </label>
+    <Select
+      allowDeselect={false}
+      aria-label="Email version"
+      className={styles.headerVersionSelect}
+      classNames={{ input: styles.headerSelectInput }}
+      data={availableVariants.map((variant) => ({
+        label: variant,
+        value: variant,
+      }))}
+      size="xs"
+      value={selectedVariant}
+      onChange={(value) => {
+        if (value) {
+          onSelect(value);
+        }
+      }}
+    />
   );
 }
 
@@ -3726,29 +4131,25 @@ function ViewportSwitch({
 }) {
   return (
     <Group className={styles.segmentedControl} gap={0}>
-      <Tooltip label="Desktop preview">
-        <button
-          aria-label="Desktop preview"
-          className={styles.iconSegmentedButton}
-          data-active={viewport === "desktop" || undefined}
-          type="button"
-          onClick={() => onChange("desktop")}
-        >
-          <MonitorIcon aria-hidden="true" size={16} />
-        </button>
-      </Tooltip>
+      <button
+        aria-label="Desktop preview"
+        className={styles.iconSegmentedButton}
+        data-active={viewport === "desktop" || undefined}
+        type="button"
+        onClick={() => onChange("desktop")}
+      >
+        <MonitorIcon aria-hidden="true" size={16} />
+      </button>
 
-      <Tooltip label="Mobile preview">
-        <button
-          aria-label="Mobile preview"
-          className={styles.iconSegmentedButton}
-          data-active={viewport === "mobile" || undefined}
-          type="button"
-          onClick={() => onChange("mobile")}
-        >
-          <DeviceMobileIcon aria-hidden="true" size={16} />
-        </button>
-      </Tooltip>
+      <button
+        aria-label="Mobile preview"
+        className={styles.iconSegmentedButton}
+        data-active={viewport === "mobile" || undefined}
+        type="button"
+        onClick={() => onChange("mobile")}
+      >
+        <DeviceMobileIcon aria-hidden="true" size={16} />
+      </button>
     </Group>
   );
 }
