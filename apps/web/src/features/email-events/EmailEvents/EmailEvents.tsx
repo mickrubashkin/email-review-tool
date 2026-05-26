@@ -17,19 +17,19 @@ import { useQuery } from "@tanstack/react-query";
 import { HouseIcon } from "@phosphor-icons/react";
 import { Link } from "react-router-dom";
 
-import { fetchEmailEvents } from "../emails/api";
+import { fetchEmailEvents } from "../../emails/api";
 import {
   formatEmailUpdateChangedFields,
   formatEmailUpdateChangedReviewBlocks,
   formatEmailUpdateSummary,
-} from "../emails/changeSummary";
-import { formatEmailReviewStatus } from "../emails/reviewStatus";
+} from "../../emails/changeSummary";
+import { formatEmailReviewStatus } from "../../emails/reviewStatus";
 import type {
   EmailEventAction,
   EmailEventFilters,
   EmailEventItem,
-} from "../emails/types";
-import styles from "../auth-events/AuthEventsView.module.css";
+} from "../../emails/types";
+import styles from "../../auth-events/AuthEvents/AuthEvents.module.css";
 
 const limitOptions = ["50", "100", "250", "500"];
 const actionOptions: { value: EmailEventAction; label: string }[] = [
@@ -67,7 +67,7 @@ const defaultSort = {
   key: "created_at" as EmailEventSortKey,
 };
 
-export function EmailEventsView() {
+export function EmailEvents() {
   const [filters, setFilters] = useState<EmailEventFilters>({
     limit: "100",
   });
@@ -244,6 +244,8 @@ export function EmailEventsView() {
     </div>
   );
 }
+
+export default EmailEvents;
 
 function SortableTh({
   label,

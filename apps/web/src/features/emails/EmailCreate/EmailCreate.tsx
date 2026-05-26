@@ -24,11 +24,11 @@ import {
   UploadSimpleIcon,
 } from "@phosphor-icons/react";
 
-import { createEmail, fetchBoards, fetchEmails, inspectEmailHTML } from "./api";
-import type { AuthUser, CreateEmailPayload, EmailVariant } from "./types";
-import styles from "./EmailFieldsEditorView.module.css";
+import { createEmail, fetchBoards, fetchEmails, inspectEmailHTML } from "../api";
+import type { AuthUser, CreateEmailPayload, EmailVariant } from "../types";
+import styles from "../EmailFieldsEditor/EmailFieldsEditor.module.css";
 
-type EmailCreateViewProps = {
+type EmailCreateProps = {
   currentUserRole: AuthUser["role"];
 };
 
@@ -64,7 +64,7 @@ const initialFormState: CreateEmailFormState = {
   originalHTML: "",
 };
 
-export function EmailCreateView({ currentUserRole }: EmailCreateViewProps) {
+export function EmailCreate({ currentUserRole }: EmailCreateProps) {
   const canCreate =
     currentUserRole === "admin" || currentUserRole === "super_admin";
   const navigate = useNavigate();
@@ -613,6 +613,8 @@ export function EmailCreateView({ currentUserRole }: EmailCreateViewProps) {
     </div>
   );
 }
+
+export default EmailCreate;
 
 function optionalString(value: string) {
   const trimmed = value.trim();

@@ -17,12 +17,12 @@ import { useQuery } from "@tanstack/react-query";
 import { HouseIcon } from "@phosphor-icons/react";
 import { Link } from "react-router-dom";
 
-import { fetchOperationalEvents } from "../emails/api";
+import { fetchOperationalEvents } from "../../emails/api";
 import type {
   OperationalEventFilters,
   OperationalEventItem,
-} from "../emails/types";
-import styles from "../auth-events/AuthEventsView.module.css";
+} from "../../emails/types";
+import styles from "../../auth-events/AuthEvents/AuthEvents.module.css";
 
 const limitOptions = ["50", "100", "250", "500"];
 const levelOptions = [
@@ -56,7 +56,7 @@ const defaultSort = {
   key: "created_at" as OperationalEventSortKey,
 };
 
-export function OperationalEventsView() {
+export function OperationalEvents() {
   const [filters, setFilters] = useState<OperationalEventFilters>({
     limit: "100",
   });
@@ -254,6 +254,8 @@ export function OperationalEventsView() {
     </div>
   );
 }
+
+export default OperationalEvents;
 
 function SortableTh({
   label,

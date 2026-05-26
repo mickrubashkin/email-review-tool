@@ -53,12 +53,12 @@ import {
 } from "@tanstack/react-query";
 import { Link, Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
 
-import { AIAnalysisLogsView } from "./features/ai-logs/AIAnalysisLogsView";
-import { AdminUsersView } from "./features/admin-users/AdminUsersView";
-import { AuthEventsView } from "./features/auth-events/AuthEventsView";
-import { LoginView } from "./features/auth/LoginView";
-import { EmailEventsView } from "./features/email-events/EmailEventsView";
-import { OperationalEventsView } from "./features/ops-events/OperationalEventsView";
+import { AIAnalysisLogs } from "./features/ai-logs/AIAnalysisLogs";
+import { AdminUsers } from "./features/admin-users/AdminUsers";
+import { AuthEvents } from "./features/auth-events/AuthEvents";
+import { Login } from "./features/auth/Login";
+import { EmailEvents } from "./features/email-events/EmailEvents";
+import { OperationalEvents } from "./features/ops-events/OperationalEvents";
 import {
   ApiError,
   createBoard,
@@ -78,7 +78,7 @@ import {
   updateBoardStage,
 } from "./features/emails/api";
 import { EmailBoard } from "./features/emails/EmailBoard";
-import { EmailCreateView } from "./features/emails/EmailCreateView";
+import { EmailCreate } from "./features/emails/EmailCreate";
 import {
   emailReviewStatusOptions,
   formatEmailReviewStatus,
@@ -191,22 +191,22 @@ function AuthenticatedApp() {
   }
 
   if (currentUserQuery.isError || !currentUserQuery.data) {
-    return <LoginView />;
+    return <Login />;
   }
 
   return (
     <Routes>
-      <Route path="/ai-logs" element={<AIAnalysisLogsView />} />
-      <Route path="/auth-events" element={<AuthEventsView />} />
+      <Route path="/ai-logs" element={<AIAnalysisLogs />} />
+      <Route path="/auth-events" element={<AuthEvents />} />
       <Route
         path="/admin/users"
-        element={<AdminUsersView currentUserRole={currentUserQuery.data.role} />}
+        element={<AdminUsers currentUserRole={currentUserQuery.data.role} />}
       />
-      <Route path="/admin/email-events" element={<EmailEventsView />} />
-      <Route path="/admin/operational-events" element={<OperationalEventsView />} />
+      <Route path="/admin/email-events" element={<EmailEvents />} />
+      <Route path="/admin/operational-events" element={<OperationalEvents />} />
       <Route
         path="/emails/new"
-        element={<EmailCreateView currentUserRole={currentUserQuery.data.role} />}
+        element={<EmailCreate currentUserRole={currentUserQuery.data.role} />}
       />
       <Route
         path="/emails/:emailId/edit"

@@ -19,9 +19,9 @@ import { useQuery } from "@tanstack/react-query";
 import { HouseIcon } from "@phosphor-icons/react";
 import { Link } from "react-router-dom";
 
-import { ApiError, fetchAIAnalysisLogs } from "../emails/api";
-import type { AIAnalysisLogFilters, AIAnalysisLogItem } from "../emails/types";
-import styles from "./AIAnalysisLogsView.module.css";
+import { ApiError, fetchAIAnalysisLogs } from "../../emails/api";
+import type { AIAnalysisLogFilters, AIAnalysisLogItem } from "../../emails/types";
+import styles from "./AIAnalysisLogs.module.css";
 
 const limitOptions = ["50", "100", "250", "500"];
 const cacheStatusOptions = [
@@ -46,7 +46,7 @@ const defaultSort = {
   key: "created_at" as AILogSortKey,
 };
 
-export function AIAnalysisLogsView() {
+export function AIAnalysisLogs() {
   const [filters, setFilters] = useState<AIAnalysisLogFilters>({
     limit: "100",
   });
@@ -310,6 +310,8 @@ export function AIAnalysisLogsView() {
     </div>
   );
 }
+
+export default AIAnalysisLogs;
 
 function getAIAnalysisLogsErrorCopy(error: unknown) {
   if (error instanceof ApiError && error.status === 403) {

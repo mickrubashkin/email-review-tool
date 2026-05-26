@@ -18,9 +18,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { HouseIcon } from "@phosphor-icons/react";
 import { Link } from "react-router-dom";
 
-import { createAdminUser, fetchAdminUsers, updateAdminUserRole } from "../emails/api";
-import type { UserAdminItem, UserRole } from "../emails/types";
-import styles from "../auth-events/AuthEventsView.module.css";
+import { createAdminUser, fetchAdminUsers, updateAdminUserRole } from "../../emails/api";
+import type { UserAdminItem, UserRole } from "../../emails/types";
+import styles from "../../auth-events/AuthEvents/AuthEvents.module.css";
 
 const roleOptions: { label: string; value: UserRole }[] = [
   { label: "Super admin", value: "super_admin" },
@@ -37,11 +37,11 @@ const defaultSort = {
   key: "email" as UserSortKey,
 };
 
-type AdminUsersViewProps = {
+type AdminUsersProps = {
   currentUserRole: UserRole;
 };
 
-export function AdminUsersView({ currentUserRole }: AdminUsersViewProps) {
+export function AdminUsers({ currentUserRole }: AdminUsersProps) {
   const queryClient = useQueryClient();
   const [sort, setSort] = useState(defaultSort);
   const [emailDraft, setEmailDraft] = useState("");
@@ -254,6 +254,8 @@ export function AdminUsersView({ currentUserRole }: AdminUsersViewProps) {
     </div>
   );
 }
+
+export default AdminUsers;
 
 function SortableTh({
   label,

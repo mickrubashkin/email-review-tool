@@ -10,15 +10,15 @@ import {
 } from "@mantine/core";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { devLogin, requestLoginCode, verifyLoginCode } from "../emails/api";
-import styles from "./LoginView.module.css";
+import { devLogin, requestLoginCode, verifyLoginCode } from "../../emails/api";
+import styles from "./Login.module.css";
 
 const allowedDomains = getAllowedDomains();
 const allowedDomainsLabel = allowedDomains.map((domain) => `@${domain}`).join(", ");
 const storedEmailKey = "reviewdesk_login_email";
 const devLoginEnabled = import.meta.env.VITE_AUTH_DEV_LOGIN_ENABLED === "true";
 
-export function LoginView() {
+export function Login() {
   const queryClient = useQueryClient();
   const [email, setEmail] = useState(readStoredEmail);
   const [otpCode, setOTPCode] = useState("");
@@ -204,6 +204,8 @@ export function LoginView() {
     </main>
   );
 }
+
+export default Login;
 
 function isAllowedEmailDomain(email: string) {
   const [, domain] = email.split("@");

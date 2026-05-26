@@ -33,8 +33,8 @@ import {
   fetchEmailDetail,
   fetchRenderedEmail,
   updateEmailEditableFields,
-} from "./api";
-import { copyRenderedHTML, downloadRenderedHTML } from "./exportHtml";
+} from "../api";
+import { copyRenderedHTML, downloadRenderedHTML } from "../exportHtml";
 import type {
   AuthUser,
   EditableField,
@@ -44,7 +44,7 @@ import type {
   EmailVariant,
   EmailVersionGroup,
   UpdateEditableFieldsPayload,
-} from "./types";
+} from "../types";
 import {
   buildStageColumns,
   formatStageName,
@@ -54,10 +54,10 @@ import {
   getSelectedVariant,
   getVersionForVariant,
   getVersionsForVariantAndAdaptation,
-} from "./stages";
-import styles from "./EmailFieldsEditorView.module.css";
+} from "../stages";
+import styles from "./EmailFieldsEditor.module.css";
 
-type EmailFieldsEditorViewProps = {
+type EmailFieldsEditorProps = {
   currentUserRole: AuthUser["role"];
   emailId: string;
 };
@@ -75,10 +75,10 @@ type FieldGroup = {
   fields: [string, EditableField][];
 };
 
-export function EmailFieldsEditorView({
+export function EmailFieldsEditor({
   currentUserRole,
   emailId,
-}: EmailFieldsEditorViewProps) {
+}: EmailFieldsEditorProps) {
   const canEdit = currentUserRole === "admin" || currentUserRole === "super_admin";
   const emailQuery = useQuery({
     queryKey: ["emails", emailId],
@@ -133,7 +133,7 @@ export function EmailFieldsEditorView({
   }
 
   return (
-    <EmailFieldsEditor
+    <EmailFieldsEditorForm
       currentUserRole={currentUserRole}
       email={emailQuery.data}
       key={emailQuery.data.id}
@@ -142,7 +142,9 @@ export function EmailFieldsEditorView({
   );
 }
 
-function EmailFieldsEditor({
+export default EmailFieldsEditor;
+
+function EmailFieldsEditorForm({
   currentUserRole,
   email,
   initialRenderedHTML,

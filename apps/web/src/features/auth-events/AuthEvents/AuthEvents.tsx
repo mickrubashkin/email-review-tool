@@ -17,9 +17,9 @@ import { useQuery } from "@tanstack/react-query";
 import { HouseIcon } from "@phosphor-icons/react";
 import { Link } from "react-router-dom";
 
-import { fetchAuthEvents } from "../emails/api";
-import type { AuthEventFilters, AuthEventItem } from "../emails/types";
-import styles from "./AuthEventsView.module.css";
+import { fetchAuthEvents } from "../../emails/api";
+import type { AuthEventFilters, AuthEventItem } from "../../emails/types";
+import styles from "./AuthEvents.module.css";
 
 const limitOptions = ["50", "100", "250", "500"];
 const eventTypeOptions = [
@@ -39,7 +39,7 @@ const defaultSort = {
   key: "created_at" as AuthEventSortKey,
 };
 
-export function AuthEventsView() {
+export function AuthEvents() {
   const [filters, setFilters] = useState<AuthEventFilters>({
     limit: "100",
   });
@@ -208,6 +208,8 @@ export function AuthEventsView() {
     </div>
   );
 }
+
+export default AuthEvents;
 
 function SortableTh({
   label,
