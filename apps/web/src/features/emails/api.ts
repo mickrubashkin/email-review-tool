@@ -5,6 +5,8 @@ import type {
   AuthEventItem,
   AuthUser,
   Board,
+  BoardApprovalArea,
+  CreateBoardApprovalAreaPayload,
   CreateAdminUserPayload,
   CreateBoardPayload,
   CreateBoardStagePayload,
@@ -21,15 +23,20 @@ import type {
   CreateEmailCommentPayload,
   DuplicateEmailPayload,
   EmailActivityItem,
+  EmailAreaApproval,
   EmailComment,
   EmailCommentMessage,
   UserAdminItem,
   UserRole,
   RenderedEmail,
+  ReorderBoardApprovalAreasPayload,
   ReorderBoardStagesPayload,
   UpdateBoardStagePayload,
+  UpdateBoardApprovalAreaPayload,
+  UpdateEmailAreaApprovalPayload,
   UpdateEmailPlanningFieldsPayload,
   UpdateEmailPlanningFieldsResponse,
+  EmailReviewArea,
   UpdateEmailReviewStatusPayload,
   UpdateEmailReviewStatusResponse,
   UpdateEditableFieldsPayload,
@@ -182,6 +189,75 @@ export function createBoard(payload: CreateBoardPayload): Promise<Board> {
   });
 }
 
+export function fetchBoardApprovalAreas(
+  boardKey: string
+): Promise<BoardApprovalArea[]> {
+  return fetchJson<BoardApprovalArea[]>(
+    `/api/boards/${encodeURIComponent(boardKey)}/approval-areas`
+  );
+}
+
+export function createBoardApprovalArea(
+  boardKey: string,
+  payload: CreateBoardApprovalAreaPayload
+): Promise<BoardApprovalArea> {
+  return fetchJson<BoardApprovalArea>(
+    `/api/boards/${encodeURIComponent(boardKey)}/approval-areas`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    }
+  );
+}
+
+export function updateBoardApprovalArea(
+  boardKey: string,
+  areaKey: string,
+  payload: UpdateBoardApprovalAreaPayload
+): Promise<BoardApprovalArea> {
+  return fetchJson<BoardApprovalArea>(
+    `/api/boards/${encodeURIComponent(boardKey)}/approval-areas/${encodeURIComponent(areaKey)}`,
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    }
+  );
+}
+
+export function deleteBoardApprovalArea(
+  boardKey: string,
+  areaKey: string
+): Promise<BoardApprovalArea> {
+  return fetchJson<BoardApprovalArea>(
+    `/api/boards/${encodeURIComponent(boardKey)}/approval-areas/${encodeURIComponent(areaKey)}`,
+    {
+      method: "DELETE",
+    }
+  );
+}
+
+export function reorderBoardApprovalAreas(
+  boardKey: string,
+  payload: ReorderBoardApprovalAreasPayload
+): Promise<BoardApprovalArea[]> {
+  return fetchJson<BoardApprovalArea[]>(
+    `/api/boards/${encodeURIComponent(boardKey)}/approval-areas`,
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    }
+  );
+}
+
 export function createBoardStage(
   boardKey: string,
   payload: CreateBoardStagePayload
@@ -291,6 +367,31 @@ export function updateEmailReviewStatus(
 ): Promise<UpdateEmailReviewStatusResponse> {
   return fetchJson<UpdateEmailReviewStatusResponse>(
     `/api/emails/${encodeURIComponent(emailId)}/review-status`,
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    }
+  );
+}
+
+export function listEmailAreaApprovals(
+  emailId: string
+): Promise<EmailAreaApproval[]> {
+  return fetchJson<EmailAreaApproval[]>(
+    `/api/emails/${encodeURIComponent(emailId)}/area-approvals`
+  );
+}
+
+export function updateEmailAreaApproval(
+  emailId: string,
+  area: EmailReviewArea,
+  payload: UpdateEmailAreaApprovalPayload
+): Promise<EmailAreaApproval> {
+  return fetchJson<EmailAreaApproval>(
+    `/api/emails/${encodeURIComponent(emailId)}/area-approvals/${encodeURIComponent(area)}`,
     {
       method: "PATCH",
       headers: {

@@ -45,6 +45,11 @@ var (
 func registerBoardRoutes(r chi.Router, dbpool *pgxpool.Pool) {
 	r.Get("/api/boards", listBoardsHandler(dbpool))
 	r.Post("/api/boards", createBoardHandler(dbpool))
+	r.Get("/api/boards/{boardKey}/approval-areas", listBoardApprovalAreasHandler(dbpool))
+	r.Post("/api/boards/{boardKey}/approval-areas", createBoardApprovalAreaHandler(dbpool))
+	r.Patch("/api/boards/{boardKey}/approval-areas", reorderBoardApprovalAreasHandler(dbpool))
+	r.Patch("/api/boards/{boardKey}/approval-areas/{areaKey}", updateBoardApprovalAreaHandler(dbpool))
+	r.Delete("/api/boards/{boardKey}/approval-areas/{areaKey}", deleteBoardApprovalAreaHandler(dbpool))
 	r.Post("/api/boards/{boardKey}/stages", createBoardStageHandler(dbpool))
 	r.Patch("/api/boards/{boardKey}/stages", reorderBoardStagesHandler(dbpool))
 	r.Patch("/api/boards/{boardKey}/stages/{stage}", updateBoardStageHandler(dbpool))
@@ -307,6 +312,9 @@ func createBoardFromSource(ctx context.Context, dbpool *pgxpool.Pool, name strin
 			},
 		},
 	}); err != nil {
+		return BoardItem{}, err
+	}
+	if err := copyBoardApprovalAreas(ctx, tx, sourceBoardKey, board.ID); err != nil {
 		return BoardItem{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -645,7 +653,9 @@ func updateBoardStages(ctx context.Context, tx pgx.Tx, boardKey string, stages [
 	return board, nil
 }
 
-func boardExists(ctx context.Context, db emailEventExecutor, key string) (bool, error) {
+func boardExists(ctx context.Context, db interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}, key string) (bool, error) {
 	var exists bool
 	err := db.QueryRow(ctx, `
 		SELECT EXISTS(SELECT 1 FROM boards WHERE key = $1);

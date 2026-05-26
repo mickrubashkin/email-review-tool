@@ -40,6 +40,7 @@ const actionOptions: { value: EmailEventAction; label: string }[] = [
   { value: "email_created", label: "Created" },
   { value: "email_planning_updated", label: "Planning updated" },
   { value: "email_review_status_updated", label: "Review status updated" },
+  { value: "email_area_approval_updated", label: "Area approval updated" },
   { value: "comment_created", label: "Comment created" },
   { value: "comment_replied", label: "Comment replied" },
   { value: "comment_resolved", label: "Comment resolved" },
@@ -48,6 +49,10 @@ const actionOptions: { value: EmailEventAction; label: string }[] = [
   { value: "board_stage_renamed", label: "Stage renamed" },
   { value: "board_stage_deleted", label: "Stage deleted" },
   { value: "board_stages_reordered", label: "Stages reordered" },
+  { value: "board_approval_area_created", label: "Approval area created" },
+  { value: "board_approval_area_updated", label: "Approval area updated" },
+  { value: "board_approval_area_deleted", label: "Approval area deleted" },
+  { value: "board_approval_areas_reordered", label: "Approval areas reordered" },
 ];
 type SortDirection = "asc" | "desc";
 type EmailEventSortKey =
@@ -330,6 +335,8 @@ function getActionColor(action: EmailEventAction) {
       return "cyan";
     case "email_review_status_updated":
       return "violet";
+    case "email_area_approval_updated":
+      return "grape";
     case "comment_created":
       return "yellow";
     case "comment_replied":
@@ -345,6 +352,14 @@ function getActionColor(action: EmailEventAction) {
     case "board_stage_deleted":
       return "red";
     case "board_stages_reordered":
+      return "blue";
+    case "board_approval_area_created":
+      return "green";
+    case "board_approval_area_updated":
+      return "grape";
+    case "board_approval_area_deleted":
+      return "red";
+    case "board_approval_areas_reordered":
       return "blue";
     default:
       return "gray";
@@ -375,6 +390,8 @@ function formatSummary(event: EmailEventItem) {
           : "Re-approved email";
       }
       return `Changed review status to ${formatChangedReviewStatus(event)}`;
+    case "email_area_approval_updated":
+      return `Changed ${formatApprovalArea(event)} approval to ${formatAreaApprovalStatus(event)}`;
     case "comment_created":
       return `Added comment on ${stringMetadata(event, "review_block") || "review block"}`;
     case "comment_replied":
@@ -391,6 +408,14 @@ function formatSummary(event: EmailEventItem) {
       return `Deleted stage ${formatChangedValue(event, "stage", "stage")}`;
     case "board_stages_reordered":
       return "Reordered board stages";
+    case "board_approval_area_created":
+      return `Created approval area ${stringMetadata(event, "area_name") || stringMetadata(event, "area_key") || "area"}`;
+    case "board_approval_area_updated":
+      return `Updated approval area ${stringMetadata(event, "area_name") || stringMetadata(event, "area_key") || "area"}`;
+    case "board_approval_area_deleted":
+      return `Archived approval area ${stringMetadata(event, "area_name") || stringMetadata(event, "area_key") || "area"}`;
+    case "board_approval_areas_reordered":
+      return "Reordered approval areas";
     default:
       return "Changed email";
   }
@@ -401,6 +426,7 @@ function formatChangedFields(event: EmailEventItem) {
     event.action !== "email_updated" &&
     event.action !== "email_planning_updated" &&
     event.action !== "email_review_status_updated" &&
+    event.action !== "email_area_approval_updated" &&
     !event.action.startsWith("board_")
   ) {
     return "-";
@@ -470,8 +496,18 @@ function formatChangedReviewStatus(event: EmailEventItem) {
     : "new value";
 }
 
+function formatApprovalArea(event: EmailEventItem) {
+  return formatEventToken(stringMetadata(event, "area") || "area");
+}
+
+function formatAreaApprovalStatus(event: EmailEventItem) {
+  return formatEventToken(stringMetadata(event, "status") || "new value");
+}
+
 function formatApprovalSnapshot(event: EmailEventItem) {
-  const contentHash = stringMetadata(event, "approved_content_hash");
+  const contentHash =
+    stringMetadata(event, "approved_content_hash") ||
+    stringMetadata(event, "content_snapshot_hash");
   if (!contentHash) {
     return "";
   }
@@ -482,6 +518,10 @@ function formatApprovalSnapshot(event: EmailEventItem) {
 function stringMetadata(event: EmailEventItem, key: string) {
   const value = event.metadata[key];
   return typeof value === "string" ? value : "";
+}
+
+function formatEventToken(value: string) {
+  return value.replaceAll("_", " ");
 }
 
 function joinEventParts(parts: string[]) {

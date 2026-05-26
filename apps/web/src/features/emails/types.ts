@@ -68,6 +68,31 @@ export type ReorderBoardStagesPayload = {
   stages: string[];
 };
 
+export type BoardApprovalArea = {
+  id: string;
+  key: string;
+  name: string;
+  required: boolean;
+  sort_order: number;
+  archived_at: string | null;
+};
+
+export type CreateBoardApprovalAreaPayload = {
+  name: string;
+  key?: string;
+  required?: boolean;
+};
+
+export type UpdateBoardApprovalAreaPayload = {
+  name?: string;
+  required?: boolean;
+  archived?: boolean;
+};
+
+export type ReorderBoardApprovalAreasPayload = {
+  areas: string[];
+};
+
 export type CreateEmailPayload = {
   sequence?: string;
   title: string;
@@ -128,6 +153,31 @@ export type UpdateEmailReviewStatusPayload = {
 
 export type UpdateEmailReviewStatusResponse = {
   review_status: EmailReviewStatus;
+};
+
+export type EmailReviewArea = string;
+
+export type EmailAreaApprovalStatus =
+  | "pending"
+  | "approved"
+  | "changes_requested"
+  | "stale";
+
+export type EmailAreaApproval = {
+  board_approval_area_id: string;
+  area: EmailReviewArea;
+  name: string;
+  required: boolean;
+  status: EmailAreaApprovalStatus;
+  decision_note: string | null;
+  decided_by_email: string | null;
+  content_snapshot_hash: string | null;
+  decided_at: string | null;
+};
+
+export type UpdateEmailAreaApprovalPayload = {
+  status: "approved" | "changes_requested";
+  decision_note: string | null;
 };
 
 export type UpdateEmailPlanningFieldsPayload = {
@@ -293,6 +343,7 @@ export type EmailEventAction =
   | "email_updated"
   | "email_planning_updated"
   | "email_review_status_updated"
+  | "email_area_approval_updated"
   | "comment_created"
   | "comment_replied"
   | "comment_resolved"
@@ -300,7 +351,11 @@ export type EmailEventAction =
   | "board_stage_created"
   | "board_stage_renamed"
   | "board_stage_deleted"
-  | "board_stages_reordered";
+  | "board_stages_reordered"
+  | "board_approval_area_created"
+  | "board_approval_area_updated"
+  | "board_approval_area_deleted"
+  | "board_approval_areas_reordered";
 
 export type EmailEventItem = {
   id: string;

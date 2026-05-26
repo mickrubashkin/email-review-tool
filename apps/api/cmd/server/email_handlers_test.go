@@ -521,6 +521,248 @@ func TestUpdateEmailReviewStatusMarksReapprovalAfterStaleEdit(t *testing.T) {
 	}
 }
 
+func TestListEmailAreaApprovalsReturnsDefaultPendingAreas(t *testing.T) {
+	dbpool := testDBPool(t)
+	boardKey := createTestBoard(t, dbpool, "area-list-board", []string{"review"})
+	createTestBoardApprovalArea(t, dbpool, boardKey, "product", "Product", true, 10)
+	createTestBoardApprovalArea(t, dbpool, boardKey, "legal", "Legal", false, 20)
+	emailID := createBoardTestEmail(t, dbpool, boardKey, "review")
+
+	router := chi.NewRouter()
+	registerEmailRoutes(router, dbpool)
+
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"/api/emails/"+emailID+"/area-approvals",
+		nil,
+	)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected GET status 200, got %d: %s", response.Code, response.Body.String())
+	}
+
+	var approvals []emailAreaApprovalItem
+	if err := json.NewDecoder(response.Body).Decode(&approvals); err != nil {
+		t.Fatalf("failed to decode area approvals: %v", err)
+	}
+	if len(approvals) != 2 {
+		t.Fatalf("expected 2 approval areas, got %d", len(approvals))
+	}
+	if approvals[0].Area != "product" || approvals[0].Name != "Product" || !approvals[0].Required || approvals[0].Status != "pending" {
+		t.Fatalf("unexpected first approval area: %#v", approvals[0])
+	}
+	if approvals[1].Area != "legal" || approvals[1].Name != "Legal" || approvals[1].Required || approvals[1].Status != "pending" {
+		t.Fatalf("unexpected second approval area: %#v", approvals[1])
+	}
+}
+
+func TestUpdateEmailAreaApprovalApprovesArea(t *testing.T) {
+	dbpool := testDBPool(t)
+	boardKey := createTestBoard(t, dbpool, "area-approve-board", []string{"review"})
+	createTestBoardApprovalArea(t, dbpool, boardKey, "legal", "Legal", true, 10)
+	emailID := createBoardTestEmail(t, dbpool, boardKey, "review")
+	user := createTestUserWithRole(t, dbpool, "admin")
+
+	router := chi.NewRouter()
+	registerEmailRoutes(router, dbpool)
+
+	request := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/emails/"+emailID+"/area-approvals/legal",
+		bytes.NewReader([]byte(`{"status":"approved","decision_note":"Legal approved."}`)),
+	)
+	request = withAuthUser(request, user)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected PATCH status 200, got %d: %s", response.Code, response.Body.String())
+	}
+
+	var payload emailAreaApprovalItem
+	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
+		t.Fatalf("failed to decode area approval response: %v", err)
+	}
+	if payload.Area != "legal" ||
+		payload.Name != "Legal" ||
+		!payload.Required ||
+		payload.Status != "approved" ||
+		stringFromPointer(payload.DecisionNote) != "Legal approved." ||
+		stringFromPointer(payload.DecidedByEmail) != user.Email ||
+		payload.DecidedAt == nil ||
+		payload.ContentSnapshotHash == nil ||
+		len(*payload.ContentSnapshotHash) != 64 {
+		t.Fatalf("unexpected area approval response: %#v", payload)
+	}
+
+	var storedStatus string
+	var storedActor string
+	var storedHash string
+	if err := dbpool.QueryRow(context.Background(), `
+		SELECT status, decided_by_email, content_snapshot_hash
+		FROM email_area_approvals
+		JOIN board_approval_areas ON board_approval_areas.id = email_area_approvals.board_approval_area_id
+		JOIN approval_areas ON approval_areas.id = board_approval_areas.approval_area_id
+		WHERE email_id = $1
+			AND approval_areas.key = 'legal';
+	`, emailID).Scan(&storedStatus, &storedActor, &storedHash); err != nil {
+		t.Fatalf("failed to load stored area approval: %v", err)
+	}
+	if storedStatus != "approved" || storedActor != user.Email || len(storedHash) != 64 {
+		t.Fatalf("unexpected stored area approval: status=%q actor=%q hash=%q", storedStatus, storedActor, storedHash)
+	}
+
+	var actorEmail string
+	var metadataJSON []byte
+	var changesJSON []byte
+	if err := dbpool.QueryRow(context.Background(), `
+		SELECT actor_email, metadata, changes
+		FROM email_events
+		WHERE email_id = $1
+			AND action = 'email_area_approval_updated'
+		ORDER BY created_at DESC, id DESC
+		LIMIT 1;
+	`, emailID).Scan(&actorEmail, &metadataJSON, &changesJSON); err != nil {
+		t.Fatalf("failed to load area approval event: %v", err)
+	}
+	if actorEmail != user.Email {
+		t.Fatalf("expected event actor %s, got %s", user.Email, actorEmail)
+	}
+	if !strings.Contains(string(metadataJSON), `"area": "legal"`) ||
+		!strings.Contains(string(metadataJSON), `"status": "approved"`) ||
+		!strings.Contains(string(changesJSON), `"before": "pending"`) ||
+		!strings.Contains(string(changesJSON), `"after": "approved"`) {
+		t.Fatalf("unexpected area approval event metadata=%s changes=%s", string(metadataJSON), string(changesJSON))
+	}
+}
+
+func TestUpdateEmailAreaApprovalRequestsChanges(t *testing.T) {
+	dbpool := testDBPool(t)
+	boardKey := createTestBoard(t, dbpool, "area-changes-board", []string{"review"})
+	createTestBoardApprovalArea(t, dbpool, boardKey, "brand", "Brand", true, 10)
+	emailID := createBoardTestEmail(t, dbpool, boardKey, "review")
+	user := createTestUserWithRole(t, dbpool, "admin")
+
+	router := chi.NewRouter()
+	registerEmailRoutes(router, dbpool)
+
+	request := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/emails/"+emailID+"/area-approvals/brand",
+		bytes.NewReader([]byte(`{"status":"changes_requested","decision_note":"Fix brand tone."}`)),
+	)
+	request = withAuthUser(request, user)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected PATCH status 200, got %d: %s", response.Code, response.Body.String())
+	}
+
+	var payload emailAreaApprovalItem
+	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
+		t.Fatalf("failed to decode area approval response: %v", err)
+	}
+	if payload.Status != "changes_requested" ||
+		stringFromPointer(payload.DecisionNote) != "Fix brand tone." ||
+		payload.ContentSnapshotHash != nil {
+		t.Fatalf("unexpected changes requested approval response: %#v", payload)
+	}
+}
+
+func TestUpdateEmailAreaApprovalRejectsInvalidAreaAndStatus(t *testing.T) {
+	dbpool := testDBPool(t)
+	boardKey := createTestBoard(t, dbpool, "area-invalid-board", []string{"review"})
+	createTestBoardApprovalArea(t, dbpool, boardKey, "legal", "Legal", true, 10)
+	emailID := createBoardTestEmail(t, dbpool, boardKey, "review")
+	user := createTestUserWithRole(t, dbpool, "admin")
+
+	router := chi.NewRouter()
+	registerEmailRoutes(router, dbpool)
+
+	invalidAreaRequest := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/emails/"+emailID+"/area-approvals/security",
+		bytes.NewReader([]byte(`{"status":"approved"}`)),
+	)
+	invalidAreaRequest = withAuthUser(invalidAreaRequest, user)
+	invalidAreaResponse := httptest.NewRecorder()
+	router.ServeHTTP(invalidAreaResponse, invalidAreaRequest)
+	if invalidAreaResponse.Code != http.StatusNotFound {
+		t.Fatalf("expected unknown area status 404, got %d: %s", invalidAreaResponse.Code, invalidAreaResponse.Body.String())
+	}
+
+	invalidStatusRequest := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/emails/"+emailID+"/area-approvals/legal",
+		bytes.NewReader([]byte(`{"status":"stale"}`)),
+	)
+	invalidStatusRequest = withAuthUser(invalidStatusRequest, user)
+	invalidStatusResponse := httptest.NewRecorder()
+	router.ServeHTTP(invalidStatusResponse, invalidStatusRequest)
+	if invalidStatusResponse.Code != http.StatusBadRequest {
+		t.Fatalf("expected invalid status 400, got %d: %s", invalidStatusResponse.Code, invalidStatusResponse.Body.String())
+	}
+}
+
+func TestUpdateEmailAreaApprovalRejectsArchivedEmail(t *testing.T) {
+	dbpool := testDBPool(t)
+	boardKey := createTestBoard(t, dbpool, "area-archived-email-board", []string{"review"})
+	createTestBoardApprovalArea(t, dbpool, boardKey, "legal", "Legal", true, 10)
+	emailID := createBoardTestEmail(t, dbpool, boardKey, "review")
+	user := createTestUserWithRole(t, dbpool, "admin")
+
+	if _, err := dbpool.Exec(context.Background(), `
+		UPDATE emails
+		SET archived_at = now()
+		WHERE id = $1;
+	`, emailID); err != nil {
+		t.Fatalf("failed to archive test email: %v", err)
+	}
+
+	router := chi.NewRouter()
+	registerEmailRoutes(router, dbpool)
+
+	request := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/emails/"+emailID+"/area-approvals/legal",
+		bytes.NewReader([]byte(`{"status":"approved"}`)),
+	)
+	request = withAuthUser(request, user)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusNotFound {
+		t.Fatalf("expected PATCH status 404, got %d: %s", response.Code, response.Body.String())
+	}
+}
+
+func TestUpdateEmailAreaApprovalRejectsReviewer(t *testing.T) {
+	dbpool := testDBPool(t)
+	boardKey := createTestBoard(t, dbpool, "area-reviewer-board", []string{"review"})
+	createTestBoardApprovalArea(t, dbpool, boardKey, "legal", "Legal", true, 10)
+	emailID := createBoardTestEmail(t, dbpool, boardKey, "review")
+	user := createTestUserWithRole(t, dbpool, "reviewer")
+
+	router := chi.NewRouter()
+	registerEmailRoutes(router, dbpool)
+
+	request := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/emails/"+emailID+"/area-approvals/legal",
+		bytes.NewReader([]byte(`{"status":"approved"}`)),
+	)
+	request = withAuthUser(request, user)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("expected PATCH status 403, got %d: %s", response.Code, response.Body.String())
+	}
+}
+
 func TestUpdateEmailPlanningFields(t *testing.T) {
 	dbpool := testDBPool(t)
 	emailID := createTestEmail(t, dbpool)
