@@ -1,13 +1,13 @@
 import { type CSSProperties } from "react";
 import { Badge, Group, Stack, Text } from "@mantine/core";
 
-import { EmailCard } from "./EmailCard";
-import { stageColors } from "./stages";
-import type { EmailReviewStatus, StageColumn } from "./types";
-import styles from "./StageColumnView.module.css";
+import { EmailCard } from "../EmailCard";
+import { stageColors } from "../stages";
+import type { EmailReviewStatus, StageColumn as StageColumnData } from "../types";
+import styles from "./StageColumn.module.css";
 
-type StageColumnViewProps = {
-  column: StageColumn;
+type StageColumnProps = {
+  column: StageColumnData;
   columnIndex: number;
   selectedVersionByGroup: Record<string, string>;
   onOpenVersionGroup: (groupKey: string, emailId: string) => void;
@@ -15,14 +15,14 @@ type StageColumnViewProps = {
   onSelectVersion: (groupKey: string, emailId: string) => void;
 };
 
-export function StageColumnView({
+export function StageColumn({
   column,
   columnIndex,
   selectedVersionByGroup,
   onOpenVersionGroup,
   onReviewStatusChange,
   onSelectVersion,
-}: StageColumnViewProps) {
+}: StageColumnProps) {
   return (
     <section className={styles.stageColumn}>
       <Group
@@ -62,3 +62,5 @@ export function StageColumnView({
     </section>
   );
 }
+
+export default StageColumn;

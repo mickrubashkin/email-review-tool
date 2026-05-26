@@ -23,11 +23,11 @@ import type {
   EmailReviewStatus,
   EmailVariant,
   EmailVersionGroup,
-} from "./types";
+} from "../types";
 import {
   emailReviewStatusOptions,
   formatEmailReviewStatus,
-} from "./reviewStatus";
+} from "../reviewStatus";
 import {
   getAvailableVariants,
   getAvailableAdaptations,
@@ -36,7 +36,7 @@ import {
   getSelectedVariant,
   getVersionForVariant,
   getVersionsForVariantAndAdaptation,
-} from "./stages";
+} from "../stages";
 import styles from "./EmailCard.module.css";
 
 type EmailCardProps = {
@@ -638,3 +638,5 @@ export function EmailCard({
     </Card>
   );
 }
+
+export default EmailCard;

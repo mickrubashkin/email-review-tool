@@ -1,6 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
 
-import type { InlineEditUpdate } from "../../emails/MailPreview";
+import type { InlineEditUpdate } from "../../emails/MailPreview.types";
 import {
   formatEmailUpdateChangedFields,
   formatEmailUpdateChangedReviewBlocks,

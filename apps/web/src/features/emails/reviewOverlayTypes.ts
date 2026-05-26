@@ -1,4 +1,4 @@
-import type { ReviewTextSelection } from "./MailPreview";
+import type { ReviewTextSelection } from "./MailPreview.types";
 import type { EmailCommentSeverity } from "./types";
 
 export type ReviewCommentTarget = ReviewTextSelection & {

@@ -27,7 +27,7 @@ import {
   useState,
 } from "react";
 
-import type { ReviewTextSelection } from "../../emails/MailPreview";
+import type { ReviewTextSelection } from "../../emails/MailPreview.types";
 import type {
   EmailComment,
   EmailCommentSeverity,

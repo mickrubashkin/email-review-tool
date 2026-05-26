@@ -52,9 +52,11 @@ import {
 
 import {
   MailPreview,
-  type InlineEditUpdate,
-  type ReviewTextSelection,
 } from "../../emails/MailPreview";
+import type {
+  InlineEditUpdate,
+  ReviewTextSelection,
+} from "../../emails/MailPreview.types";
 
 import { formatEmailReviewStatus } from "../../emails/reviewStatus";
 

@@ -15,10 +15,10 @@ import {
   priorityMeta,
   streamCheckOrder,
   verdictMeta,
-} from "./analysisMeta";
-import type { StreamPreview } from "./streamPreview";
-import type { EmailAnalysis, EmailRecommendation } from "./types";
-import styles from "./EmailPreviewDrawer.module.css";
+} from "../analysisMeta";
+import type { StreamPreview } from "../streamPreview";
+import type { EmailAnalysis, EmailRecommendation } from "../types";
+import styles from "../EmailPreviewDrawer.module.css";
 
 type AnalysisPanelProps = {
   analysis: EmailAnalysis | null;
@@ -175,6 +175,8 @@ export function AnalysisPanel({
     </Card>
   );
 }
+
+export default AnalysisPanel;
 
 function StreamPreviewContent({
   isStreaming,

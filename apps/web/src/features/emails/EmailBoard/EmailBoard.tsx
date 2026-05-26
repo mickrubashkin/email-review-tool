@@ -1,11 +1,11 @@
 import { ScrollArea } from "@mantine/core";
 
-import { StageColumnView } from "./StageColumnView";
-import type { EmailReviewStatus, StageColumn } from "./types";
+import { StageColumn } from "../StageColumn";
+import type { EmailReviewStatus, StageColumn as StageColumnData } from "../types";
 import styles from "./EmailBoard.module.css";
 
 type EmailBoardProps = {
-  columns: StageColumn[];
+  columns: StageColumnData[];
   scrollPosition: { x: number; y: number };
   selectedVersionByGroup: Record<string, string>;
   onOpenVersionGroup: (groupKey: string, emailId: string) => void;
@@ -32,7 +32,7 @@ export function EmailBoard({
     >
       <div className={styles.board}>
         {columns.map((column, columnIndex) => (
-          <StageColumnView
+          <StageColumn
             column={column}
             columnIndex={columnIndex}
             key={column.stage}
@@ -46,3 +46,5 @@ export function EmailBoard({
     </ScrollArea>
   );
 }
+
+export default EmailBoard;

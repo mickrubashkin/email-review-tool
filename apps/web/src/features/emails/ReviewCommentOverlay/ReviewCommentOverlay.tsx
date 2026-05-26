@@ -1,11 +1,11 @@
 import type { CSSProperties, RefObject } from "react";
 
-import styles from "./EmailPreviewDrawer.module.css";
+import styles from "../EmailPreviewDrawer.module.css";
 import type {
   ReviewChangedBlockRect,
   ReviewOverlayBadge,
   ReviewOverlayRect,
-} from "./reviewOverlayTypes";
+} from "../reviewOverlayTypes";
 
 type ReviewCommentOverlayProps = {
   activeCommentId?: string | null;
@@ -121,6 +121,8 @@ export function ReviewCommentOverlay({
     </div>
   );
 }
+
+export default ReviewCommentOverlay;
 
 function changedBlockLabel(reason: ReviewChangedBlockRect["reason"]) {
   switch (reason) {
