@@ -160,12 +160,13 @@ export function SelectionComposer({
                   label={input.label}
                   minRows={3}
                   value={String(draftInlineEdit[input.key] ?? input.value)}
-                  onChange={(event) =>
+                  onChange={(event) => {
+                    const value = event.currentTarget.value;
                     onDraftInlineEditChange((current) => ({
                       ...current,
-                      [input.key]: event.currentTarget.value,
-                    }))
-                  }
+                      [input.key]: value,
+                    }));
+                  }}
                 />
               ) : (
                 <TextInput
@@ -175,15 +176,16 @@ export function SelectionComposer({
                   label={input.label}
                   type={input.type === "number" ? "number" : "text"}
                   value={String(draftInlineEdit[input.key] ?? input.value)}
-                  onChange={(event) =>
+                  onChange={(event) => {
+                    const value = event.currentTarget.value;
                     onDraftInlineEditChange((current) => ({
                       ...current,
                       [input.key]:
                         input.type === "number"
-                          ? Number(event.currentTarget.value) || 0
-                          : event.currentTarget.value,
-                    }))
-                  }
+                          ? Number(value) || 0
+                          : value,
+                    }));
+                  }}
                 />
               )
             )}
