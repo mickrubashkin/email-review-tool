@@ -49,7 +49,7 @@ VALUES
   ('sales', 'Sales'),
   ('partnerships', 'Partnerships'),
   ('localization', 'Localization'),
-  ('crm_ops', 'CRM ops')
+  ('crm-ops', 'CRM ops')
 ON CONFLICT (key) DO NOTHING;
 
 INSERT INTO board_approval_areas (
@@ -74,7 +74,7 @@ CROSS JOIN (
     ('sales', 40),
     ('partnerships', 50),
     ('localization', 60),
-    ('crm_ops', 70)
+    ('crm-ops', 70)
 ) AS area_order(area_key, sort_order)
 JOIN approval_areas ON approval_areas.key = area_order.area_key
 ON CONFLICT (board_id, approval_area_id) DO NOTHING;
