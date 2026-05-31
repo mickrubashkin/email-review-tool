@@ -11,13 +11,12 @@ import {
   Table,
   Text,
   TextInput,
-  Title,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { HouseIcon } from "@phosphor-icons/react";
-import { Link } from "react-router-dom";
 
+import { AdminTableHeader } from "../../admin-table/AdminTableHeader";
+import { usePersistedSort } from "../../admin-table/usePersistedSort";
 import { createAdminUser, fetchAdminUsers, updateAdminUserRole } from "../../emails/api";
 import type { UserAdminItem, UserRole } from "../../emails/types";
 import styles from "../../auth-events/AuthEvents/AuthEvents.module.css";
@@ -36,6 +35,13 @@ const defaultSort = {
   direction: "asc" as SortDirection,
   key: "email" as UserSortKey,
 };
+const sortKeys: readonly UserSortKey[] = [
+  "email",
+  "role",
+  "last_seen_at",
+  "created_at",
+  "updated_at",
+];
 
 type AdminUsersProps = {
   currentUserRole: UserRole;
@@ -43,7 +49,11 @@ type AdminUsersProps = {
 
 export function AdminUsers({ currentUserRole }: AdminUsersProps) {
   const queryClient = useQueryClient();
-  const [sort, setSort] = useState(defaultSort);
+  const [sort, setSort] = usePersistedSort(
+    "reviewdesk:admin-table-sort:users",
+    defaultSort,
+    sortKeys
+  );
   const [emailDraft, setEmailDraft] = useState("");
   const [roleDraft, setRoleDraft] = useState<UserRole>(
     currentUserRole === "super_admin" ? "reviewer" : "reviewer"
@@ -116,22 +126,10 @@ export function AdminUsers({ currentUserRole }: AdminUsersProps) {
 
   return (
     <div className={styles.page}>
-      <header className={styles.header}>
-        <Stack gap={4}>
-          <Title order={2}>Users</Title>
-          <Text c="dimmed" size="sm">
-            Manage ReviewDesk access roles.
-          </Text>
-        </Stack>
-        <Button
-          component={Link}
-          leftSection={<HouseIcon aria-hidden="true" size={16} />}
-          to="/"
-          variant="light"
-        >
-          Home
-        </Button>
-      </header>
+      <AdminTableHeader
+        subtitle="Manage ReviewDesk access roles."
+        title="Users"
+      />
 
       <section className={styles.filters}>
         <form

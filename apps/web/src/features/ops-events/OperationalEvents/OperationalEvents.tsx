@@ -11,12 +11,11 @@ import {
   Table,
   Text,
   TextInput,
-  Title,
 } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
-import { HouseIcon } from "@phosphor-icons/react";
-import { Link } from "react-router-dom";
 
+import { AdminTableHeader } from "../../admin-table/AdminTableHeader";
+import { usePersistedSort } from "../../admin-table/usePersistedSort";
 import { fetchOperationalEvents } from "../../emails/api";
 import type {
   OperationalEventFilters,
@@ -55,12 +54,25 @@ const defaultSort = {
   direction: "desc" as SortDirection,
   key: "created_at" as OperationalEventSortKey,
 };
+const sortKeys: readonly OperationalEventSortKey[] = [
+  "created_at",
+  "level",
+  "event_type",
+  "user_email",
+  "path",
+  "status_code",
+  "duration_ms",
+];
 
 export function OperationalEvents() {
   const [filters, setFilters] = useState<OperationalEventFilters>({
     limit: "100",
   });
-  const [sort, setSort] = useState(defaultSort);
+  const [sort, setSort] = usePersistedSort(
+    "reviewdesk:admin-table-sort:operational-events",
+    defaultSort,
+    sortKeys
+  );
 
   const eventsQuery = useQuery({
     queryKey: ["operational-events", filters],
@@ -85,22 +97,10 @@ export function OperationalEvents() {
 
   return (
     <div className={styles.page}>
-      <header className={styles.header}>
-        <Stack gap={4}>
-          <Title order={2}>Operational events</Title>
-          <Text c="dimmed" size="sm">
-            System events, failed API requests, and operational errors.
-          </Text>
-        </Stack>
-        <Button
-          component={Link}
-          leftSection={<HouseIcon aria-hidden="true" size={16} />}
-          to="/"
-          variant="light"
-        >
-          Home
-        </Button>
-      </header>
+      <AdminTableHeader
+        subtitle="System events, failed API requests, and operational errors."
+        title="Operational events"
+      />
 
       <section className={styles.filters}>
         <Group align="end" gap="sm">

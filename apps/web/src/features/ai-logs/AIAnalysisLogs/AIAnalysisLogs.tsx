@@ -12,13 +12,12 @@ import {
   Table,
   Text,
   TextInput,
-  Title,
   Code,
 } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
-import { HouseIcon } from "@phosphor-icons/react";
-import { Link } from "react-router-dom";
 
+import { AdminTableHeader } from "../../admin-table/AdminTableHeader";
+import { usePersistedSort } from "../../admin-table/usePersistedSort";
 import { ApiError, fetchAIAnalysisLogs } from "../../emails/api";
 import type { AIAnalysisLogFilters, AIAnalysisLogItem } from "../../emails/types";
 import styles from "./AIAnalysisLogs.module.css";
@@ -45,12 +44,28 @@ const defaultSort = {
   direction: "desc" as SortDirection,
   key: "created_at" as AILogSortKey,
 };
+const sortKeys: readonly AILogSortKey[] = [
+  "created_at",
+  "user_email",
+  "email",
+  "status",
+  "cache_status",
+  "model",
+  "latency_ms",
+  "tokens",
+  "cached_tokens",
+  "error_message",
+];
 
 export function AIAnalysisLogs() {
   const [filters, setFilters] = useState<AIAnalysisLogFilters>({
     limit: "100",
   });
-  const [sort, setSort] = useState(defaultSort);
+  const [sort, setSort] = usePersistedSort(
+    "reviewdesk:admin-table-sort:ai-analysis-logs",
+    defaultSort,
+    sortKeys
+  );
   const [selectedErrorLog, setSelectedErrorLog] =
     useState<AIAnalysisLogItem | null>(null);
 
@@ -78,22 +93,10 @@ export function AIAnalysisLogs() {
 
   return (
     <div className={styles.page}>
-      <header className={styles.header}>
-        <Stack gap={4}>
-          <Title order={2}>AI analysis logs</Title>
-          <Text c="dimmed" size="sm">
-            Stored request metrics and errors from ai_analysis_logs.
-          </Text>
-        </Stack>
-        <Button
-          component={Link}
-          leftSection={<HouseIcon aria-hidden="true" size={16} />}
-          to="/"
-          variant="light"
-        >
-          Home
-        </Button>
-      </header>
+      <AdminTableHeader
+        subtitle="Stored request metrics and errors from ai_analysis_logs."
+        title="AI analysis logs"
+      />
 
       <section className={styles.filters}>
         <Group align="end" gap="sm">
