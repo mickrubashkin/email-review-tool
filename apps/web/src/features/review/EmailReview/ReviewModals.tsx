@@ -3,16 +3,27 @@ import {
   Button,
   Group,
   Modal,
+  Select,
   Stack,
   Text,
   Textarea,
   TextInput,
 } from "@mantine/core";
 
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useMemo, useState } from "react";
 
 import { ApiError } from "../../emails/api";
-import type { DuplicateEmailPayload, EmailDetail, EmailVariant } from "../../emails/types";
+import { formatStageName } from "../../emails/stages";
+import type {
+  Board,
+  DuplicateEmailPayload,
+  EmailDetail,
+  EmailListItem,
+  EmailVariant,
+} from "../../emails/types";
+
+const currentEventValue = "current-event";
+const newEventValue = "new-event";
 
 export function SourceHTMLModal({
   draft,
@@ -104,37 +115,84 @@ export function ArchiveEmailModal({
 
 
 export function DuplicateEmailModal({
+  boards,
+  boardsLoading,
   email,
+  emails,
+  emailsLoading,
   error,
   isSubmitting,
   onClose,
   onResetError,
   onSubmit,
 }: {
+  boards: Board[];
+  boardsLoading: boolean;
   email: EmailDetail;
+  emails: EmailListItem[];
+  emailsLoading: boolean;
   error: Error | null;
   isSubmitting: boolean;
   onClose: () => void;
   onResetError: () => void;
   onSubmit: (emailId: string, payload: DuplicateEmailPayload) => Promise<void>;
 }) {
+  const [sequence, setSequence] = useState(email.sequence);
+  const [stage, setStage] = useState(email.stage ?? "");
+  const [eventMode, setEventMode] = useState(currentEventValue);
   const [language, setLanguage] = useState(email.language);
   const [variant, setVariant] = useState<EmailVariant>(email.variant);
   const [adaptationLabel, setAdaptationLabel] = useState(email.adaptation_label);
-  const [title, setTitle] = useState(email.title);
+  const [newTitle, setNewTitle] = useState("");
   const [subject, setSubject] = useState(email.subject ?? "");
   const [preheader, setPreheader] = useState(email.preheader ?? "");
+  const [sequenceError, setSequenceError] = useState<string | null>(null);
+  const [stageError, setStageError] = useState<string | null>(null);
+  const [titleError, setTitleError] = useState<string | null>(null);
   const [languageError, setLanguageError] = useState<string | null>(null);
   const [variantError, setVariantError] = useState<string | null>(null);
   const [adaptationError, setAdaptationError] = useState<string | null>(null);
   const [targetError, setTargetError] = useState<string | null>(null);
+  const boardOptions = useMemo(
+    () => boards.map((board) => ({ label: board.name, value: board.key })),
+    [boards]
+  );
+  const selectedBoard = boards.find((board) => board.key === sequence);
+  const stageOptions = selectedBoard?.stages ?? [];
+  const selectedStage = stageOptions.includes(stage)
+    ? stage
+    : stageOptions[0] ?? "";
+  const normalizedNewTitle = newTitle.trim();
+  const targetTitle =
+    eventMode === newEventValue ? normalizedNewTitle : email.title;
+  const shouldUseNewSortOrder =
+    eventMode === newEventValue ||
+    sequence !== email.sequence ||
+    selectedStage !== (email.stage ?? "");
+  const sortOrder = shouldUseNewSortOrder
+    ? getNextSortOrder(emails, sequence, selectedStage)
+    : email.sort_order;
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
+    const normalizedSequence = sequence.trim();
+    const normalizedStage = selectedStage.trim();
     const normalizedLanguage = language.trim().toLowerCase();
     const normalizedVariant = variant.trim().toLowerCase();
     const normalizedAdaptationLabel = adaptationLabel.trim();
+    if (!normalizedSequence) {
+      setSequenceError("Board is required");
+      return;
+    }
+    if (!normalizedStage) {
+      setStageError("Stage is required");
+      return;
+    }
+    if (eventMode === newEventValue && !normalizedNewTitle) {
+      setTitleError("Title is required");
+      return;
+    }
     if (!normalizedLanguage) {
       setLanguageError("Language is required");
       return;
@@ -149,7 +207,10 @@ export function DuplicateEmailModal({
     }
 
     const payload: DuplicateEmailPayload = {
-      ...buildOptionalTextPayload("title", title, email.title),
+      sequence: normalizedSequence,
+      sort_order: sortOrder,
+      stage: normalizedStage,
+      ...buildOptionalTextPayload("title", targetTitle, email.title),
       ...buildOptionalTextPayload("subject", subject, email.subject),
       ...buildOptionalTextPayload("preheader", preheader, email.preheader),
     };
@@ -162,11 +223,24 @@ export function DuplicateEmailModal({
     if (normalizedAdaptationLabel !== email.adaptation_label) {
       payload.adaptation_label = normalizedAdaptationLabel;
     }
-    if (Object.keys(payload).length === 0) {
-      setTargetError("Change language, version, adaptation, or copy before creating.");
+    const hasTargetChange =
+      normalizedSequence !== email.sequence ||
+      normalizedStage !== (email.stage ?? "") ||
+      sortOrder !== email.sort_order ||
+      normalizedLanguage !== email.language ||
+      normalizedVariant !== email.variant ||
+      normalizedAdaptationLabel !== email.adaptation_label ||
+      targetTitle !== email.title ||
+      subject !== (email.subject ?? "") ||
+      preheader !== (email.preheader ?? "");
+    if (!hasTargetChange) {
+      setTargetError("Change board, stage, language, version, adaptation, event, or copy before creating.");
       return;
     }
 
+    setSequenceError(null);
+    setStageError(null);
+    setTitleError(null);
     setLanguageError(null);
     setVariantError(null);
     setAdaptationError(null);
@@ -197,8 +271,89 @@ export function DuplicateEmailModal({
             </Alert>
           ) : null}
 
+          <Group grow>
+            <Select
+              allowDeselect={false}
+              data={boardOptions}
+              disabled={boardsLoading || isSubmitting}
+              error={sequenceError}
+              label="Board"
+              placeholder={boardsLoading ? "Loading boards" : "Select board"}
+              required
+              searchable
+              value={sequence || null}
+              onChange={(value) => {
+                onResetError();
+                setTargetError(null);
+                setSequenceError(null);
+                const nextSequence = value ?? "";
+                const nextStages =
+                  boards.find((board) => board.key === nextSequence)?.stages ?? [];
+                setSequence(nextSequence);
+                setStage(
+                  nextSequence === email.sequence && nextStages.includes(email.stage ?? "")
+                    ? email.stage ?? ""
+                    : nextStages[0] ?? ""
+                );
+              }}
+            />
+            <Select
+              allowDeselect={false}
+              data={stageOptions.map((stageOption) => ({
+                label: formatStageName(stageOption),
+                value: stageOption,
+              }))}
+              disabled={!sequence || stageOptions.length === 0 || isSubmitting}
+              error={stageError}
+              label="Stage"
+              placeholder={sequence ? "Select stage" : "Select a board first"}
+              required
+              searchable
+              value={selectedStage || null}
+              onChange={(value) => {
+                onResetError();
+                setTargetError(null);
+                setStageError(null);
+                setStage(value ?? "");
+              }}
+            />
+          </Group>
+
+          <Select
+            allowDeselect={false}
+            data={[
+              { label: `Current event: ${email.title}`, value: currentEventValue },
+              { label: "Create new event", value: newEventValue },
+            ]}
+            disabled={isSubmitting}
+            label="Event"
+            value={eventMode}
+            onChange={(value) => {
+              onResetError();
+              setTargetError(null);
+              setTitleError(null);
+              setEventMode(value ?? currentEventValue);
+            }}
+          />
+
+          {eventMode === newEventValue ? (
+            <TextInput
+              data-autofocus
+              disabled={isSubmitting}
+              error={titleError}
+              label="New event title"
+              required
+              value={newTitle}
+              onChange={(event) => {
+                onResetError();
+                setTargetError(null);
+                setTitleError(null);
+                setNewTitle(event.currentTarget.value);
+              }}
+            />
+          ) : null}
+
           <TextInput
-            data-autofocus
             disabled={isSubmitting}
             error={languageError}
             label="Language"
@@ -248,17 +403,6 @@ export function DuplicateEmailModal({
 
           <TextInput
             disabled={isSubmitting}
-            label="Title"
-            value={title}
-            onChange={(event) => {
-              onResetError();
-              setTargetError(null);
-              setTitle(event.currentTarget.value);
-            }}
-          />
-
-          <TextInput
-            disabled={isSubmitting}
             label="Subject"
             value={subject}
             onChange={(event) => {
@@ -288,7 +432,11 @@ export function DuplicateEmailModal({
             >
               Cancel
             </Button>
-            <Button loading={isSubmitting} type="submit">
+            <Button
+              disabled={boardsLoading || emailsLoading}
+              loading={isSubmitting}
+              type="submit"
+            >
               Duplicate as
             </Button>
           </Group>
@@ -296,6 +444,22 @@ export function DuplicateEmailModal({
       </form>
     </Modal>
   );
+}
+
+function getNextSortOrder(
+  emails: Array<{ sequence: string; stage: string | null; sort_order: number }>,
+  sequence: string,
+  stage: string
+) {
+  const matchingSortOrders = emails
+    .filter((email) => email.sequence === sequence && (email.stage ?? "") === stage)
+    .map((email) => email.sort_order);
+
+  if (matchingSortOrders.length === 0) {
+    return 0;
+  }
+
+  return Math.max(...matchingSortOrders) + 1;
 }
 
 
@@ -316,4 +480,3 @@ function buildOptionalTextPayload<Key extends "title" | "subject" | "preheader">
     [key]: key === "title" ? value.trim() : value,
   } as Partial<Record<Key, string>>;
 }
-

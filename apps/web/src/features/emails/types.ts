@@ -121,6 +121,9 @@ export type EmailHTMLInspection = {
 };
 
 export type DuplicateEmailPayload = {
+  sequence?: string;
+  stage?: string;
+  sort_order?: number;
   language?: string;
   variant?: EmailVariant;
   adaptation_label?: string;

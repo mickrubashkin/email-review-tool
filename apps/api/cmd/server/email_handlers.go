@@ -1182,6 +1182,9 @@ type createEmailAdaptationRequest struct {
 }
 
 type duplicateEmailAsRequest struct {
+	Sequence        *string `json:"sequence"`
+	Stage           *string `json:"stage"`
+	SortOrder       *int    `json:"sort_order"`
 	Language        *string `json:"language"`
 	Variant         *string `json:"variant"`
 	AdaptationLabel *string `json:"adaptation_label"`
@@ -1213,6 +1216,38 @@ func duplicateEmailAsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 		if err != nil {
 			http.Error(w, "email not found", http.StatusNotFound)
 			return
+		}
+
+		sequence := source.Sequence
+		if request.Sequence != nil {
+			sequence = strings.TrimSpace(*request.Sequence)
+		}
+		if sequence == "" {
+			http.Error(w, "board is required", http.StatusBadRequest)
+			return
+		}
+		exists, err := boardExists(r.Context(), dbpool, sequence)
+		if err != nil {
+			http.Error(w, "failed to validate board", http.StatusInternalServerError)
+			return
+		}
+		if !exists {
+			http.Error(w, "board not found", http.StatusBadRequest)
+			return
+		}
+
+		stage := source.Stage
+		if request.Stage != nil {
+			stage = strings.TrimSpace(*request.Stage)
+		}
+		if stage == "" {
+			http.Error(w, "stage is required", http.StatusBadRequest)
+			return
+		}
+
+		sortOrder := source.SortOrder
+		if request.SortOrder != nil {
+			sortOrder = *request.SortOrder
 		}
 
 		language := source.Language
@@ -1265,17 +1300,21 @@ func duplicateEmailAsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 		if language == source.Language &&
 			variant == source.Variant &&
 			adaptationKey == source.AdaptationKey &&
+			sequence == source.Sequence &&
+			stage == source.Stage &&
+			sortOrder == source.SortOrder &&
 			title == source.Title &&
 			stringFromPointer(subject) == stringFromPointer(source.Subject) &&
 			stringFromPointer(preheader) == stringFromPointer(source.Preheader) {
-			http.Error(w, "target must change language, version, adaptation, or copy", http.StatusBadRequest)
+			http.Error(w, "target must change board, stage, language, version, adaptation, event, or copy", http.StatusBadRequest)
 			return
 		}
 
-		slug := emailSlugWithAdaptation(
-			duplicateEmailSlug(source.Slug, source.Language, source.Variant, language, variant),
-			adaptationKey,
-		)
+		baseSlug := duplicateEmailSlug(source.Slug, source.Language, source.Variant, language, variant)
+		if sequence != source.Sequence || stage != source.Stage || title != source.Title {
+			baseSlug = newEmailSlug(sequence, stage, title, language, variant)
+		}
+		slug := emailSlugWithAdaptation(baseSlug, adaptationKey)
 		contentParts, err := json.Marshal(emailtext.ExtractContentParts(
 			source.OriginalHTML,
 			stringFromPointer(subject),
@@ -1296,13 +1335,13 @@ func duplicateEmailAsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 
 		created, err := insertDuplicatedEmail(r, tx, duplicateEmailInsert{
 			Slug:            slug,
-			Sequence:        source.Sequence,
+			Sequence:        sequence,
 			Title:           title,
 			Subject:         subject,
 			Preheader:       preheader,
 			SendTiming:      source.SendTiming,
-			Stage:           source.Stage,
-			SortOrder:       source.SortOrder,
+			Stage:           stage,
+			SortOrder:       sortOrder,
 			Language:        language,
 			Variant:         variant,
 			AdaptationKey:   adaptationKey,
@@ -1336,6 +1375,9 @@ func duplicateEmailAsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 				"source_email_id":  id,
 				"source_slug":      source.Slug,
 				"created_email_id": created.ID,
+				"sequence":         created.Sequence,
+				"stage":            created.Stage,
+				"sort_order":       created.SortOrder,
 				"language":         created.Language,
 				"variant":          created.Variant,
 				"adaptation_key":   created.AdaptationKey,

@@ -2221,6 +2221,61 @@ func TestDuplicateEmailAsCreatesLanguageVersionAndAdaptation(t *testing.T) {
 	}
 }
 
+func TestDuplicateEmailAsCanTargetBoardStageAndNewEvent(t *testing.T) {
+	dbpool := testDBPool(t)
+	emailID := createTestEmail(t, dbpool)
+	user := createTestUserWithRole(t, dbpool, "admin")
+	setTestEmailForDuplicate(t, dbpool, emailID)
+	createTestBoard(t, dbpool, "target-board", []string{"qualified"})
+
+	router := chi.NewRouter()
+	registerEmailRoutes(router, dbpool)
+
+	requestBody := []byte(`{
+		"sequence": "target-board",
+		"stage": "qualified",
+		"sort_order": 7,
+		"language": "fr",
+		"title": "New Target Event"
+	}`)
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/api/emails/"+emailID+"/duplicate-as",
+		bytes.NewReader(requestBody),
+	)
+	request = withAuthUser(request, user)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusCreated {
+		t.Fatalf("expected POST status 201, got %d: %s", response.Code, response.Body.String())
+	}
+
+	var created EmailDetail
+	if err := json.NewDecoder(response.Body).Decode(&created); err != nil {
+		t.Fatalf("failed to decode duplicated email: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = dbpool.Exec(context.Background(), `DELETE FROM emails WHERE id = $1;`, created.ID)
+	})
+
+	if created.Sequence != "target-board" {
+		t.Fatalf("expected target board, got %q", created.Sequence)
+	}
+	if created.Stage != "qualified" {
+		t.Fatalf("expected target stage, got %q", created.Stage)
+	}
+	if created.SortOrder != 7 {
+		t.Fatalf("expected target sort order 7, got %d", created.SortOrder)
+	}
+	if created.Title != "New Target Event" {
+		t.Fatalf("expected target title, got %q", created.Title)
+	}
+	if created.Slug != "target-board-qualified-new-target-event-fr" {
+		t.Fatalf("expected target slug, got %q", created.Slug)
+	}
+}
+
 func TestDuplicateEmailConflict(t *testing.T) {
 	dbpool := testDBPool(t)
 	emailID := createTestEmail(t, dbpool)

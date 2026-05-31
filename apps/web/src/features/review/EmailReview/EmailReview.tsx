@@ -36,6 +36,7 @@ import {
   createEmailComment,
   duplicateEmail,
   fetchAdminUsers,
+  fetchBoards,
   fetchEmailActivity,
   listEmailAreaApprovals,
   fetchEmailComments,
@@ -202,6 +203,16 @@ export function EmailReview({
     queryKey: ["admin", "users"],
     queryFn: fetchAdminUsers,
     enabled: canManageEmail,
+  });
+  const boardsQuery = useQuery({
+    queryKey: ["boards"],
+    queryFn: fetchBoards,
+    enabled: duplicateModalOpened && canManageEmail,
+  });
+  const duplicateEmailsQuery = useQuery({
+    queryKey: ["emails"],
+    queryFn: () => fetchEmails(),
+    enabled: duplicateModalOpened && canManageEmail,
   });
   const stageColumns = useMemo(
     () => buildStageColumns(emailsQuery.data ?? []),
@@ -1106,7 +1117,11 @@ export function EmailReview({
 
       {duplicateModalOpened && email ? (
         <DuplicateEmailModal
+          boards={boardsQuery.data ?? []}
+          boardsLoading={boardsQuery.isLoading}
           email={email}
+          emails={duplicateEmailsQuery.data ?? []}
+          emailsLoading={duplicateEmailsQuery.isLoading}
           error={duplicateEmailMutation.error}
           isSubmitting={duplicateEmailMutation.isPending}
           onClose={() => {
