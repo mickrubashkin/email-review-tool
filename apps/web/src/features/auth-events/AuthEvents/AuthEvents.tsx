@@ -13,8 +13,17 @@ import {
   TextInput,
 } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
+import {
+  flexRender,
+  getCoreRowModel,
+  getSortedRowModel,
+  useReactTable,
+  type ColumnDef,
+  type SortingState,
+} from "@tanstack/react-table";
 
 import { AdminTableHeader } from "../../admin-table/AdminTableHeader";
+import { usePersistedColumnSizing } from "../../admin-table/usePersistedColumnSizing";
 import { usePersistedSort } from "../../admin-table/usePersistedSort";
 import { fetchAuthEvents } from "../../emails/api";
 import type { AuthEventFilters, AuthEventItem } from "../../emails/types";
@@ -55,16 +64,48 @@ export function AuthEvents() {
     defaultSort,
     sortKeys
   );
+  const [columnSizing, setColumnSizing] = usePersistedColumnSizing(
+    "reviewdesk:admin-table-column-sizing:auth-events"
+  );
 
   const eventsQuery = useQuery({
     queryKey: ["auth-events", filters],
     queryFn: () => fetchAuthEvents(filters),
   });
 
-  const events = useMemo(
-    () => sortItems(eventsQuery.data ?? [], sort),
-    [eventsQuery.data, sort]
+  const columns = useMemo(() => buildColumns(), []);
+  const sorting = useMemo<SortingState>(
+    () => [{ desc: sort.direction === "desc", id: sort.key }],
+    [sort]
   );
+  // eslint-disable-next-line react-hooks/incompatible-library
+  const table = useReactTable({
+    columnResizeMode: "onChange",
+    columns,
+    data: eventsQuery.data ?? [],
+    enableColumnResizing: true,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    onColumnSizingChange: setColumnSizing,
+    onSortingChange: (updater) => {
+      const nextSorting =
+        typeof updater === "function" ? updater(sorting) : updater;
+      const nextSort = nextSorting[0];
+      if (!nextSort || !sortKeys.includes(nextSort.id as AuthEventSortKey)) {
+        setSort(defaultSort);
+        return;
+      }
+      setSort({
+        direction: nextSort.desc ? "desc" : "asc",
+        key: nextSort.id as AuthEventSortKey,
+      });
+    },
+    state: {
+      columnSizing,
+      sorting,
+    },
+  });
+  const rows = table.getRowModel().rows;
   const visibleFilters = useMemo(
     () => ({
       email: filters.email ?? "",
@@ -149,7 +190,7 @@ export function AuthEvents() {
           </Alert>
         ) : null}
 
-        {eventsQuery.isSuccess && events.length === 0 ? (
+        {eventsQuery.isSuccess && rows.length === 0 ? (
           <Stack align="center" justify="center" h={240}>
             <Text fw={600}>No auth events found</Text>
             <Text c="dimmed" size="sm">
@@ -158,45 +199,68 @@ export function AuthEvents() {
           </Stack>
         ) : null}
 
-        {eventsQuery.isSuccess && events.length > 0 ? (
+        {eventsQuery.isSuccess && rows.length > 0 ? (
           <ScrollArea type="auto">
             <Table
               className={styles.table}
               highlightOnHover
               horizontalSpacing="md"
+              style={{ width: table.getTotalSize() }}
               verticalSpacing="sm"
             >
               <Table.Thead>
-                <Table.Tr>
-                  <SortableTh label="Created" sortKey="created_at" sort={sort} onSort={setSort} />
-                  <SortableTh label="Email" sortKey="email" sort={sort} onSort={setSort} />
-                  <SortableTh label="Event" sortKey="event_type" sort={sort} onSort={setSort} />
-                  <SortableTh label="Result" sortKey="success" sort={sort} onSort={setSort} />
-                  <SortableTh label="IP" sortKey="ip_address" sort={sort} onSort={setSort} />
-                  <SortableTh label="User agent" sortKey="user_agent" sort={sort} onSort={setSort} />
-                </Table.Tr>
+                {table.getHeaderGroups().map((headerGroup) => (
+                  <Table.Tr key={headerGroup.id}>
+                    {headerGroup.headers.map((header) => (
+                      <Table.Th
+                        className={styles.resizableTh}
+                        key={header.id}
+                        style={{ width: header.getSize() }}
+                      >
+                        {header.isPlaceholder ? null : (
+                          <button
+                            className={styles.sortButton}
+                            type="button"
+                            onClick={header.column.getToggleSortingHandler()}
+                          >
+                            {flexRender(
+                              header.column.columnDef.header,
+                              header.getContext()
+                            )}
+                            <span className={styles.sortIndicator}>
+                              {formatSortIndicator(header.column.getIsSorted())}
+                            </span>
+                          </button>
+                        )}
+                        {header.column.getCanResize() ? (
+                          <button
+                            aria-label={`Resize ${header.column.columnDef.header} column`}
+                            className={styles.resizeHandle}
+                            type="button"
+                            onDoubleClick={() => header.column.resetSize()}
+                            onMouseDown={header.getResizeHandler()}
+                            onTouchStart={header.getResizeHandler()}
+                          />
+                        ) : null}
+                      </Table.Th>
+                    ))}
+                  </Table.Tr>
+                ))}
               </Table.Thead>
               <Table.Tbody>
-                {events.map((event) => (
-                  <Table.Tr key={event.id}>
-                    <Table.Td>{formatDateTime(event.created_at)}</Table.Td>
-                    <Table.Td>{event.email}</Table.Td>
-                    <Table.Td>
-                      <Badge variant="light">{formatEventType(event.event_type)}</Badge>
-                    </Table.Td>
-                    <Table.Td>
-                      <Badge color={event.success ? "green" : "red"} variant="light">
-                        {event.success ? "success" : "failed"}
-                      </Badge>
-                    </Table.Td>
-                    <Table.Td className={styles.monoCell}>
-                      {event.ip_address ?? "-"}
-                    </Table.Td>
-                    <Table.Td className={styles.userAgentCell}>
-                      <Text c="dimmed" lineClamp={2} size="sm">
-                        {event.user_agent ?? "-"}
-                      </Text>
-                    </Table.Td>
+                {rows.map((row) => (
+                  <Table.Tr key={row.id}>
+                    {row.getVisibleCells().map((cell) => (
+                      <Table.Td
+                        key={cell.id}
+                        style={{ width: cell.column.getSize() }}
+                      >
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext()
+                        )}
+                      </Table.Td>
+                    ))}
                   </Table.Tr>
                 ))}
               </Table.Tbody>
@@ -210,57 +274,90 @@ export function AuthEvents() {
 
 export default AuthEvents;
 
-function SortableTh({
-  label,
-  onSort,
-  sort,
-  sortKey,
-}: {
-  label: string;
-  onSort: (sort: { direction: SortDirection; key: AuthEventSortKey }) => void;
-  sort: { direction: SortDirection; key: AuthEventSortKey };
-  sortKey: AuthEventSortKey;
-}) {
-  const isActive = sort.key === sortKey;
-  return (
-    <Table.Th>
-      <button
-        className={styles.sortButton}
-        type="button"
-        onClick={() =>
-          onSort({
-            key: sortKey,
-            direction: isActive && sort.direction === "asc" ? "desc" : "asc",
-          })
-        }
-      >
-        {label}
-        <span className={styles.sortIndicator}>
-          {isActive ? (sort.direction === "asc" ? "↑" : "↓") : ""}
-        </span>
-      </button>
-    </Table.Th>
-  );
+function buildColumns(): ColumnDef<AuthEventItem>[] {
+  return [
+    {
+      accessorKey: "created_at",
+      cell: ({ row }) => formatDateTime(row.original.created_at),
+      header: "Created",
+      id: "created_at",
+      maxSize: 260,
+      minSize: 130,
+      size: 170,
+    },
+    {
+      accessorKey: "email",
+      cell: ({ row }) => row.original.email,
+      header: "Email",
+      id: "email",
+      maxSize: 360,
+      minSize: 180,
+      size: 240,
+    },
+    {
+      accessorKey: "event_type",
+      cell: ({ row }) => (
+        <Badge variant="light">{formatEventType(row.original.event_type)}</Badge>
+      ),
+      header: "Event",
+      id: "event_type",
+      maxSize: 260,
+      minSize: 140,
+      size: 180,
+    },
+    {
+      accessorKey: "success",
+      cell: ({ row }) => (
+        <Badge color={row.original.success ? "green" : "red"} variant="light">
+          {row.original.success ? "success" : "failed"}
+        </Badge>
+      ),
+      header: "Result",
+      id: "success",
+      maxSize: 160,
+      minSize: 100,
+      size: 110,
+    },
+    {
+      accessorKey: "ip_address",
+      cell: ({ row }) => (
+        <span className={styles.monoCell}>{row.original.ip_address ?? "-"}</span>
+      ),
+      header: "IP",
+      id: "ip_address",
+      maxSize: 220,
+      minSize: 120,
+      size: 150,
+    },
+    {
+      accessorKey: "user_agent",
+      cell: ({ row }) => (
+        <Text
+          c="dimmed"
+          className={styles.userAgentCell}
+          lineClamp={2}
+          size="sm"
+        >
+          {row.original.user_agent ?? "-"}
+        </Text>
+      ),
+      header: "User agent",
+      id: "user_agent",
+      maxSize: 720,
+      minSize: 280,
+      size: 440,
+    },
+  ];
 }
 
-function sortItems(
-  items: AuthEventItem[],
-  sort: { direction: SortDirection; key: AuthEventSortKey }
-) {
-  return [...items].sort((first, second) => {
-    const result = compareValues(first[sort.key], second[sort.key]);
-    return sort.direction === "asc" ? result : -result;
-  });
-}
-
-function compareValues(first: unknown, second: unknown) {
-  if (typeof first === "boolean" && typeof second === "boolean") {
-    return Number(first) - Number(second);
+function formatSortIndicator(sortState: false | "asc" | "desc") {
+  if (sortState === "asc") {
+    return "↑";
   }
-  return String(first ?? "").localeCompare(String(second ?? ""), undefined, {
-    numeric: true,
-    sensitivity: "base",
-  });
+  if (sortState === "desc") {
+    return "↓";
+  }
+  return "";
 }
 
 function formatDateTime(value: string) {

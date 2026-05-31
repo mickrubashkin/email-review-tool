@@ -15,8 +15,17 @@ import {
   Code,
 } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
+import {
+  flexRender,
+  getCoreRowModel,
+  getSortedRowModel,
+  useReactTable,
+  type ColumnDef,
+  type SortingState,
+} from "@tanstack/react-table";
 
 import { AdminTableHeader } from "../../admin-table/AdminTableHeader";
+import { usePersistedColumnSizing } from "../../admin-table/usePersistedColumnSizing";
 import { usePersistedSort } from "../../admin-table/usePersistedSort";
 import { ApiError, fetchAIAnalysisLogs } from "../../emails/api";
 import type { AIAnalysisLogFilters, AIAnalysisLogItem } from "../../emails/types";
@@ -66,6 +75,9 @@ export function AIAnalysisLogs() {
     defaultSort,
     sortKeys
   );
+  const [columnSizing, setColumnSizing] = usePersistedColumnSizing(
+    "reviewdesk:admin-table-column-sizing:ai-analysis-logs"
+  );
   const [selectedErrorLog, setSelectedErrorLog] =
     useState<AIAnalysisLogItem | null>(null);
 
@@ -74,12 +86,47 @@ export function AIAnalysisLogs() {
     queryFn: () => fetchAIAnalysisLogs(filters),
   });
 
-  const logs = useMemo(
-    () => sortItems(logsQuery.data ?? [], sort),
-    [logsQuery.data, sort]
+  const columns = useMemo(
+    () => buildColumns({ onViewError: setSelectedErrorLog }),
+    []
+  );
+  const sorting = useMemo<SortingState>(
+    () => [{ desc: sort.direction === "desc", id: sort.key }],
+    [sort]
+  );
+  // eslint-disable-next-line react-hooks/incompatible-library
+  const table = useReactTable({
+    columnResizeMode: "onChange",
+    columns,
+    data: logsQuery.data ?? [],
+    enableColumnResizing: true,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    onColumnSizingChange: setColumnSizing,
+    onSortingChange: (updater) => {
+      const nextSorting =
+        typeof updater === "function" ? updater(sorting) : updater;
+      const nextSort = nextSorting[0];
+      if (!nextSort || !sortKeys.includes(nextSort.id as AILogSortKey)) {
+        setSort(defaultSort);
+        return;
+      }
+      setSort({
+        direction: nextSort.desc ? "desc" : "asc",
+        key: nextSort.id as AILogSortKey,
+      });
+    },
+    state: {
+      columnSizing,
+      sorting,
+    },
+  });
+  const logs = table.getRowModel().rows;
+  const summary = useMemo(
+    () => buildCacheSummary(logsQuery.data ?? []),
+    [logsQuery.data]
   );
   const errorCopy = getAIAnalysisLogsErrorCopy(logsQuery.error);
-  const summary = useMemo(() => buildCacheSummary(logs), [logs]);
   const visibleFilters = useMemo(
     () => ({
       cache_status: filters.cache_status ?? "",
@@ -195,7 +242,7 @@ export function AIAnalysisLogs() {
           </Alert>
         ) : null}
 
-        {logsQuery.isSuccess && logs.length === 0 ? (
+        {logsQuery.isSuccess && table.getRowModel().rows.length === 0 ? (
           <Stack align="center" justify="center" h={240}>
             <Text fw={600}>No AI logs found</Text>
             <Text c="dimmed" size="sm">
@@ -204,88 +251,68 @@ export function AIAnalysisLogs() {
           </Stack>
         ) : null}
 
-        {logsQuery.isSuccess && logs.length > 0 ? (
+        {logsQuery.isSuccess && table.getRowModel().rows.length > 0 ? (
           <ScrollArea type="auto">
             <Table
               className={styles.table}
               highlightOnHover
               horizontalSpacing="md"
+              style={{ width: table.getTotalSize() }}
               verticalSpacing="sm"
             >
               <Table.Thead>
-                <Table.Tr>
-                  <SortableTh label="Created" sortKey="created_at" sort={sort} onSort={setSort} />
-                  <SortableTh label="User" sortKey="user_email" sort={sort} onSort={setSort} />
-                  <SortableTh label="Email" sortKey="email" sort={sort} onSort={setSort} />
-                  <SortableTh label="Status" sortKey="status" sort={sort} onSort={setSort} />
-                  <SortableTh label="Cache" sortKey="cache_status" sort={sort} onSort={setSort} />
-                  <SortableTh label="Model" sortKey="model" sort={sort} onSort={setSort} />
-                  <SortableTh label="Latency" sortKey="latency_ms" sort={sort} onSort={setSort} />
-                  <SortableTh label="Tokens" sortKey="tokens" sort={sort} onSort={setSort} />
-                  <SortableTh label="Cached" sortKey="cached_tokens" sort={sort} onSort={setSort} />
-                  <SortableTh label="Error" sortKey="error_message" sort={sort} onSort={setSort} />
-                </Table.Tr>
+                {table.getHeaderGroups().map((headerGroup) => (
+                  <Table.Tr key={headerGroup.id}>
+                    {headerGroup.headers.map((header) => (
+                      <Table.Th
+                        className={styles.resizableTh}
+                        key={header.id}
+                        style={{ width: header.getSize() }}
+                      >
+                        {header.isPlaceholder ? null : (
+                          <button
+                            className={styles.sortButton}
+                            type="button"
+                            onClick={header.column.getToggleSortingHandler()}
+                          >
+                            {flexRender(
+                              header.column.columnDef.header,
+                              header.getContext()
+                            )}
+                            <span className={styles.sortIndicator}>
+                              {formatSortIndicator(header.column.getIsSorted())}
+                            </span>
+                          </button>
+                        )}
+                        {header.column.getCanResize() ? (
+                          <button
+                            aria-label={`Resize ${header.column.columnDef.header} column`}
+                            className={styles.resizeHandle}
+                            type="button"
+                            onDoubleClick={() => header.column.resetSize()}
+                            onMouseDown={header.getResizeHandler()}
+                            onTouchStart={header.getResizeHandler()}
+                          />
+                        ) : null}
+                      </Table.Th>
+                    ))}
+                  </Table.Tr>
+                ))}
               </Table.Thead>
               <Table.Tbody>
-                {logs.map((log) => (
-                  <Table.Tr key={log.id}>
-                    <Table.Td>{formatDateTime(log.created_at)}</Table.Td>
-                    <Table.Td>
-                      <Text size="sm">
-                        {log.user_email ?? "Unknown user"}
-                      </Text>
-                    </Table.Td>
-                    <Table.Td className={styles.emailCell}>
-                      <Stack gap={2}>
-                        <Text fw={600} size="sm" lineClamp={1}>
-                          {log.email_title ?? "Deleted email"}
-                        </Text>
-                        <Group gap={6}>
-                          {log.language ? (
-                            <Badge size="xs" variant="light">
-                              {log.language.toUpperCase()}
-                            </Badge>
-                          ) : null}
-                          {log.variant ? (
-                            <Badge color="gray" size="xs" variant="light">
-                              {log.variant}
-                            </Badge>
-                          ) : null}
-                          <Text c="dimmed" className={styles.monoCell}>
-                            {log.email_slug ?? log.email_id ?? "no email"}
-                          </Text>
-                        </Group>
-                      </Stack>
-                    </Table.Td>
-                    <Table.Td>
-                      <Badge color={statusColor(log.status)} variant="light">
-                        {log.status}
-                      </Badge>
-                    </Table.Td>
-                    <Table.Td>
-                      <Badge color={cacheStatusColor(log.cache_status)} variant="light">
-                        {log.cache_status}
-                      </Badge>
-                    </Table.Td>
-                    <Table.Td className={styles.monoCell}>{log.model}</Table.Td>
-                    <Table.Td>{log.latency_ms} ms</Table.Td>
-                    <Table.Td>{formatTokens(log)}</Table.Td>
-                    <Table.Td>{formatCachedTokens(log)}</Table.Td>
-                    <Table.Td>
-                      {log.error_message ? (
-                        <button
-                          className={styles.errorButton}
-                          type="button"
-                          onClick={() => setSelectedErrorLog(log)}
-                        >
-                          View error
-                        </button>
-                      ) : (
-                        <Text c="dimmed" size="sm">
-                          -
-                        </Text>
-                      )}
-                    </Table.Td>
+                {logs.map((row) => (
+                  <Table.Tr key={row.id}>
+                    {row.getVisibleCells().map((cell) => (
+                      <Table.Td
+                        key={cell.id}
+                        style={{ width: cell.column.getSize() }}
+                      >
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext()
+                        )}
+                      </Table.Td>
+                    ))}
                   </Table.Tr>
                 ))}
               </Table.Tbody>
@@ -315,6 +342,168 @@ export function AIAnalysisLogs() {
 }
 
 export default AIAnalysisLogs;
+
+function buildColumns({
+  onViewError,
+}: {
+  onViewError: (log: AIAnalysisLogItem) => void;
+}): ColumnDef<AIAnalysisLogItem>[] {
+  return [
+    {
+      accessorKey: "created_at",
+      cell: ({ row }) => formatDateTime(row.original.created_at),
+      header: "Created",
+      id: "created_at",
+      maxSize: 260,
+      minSize: 130,
+      size: 170,
+    },
+    {
+      accessorKey: "user_email",
+      cell: ({ row }) => (
+        <Text size="sm">{row.original.user_email ?? "Unknown user"}</Text>
+      ),
+      header: "User",
+      id: "user_email",
+      maxSize: 340,
+      minSize: 140,
+      size: 220,
+    },
+    {
+      accessorFn: emailSortValue,
+      cell: ({ row }) => <EmailCell log={row.original} />,
+      header: "Email",
+      id: "email",
+      maxSize: 520,
+      minSize: 220,
+      size: 320,
+    },
+    {
+      accessorKey: "status",
+      cell: ({ row }) => (
+        <Badge color={statusColor(row.original.status)} variant="light">
+          {row.original.status}
+        </Badge>
+      ),
+      header: "Status",
+      id: "status",
+      maxSize: 180,
+      minSize: 100,
+      size: 120,
+    },
+    {
+      accessorKey: "cache_status",
+      cell: ({ row }) => (
+        <Badge color={cacheStatusColor(row.original.cache_status)} variant="light">
+          {row.original.cache_status}
+        </Badge>
+      ),
+      header: "Cache",
+      id: "cache_status",
+      maxSize: 160,
+      minSize: 100,
+      size: 110,
+    },
+    {
+      accessorKey: "model",
+      cell: ({ row }) => <span className={styles.monoCell}>{row.original.model}</span>,
+      header: "Model",
+      id: "model",
+      maxSize: 260,
+      minSize: 120,
+      size: 150,
+    },
+    {
+      accessorKey: "latency_ms",
+      cell: ({ row }) => `${row.original.latency_ms} ms`,
+      header: "Latency",
+      id: "latency_ms",
+      maxSize: 180,
+      minSize: 100,
+      size: 120,
+    },
+    {
+      accessorFn: tokenSortValue,
+      cell: ({ row }) => formatTokens(row.original),
+      header: "Tokens",
+      id: "tokens",
+      maxSize: 360,
+      minSize: 160,
+      size: 220,
+    },
+    {
+      accessorFn: (log) => log.cached_tokens ?? -1,
+      cell: ({ row }) => formatCachedTokens(row.original),
+      header: "Cached",
+      id: "cached_tokens",
+      maxSize: 220,
+      minSize: 110,
+      size: 130,
+    },
+    {
+      accessorKey: "error_message",
+      cell: ({ row }) =>
+        row.original.error_message ? (
+          <button
+            className={styles.errorButton}
+            type="button"
+            onClick={() => onViewError(row.original)}
+          >
+            View error
+          </button>
+        ) : (
+          <Text c="dimmed" size="sm">
+            -
+          </Text>
+        ),
+      header: "Error",
+      id: "error_message",
+      maxSize: 220,
+      minSize: 100,
+      size: 120,
+    },
+  ];
+}
+
+function EmailCell({ log }: { log: AIAnalysisLogItem }) {
+  return (
+    <Stack className={styles.emailCell} gap={2}>
+      <Text fw={600} size="sm" lineClamp={1}>
+        {log.email_title ?? "Deleted email"}
+      </Text>
+      <Group gap={6}>
+        {log.language ? (
+          <Badge size="xs" variant="light">
+            {log.language.toUpperCase()}
+          </Badge>
+        ) : null}
+        {log.variant ? (
+          <Badge color="gray" size="xs" variant="light">
+            {log.variant}
+          </Badge>
+        ) : null}
+      </Group>
+    </Stack>
+  );
+}
+
+function formatSortIndicator(sortState: false | "asc" | "desc") {
+  if (sortState === "asc") {
+    return "↑";
+  }
+  if (sortState === "desc") {
+    return "↓";
+  }
+  return "";
+}
+
+function emailSortValue(log: AIAnalysisLogItem) {
+  return log.email_title ?? log.email_slug ?? log.email_id ?? "";
+}
+
+function tokenSortValue(log: AIAnalysisLogItem) {
+  return log.total_tokens ?? log.input_tokens ?? log.output_tokens ?? -1;
+}
 
 function getAIAnalysisLogsErrorCopy(error: unknown) {
   if (error instanceof ApiError && error.status === 403) {
@@ -351,70 +540,6 @@ function SummaryBadge({
       {label}: {value}
     </Badge>
   );
-}
-
-function SortableTh({
-  label,
-  onSort,
-  sort,
-  sortKey,
-}: {
-  label: string;
-  onSort: (sort: { direction: SortDirection; key: AILogSortKey }) => void;
-  sort: { direction: SortDirection; key: AILogSortKey };
-  sortKey: AILogSortKey;
-}) {
-  const isActive = sort.key === sortKey;
-  return (
-    <Table.Th>
-      <button
-        className={styles.sortButton}
-        type="button"
-        onClick={() =>
-          onSort({
-            key: sortKey,
-            direction: isActive && sort.direction === "asc" ? "desc" : "asc",
-          })
-        }
-      >
-        {label}
-        <span className={styles.sortIndicator}>
-          {isActive ? (sort.direction === "asc" ? "↑" : "↓") : ""}
-        </span>
-      </button>
-    </Table.Th>
-  );
-}
-
-function sortItems(
-  items: AIAnalysisLogItem[],
-  sort: { direction: SortDirection; key: AILogSortKey }
-) {
-  return [...items].sort((first, second) => {
-    const result = compareValues(sortValue(first, sort.key), sortValue(second, sort.key));
-    return sort.direction === "asc" ? result : -result;
-  });
-}
-
-function sortValue(log: AIAnalysisLogItem, key: AILogSortKey) {
-  switch (key) {
-    case "email":
-      return log.email_title ?? log.email_slug ?? log.email_id ?? "";
-    case "tokens":
-      return log.total_tokens ?? log.input_tokens ?? log.output_tokens ?? -1;
-    default:
-      return log[key];
-  }
-}
-
-function compareValues(first: unknown, second: unknown) {
-  if (typeof first === "number" && typeof second === "number") {
-    return first - second;
-  }
-  return String(first ?? "").localeCompare(String(second ?? ""), undefined, {
-    numeric: true,
-    sensitivity: "base",
-  });
 }
 
 function buildCacheSummary(logs: AIAnalysisLogItem[]) {

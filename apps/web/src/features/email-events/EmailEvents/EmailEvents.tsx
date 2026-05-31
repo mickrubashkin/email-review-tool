@@ -13,8 +13,17 @@ import {
   TextInput,
 } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
+import {
+  flexRender,
+  getCoreRowModel,
+  getSortedRowModel,
+  useReactTable,
+  type ColumnDef,
+  type SortingState,
+} from "@tanstack/react-table";
 
 import { AdminTableHeader } from "../../admin-table/AdminTableHeader";
+import { usePersistedColumnSizing } from "../../admin-table/usePersistedColumnSizing";
 import { usePersistedSort } from "../../admin-table/usePersistedSort";
 import { fetchEmailEvents } from "../../emails/api";
 import {
@@ -83,16 +92,48 @@ export function EmailEvents() {
     defaultSort,
     sortKeys
   );
+  const [columnSizing, setColumnSizing] = usePersistedColumnSizing(
+    "reviewdesk:admin-table-column-sizing:email-events"
+  );
 
   const eventsQuery = useQuery({
     queryKey: ["email-events", filters],
     queryFn: () => fetchEmailEvents(filters),
   });
 
-  const events = useMemo(
-    () => sortItems(eventsQuery.data ?? [], sort),
-    [eventsQuery.data, sort]
+  const columns = useMemo(() => buildColumns(), []);
+  const sorting = useMemo<SortingState>(
+    () => [{ desc: sort.direction === "desc", id: sort.key }],
+    [sort]
   );
+  // eslint-disable-next-line react-hooks/incompatible-library
+  const table = useReactTable({
+    columnResizeMode: "onChange",
+    columns,
+    data: eventsQuery.data ?? [],
+    enableColumnResizing: true,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    onColumnSizingChange: setColumnSizing,
+    onSortingChange: (updater) => {
+      const nextSorting =
+        typeof updater === "function" ? updater(sorting) : updater;
+      const nextSort = nextSorting[0];
+      if (!nextSort || !sortKeys.includes(nextSort.id as EmailEventSortKey)) {
+        setSort(defaultSort);
+        return;
+      }
+      setSort({
+        direction: nextSort.desc ? "desc" : "asc",
+        key: nextSort.id as EmailEventSortKey,
+      });
+    },
+    state: {
+      columnSizing,
+      sorting,
+    },
+  });
+  const rows = table.getRowModel().rows;
   const visibleFilters = useMemo(
     () => ({
       action: filters.action ?? "",
@@ -175,7 +216,7 @@ export function EmailEvents() {
           </Alert>
         ) : null}
 
-        {eventsQuery.isSuccess && events.length === 0 ? (
+        {eventsQuery.isSuccess && rows.length === 0 ? (
           <Stack align="center" justify="center" h={240}>
             <Text fw={600}>No email events found</Text>
             <Text c="dimmed" size="sm">
@@ -184,55 +225,68 @@ export function EmailEvents() {
           </Stack>
         ) : null}
 
-        {eventsQuery.isSuccess && events.length > 0 ? (
+        {eventsQuery.isSuccess && rows.length > 0 ? (
           <ScrollArea type="auto">
             <Table
               className={styles.table}
               highlightOnHover
               horizontalSpacing="md"
+              style={{ width: table.getTotalSize() }}
               verticalSpacing="sm"
             >
               <Table.Thead>
-                <Table.Tr>
-                  <SortableTh label="Created" sortKey="created_at" sort={sort} onSort={setSort} />
-                  <SortableTh label="Actor" sortKey="actor_email" sort={sort} onSort={setSort} />
-                  <SortableTh label="Action" sortKey="action" sort={sort} onSort={setSort} />
-                  <SortableTh label="Target" sortKey="email" sort={sort} onSort={setSort} />
-                  <SortableTh label="Summary" sortKey="summary" sort={sort} onSort={setSort} />
-                  <SortableTh label="Changed fields" sortKey="changed_fields" sort={sort} onSort={setSort} />
-                </Table.Tr>
+                {table.getHeaderGroups().map((headerGroup) => (
+                  <Table.Tr key={headerGroup.id}>
+                    {headerGroup.headers.map((header) => (
+                      <Table.Th
+                        className={styles.resizableTh}
+                        key={header.id}
+                        style={{ width: header.getSize() }}
+                      >
+                        {header.isPlaceholder ? null : (
+                          <button
+                            className={styles.sortButton}
+                            type="button"
+                            onClick={header.column.getToggleSortingHandler()}
+                          >
+                            {flexRender(
+                              header.column.columnDef.header,
+                              header.getContext()
+                            )}
+                            <span className={styles.sortIndicator}>
+                              {formatSortIndicator(header.column.getIsSorted())}
+                            </span>
+                          </button>
+                        )}
+                        {header.column.getCanResize() ? (
+                          <button
+                            aria-label={`Resize ${header.column.columnDef.header} column`}
+                            className={styles.resizeHandle}
+                            type="button"
+                            onDoubleClick={() => header.column.resetSize()}
+                            onMouseDown={header.getResizeHandler()}
+                            onTouchStart={header.getResizeHandler()}
+                          />
+                        ) : null}
+                      </Table.Th>
+                    ))}
+                  </Table.Tr>
+                ))}
               </Table.Thead>
               <Table.Tbody>
-                {events.map((event) => (
-                  <Table.Tr key={event.id}>
-                    <Table.Td>{formatDateTime(event.created_at)}</Table.Td>
-                    <Table.Td>{event.actor_email}</Table.Td>
-                    <Table.Td>
-                      <Badge color={getActionColor(event.action)} variant="light">
-                        {formatAction(event.action)}
-                      </Badge>
-                    </Table.Td>
-                    <Table.Td>
-                      <Stack gap={0}>
-                        <Text size="sm">
-                          {event.email_title || stringMetadata(event, "board_name") || "-"}
-                        </Text>
-                        <Text c="dimmed" className={styles.monoCell}>
-                          {event.email_slug ||
-                            event.email_id ||
-                            stringMetadata(event, "board_key") ||
-                            "-"}
-                        </Text>
-                      </Stack>
-                    </Table.Td>
-                    <Table.Td>
-                      <Text size="sm">{formatSummary(event)}</Text>
-                    </Table.Td>
-                    <Table.Td>
-                      <Text c="dimmed" size="sm">
-                        {formatChangedFields(event)}
-                      </Text>
-                    </Table.Td>
+                {rows.map((row) => (
+                  <Table.Tr key={row.id}>
+                    {row.getVisibleCells().map((cell) => (
+                      <Table.Td
+                        key={cell.id}
+                        style={{ width: cell.column.getSize() }}
+                      >
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext()
+                        )}
+                      </Table.Td>
+                    ))}
                   </Table.Tr>
                 ))}
               </Table.Tbody>
@@ -246,67 +300,97 @@ export function EmailEvents() {
 
 export default EmailEvents;
 
-function SortableTh({
-  label,
-  onSort,
-  sort,
-  sortKey,
-}: {
-  label: string;
-  onSort: (sort: { direction: SortDirection; key: EmailEventSortKey }) => void;
-  sort: { direction: SortDirection; key: EmailEventSortKey };
-  sortKey: EmailEventSortKey;
-}) {
-  const isActive = sort.key === sortKey;
+function buildColumns(): ColumnDef<EmailEventItem>[] {
+  return [
+    {
+      accessorKey: "created_at",
+      cell: ({ row }) => formatDateTime(row.original.created_at),
+      header: "Created",
+      id: "created_at",
+      maxSize: 260,
+      minSize: 130,
+      size: 170,
+    },
+    {
+      accessorKey: "actor_email",
+      cell: ({ row }) => row.original.actor_email,
+      header: "Actor",
+      id: "actor_email",
+      maxSize: 360,
+      minSize: 180,
+      size: 240,
+    },
+    {
+      accessorKey: "action",
+      cell: ({ row }) => (
+        <Badge color={getActionColor(row.original.action)} variant="light">
+          {formatAction(row.original.action)}
+        </Badge>
+      ),
+      header: "Action",
+      id: "action",
+      maxSize: 300,
+      minSize: 160,
+      size: 220,
+    },
+    {
+      accessorFn: targetLabel,
+      cell: ({ row }) => <TargetCell event={row.original} />,
+      header: "Target",
+      id: "email",
+      maxSize: 420,
+      minSize: 220,
+      size: 280,
+    },
+    {
+      accessorFn: formatSummary,
+      cell: ({ row }) => <Text size="sm">{formatSummary(row.original)}</Text>,
+      header: "Summary",
+      id: "summary",
+      maxSize: 620,
+      minSize: 260,
+      size: 360,
+    },
+    {
+      accessorFn: formatChangedFields,
+      cell: ({ row }) => (
+        <Text c="dimmed" size="sm">
+          {formatChangedFields(row.original)}
+        </Text>
+      ),
+      header: "Changed fields",
+      id: "changed_fields",
+      maxSize: 620,
+      minSize: 260,
+      size: 360,
+    },
+  ];
+}
+
+function TargetCell({ event }: { event: EmailEventItem }) {
   return (
-    <Table.Th>
-      <button
-        className={styles.sortButton}
-        type="button"
-        onClick={() =>
-          onSort({
-            key: sortKey,
-            direction: isActive && sort.direction === "asc" ? "desc" : "asc",
-          })
-        }
-      >
-        {label}
-        <span className={styles.sortIndicator}>
-          {isActive ? (sort.direction === "asc" ? "↑" : "↓") : ""}
-        </span>
-      </button>
-    </Table.Th>
+    <Stack gap={0}>
+      <Text size="sm">
+        {event.email_title || stringMetadata(event, "board_name") || "-"}
+      </Text>
+      <Text c="dimmed" className={styles.monoCell}>
+        {event.email_slug ||
+          event.email_id ||
+          stringMetadata(event, "board_key") ||
+          "-"}
+      </Text>
+    </Stack>
   );
 }
 
-function sortItems(
-  items: EmailEventItem[],
-  sort: { direction: SortDirection; key: EmailEventSortKey }
-) {
-  return [...items].sort((first, second) => {
-    const result = compareValues(sortValue(first, sort.key), sortValue(second, sort.key));
-    return sort.direction === "asc" ? result : -result;
-  });
-}
-
-function sortValue(event: EmailEventItem, key: EmailEventSortKey) {
-  switch (key) {
-    case "email":
-      return targetLabel(event);
-    case "summary":
-      return formatSummary(event);
-    case "changed_fields":
-      return formatChangedFields(event);
-    default:
-      return event[key];
+function formatSortIndicator(sortState: false | "asc" | "desc") {
+  if (sortState === "asc") {
+    return "↑";
   }
-}
-
-function compareValues(first: unknown, second: unknown) {
-  return String(first ?? "").localeCompare(String(second ?? ""), undefined, {
-    numeric: true,
-    sensitivity: "base",
-  });
+  if (sortState === "desc") {
+    return "↓";
+  }
+  return "";
 }
 
 function formatDateTime(value: string) {

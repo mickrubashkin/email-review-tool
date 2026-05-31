@@ -13,8 +13,17 @@ import {
   TextInput,
 } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
+import {
+  flexRender,
+  getCoreRowModel,
+  getSortedRowModel,
+  useReactTable,
+  type ColumnDef,
+  type SortingState,
+} from "@tanstack/react-table";
 
 import { AdminTableHeader } from "../../admin-table/AdminTableHeader";
+import { usePersistedColumnSizing } from "../../admin-table/usePersistedColumnSizing";
 import { usePersistedSort } from "../../admin-table/usePersistedSort";
 import { fetchOperationalEvents } from "../../emails/api";
 import type {
@@ -73,16 +82,48 @@ export function OperationalEvents() {
     defaultSort,
     sortKeys
   );
+  const [columnSizing, setColumnSizing] = usePersistedColumnSizing(
+    "reviewdesk:admin-table-column-sizing:operational-events"
+  );
 
   const eventsQuery = useQuery({
     queryKey: ["operational-events", filters],
     queryFn: () => fetchOperationalEvents(filters),
   });
 
-  const events = useMemo(
-    () => sortItems(eventsQuery.data ?? [], sort),
-    [eventsQuery.data, sort]
+  const columns = useMemo(() => buildColumns(), []);
+  const sorting = useMemo<SortingState>(
+    () => [{ desc: sort.direction === "desc", id: sort.key }],
+    [sort]
   );
+  // eslint-disable-next-line react-hooks/incompatible-library
+  const table = useReactTable({
+    columnResizeMode: "onChange",
+    columns,
+    data: eventsQuery.data ?? [],
+    enableColumnResizing: true,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    onColumnSizingChange: setColumnSizing,
+    onSortingChange: (updater) => {
+      const nextSorting =
+        typeof updater === "function" ? updater(sorting) : updater;
+      const nextSort = nextSorting[0];
+      if (!nextSort || !sortKeys.includes(nextSort.id as OperationalEventSortKey)) {
+        setSort(defaultSort);
+        return;
+      }
+      setSort({
+        direction: nextSort.desc ? "desc" : "asc",
+        key: nextSort.id as OperationalEventSortKey,
+      });
+    },
+    state: {
+      columnSizing,
+      sorting,
+    },
+  });
+  const rows = table.getRowModel().rows;
   const visibleFilters = useMemo(
     () => ({
       event_type: filters.event_type ?? "",
@@ -188,7 +229,7 @@ export function OperationalEvents() {
           </Alert>
         ) : null}
 
-        {eventsQuery.isSuccess && events.length === 0 ? (
+        {eventsQuery.isSuccess && rows.length === 0 ? (
           <Stack align="center" justify="center" h={240}>
             <Text fw={600}>No operational events found</Text>
             <Text c="dimmed" size="sm">
@@ -197,53 +238,68 @@ export function OperationalEvents() {
           </Stack>
         ) : null}
 
-        {eventsQuery.isSuccess && events.length > 0 ? (
+        {eventsQuery.isSuccess && rows.length > 0 ? (
           <ScrollArea type="auto">
             <Table
               className={styles.table}
               highlightOnHover
               horizontalSpacing="md"
+              style={{ width: table.getTotalSize() }}
               verticalSpacing="sm"
             >
               <Table.Thead>
-                <Table.Tr>
-                  <SortableTh label="Created" sort={sort} sortKey="created_at" onSort={setSort} />
-                  <SortableTh label="Level" sort={sort} sortKey="level" onSort={setSort} />
-                  <SortableTh label="Event" sort={sort} sortKey="event_type" onSort={setSort} />
-                  <SortableTh label="User" sort={sort} sortKey="user_email" onSort={setSort} />
-                  <SortableTh label="Path" sort={sort} sortKey="path" onSort={setSort} />
-                  <SortableTh label="Status" sort={sort} sortKey="status_code" onSort={setSort} />
-                  <SortableTh label="Duration" sort={sort} sortKey="duration_ms" onSort={setSort} />
-                  <Table.Th>Message</Table.Th>
-                  <Table.Th>Request ID</Table.Th>
-                </Table.Tr>
+                {table.getHeaderGroups().map((headerGroup) => (
+                  <Table.Tr key={headerGroup.id}>
+                    {headerGroup.headers.map((header) => (
+                      <Table.Th
+                        className={styles.resizableTh}
+                        key={header.id}
+                        style={{ width: header.getSize() }}
+                      >
+                        {header.isPlaceholder ? null : (
+                          <button
+                            className={styles.sortButton}
+                            type="button"
+                            onClick={header.column.getToggleSortingHandler()}
+                          >
+                            {flexRender(
+                              header.column.columnDef.header,
+                              header.getContext()
+                            )}
+                            <span className={styles.sortIndicator}>
+                              {formatSortIndicator(header.column.getIsSorted())}
+                            </span>
+                          </button>
+                        )}
+                        {header.column.getCanResize() ? (
+                          <button
+                            aria-label={`Resize ${header.column.columnDef.header} column`}
+                            className={styles.resizeHandle}
+                            type="button"
+                            onDoubleClick={() => header.column.resetSize()}
+                            onMouseDown={header.getResizeHandler()}
+                            onTouchStart={header.getResizeHandler()}
+                          />
+                        ) : null}
+                      </Table.Th>
+                    ))}
+                  </Table.Tr>
+                ))}
               </Table.Thead>
               <Table.Tbody>
-                {events.map((event) => (
-                  <Table.Tr key={event.id}>
-                    <Table.Td>{formatDateTime(event.created_at)}</Table.Td>
-                    <Table.Td>
-                      <Badge color={levelColor(event.level)} variant="light">
-                        {event.level}
-                      </Badge>
-                    </Table.Td>
-                    <Table.Td>
-                      <Badge variant="light">{formatEventType(event.event_type)}</Badge>
-                    </Table.Td>
-                    <Table.Td>{event.user_email ?? "-"}</Table.Td>
-                    <Table.Td className={styles.monoCell}>
-                      {formatRequestTarget(event)}
-                    </Table.Td>
-                    <Table.Td>{event.status_code ?? "-"}</Table.Td>
-                    <Table.Td>{formatDuration(event.duration_ms)}</Table.Td>
-                    <Table.Td>
-                      <Text lineClamp={2} size="sm">
-                        {event.message}
-                      </Text>
-                    </Table.Td>
-                    <Table.Td className={styles.monoCell}>
-                      {event.request_id ?? "-"}
-                    </Table.Td>
+                {rows.map((row) => (
+                  <Table.Tr key={row.id}>
+                    {row.getVisibleCells().map((cell) => (
+                      <Table.Td
+                        key={cell.id}
+                        style={{ width: cell.column.getSize() }}
+                      >
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext()
+                        )}
+                      </Table.Td>
+                    ))}
                   </Table.Tr>
                 ))}
               </Table.Tbody>
@@ -257,61 +313,118 @@ export function OperationalEvents() {
 
 export default OperationalEvents;
 
-function SortableTh({
-  label,
-  onSort,
-  sort,
-  sortKey,
-}: {
-  label: string;
-  onSort: (sort: { direction: SortDirection; key: OperationalEventSortKey }) => void;
-  sort: { direction: SortDirection; key: OperationalEventSortKey };
-  sortKey: OperationalEventSortKey;
-}) {
-  const isActive = sort.key === sortKey;
-  return (
-    <Table.Th>
-      <button
-        className={styles.sortButton}
-        type="button"
-        onClick={() =>
-          onSort({
-            key: sortKey,
-            direction: isActive && sort.direction === "asc" ? "desc" : "asc",
-          })
-        }
-      >
-        {label}
-        <span className={styles.sortIndicator}>
-          {isActive ? (sort.direction === "asc" ? "↑" : "↓") : ""}
+function buildColumns(): ColumnDef<OperationalEventItem>[] {
+  return [
+    {
+      accessorKey: "created_at",
+      cell: ({ row }) => formatDateTime(row.original.created_at),
+      header: "Created",
+      id: "created_at",
+      maxSize: 260,
+      minSize: 130,
+      size: 170,
+    },
+    {
+      accessorKey: "level",
+      cell: ({ row }) => (
+        <Badge color={levelColor(row.original.level)} variant="light">
+          {row.original.level}
+        </Badge>
+      ),
+      header: "Level",
+      id: "level",
+      maxSize: 150,
+      minSize: 90,
+      size: 110,
+    },
+    {
+      accessorKey: "event_type",
+      cell: ({ row }) => (
+        <Badge variant="light">{formatEventType(row.original.event_type)}</Badge>
+      ),
+      header: "Event",
+      id: "event_type",
+      maxSize: 320,
+      minSize: 160,
+      size: 220,
+    },
+    {
+      accessorKey: "user_email",
+      cell: ({ row }) => row.original.user_email ?? "-",
+      header: "User",
+      id: "user_email",
+      maxSize: 360,
+      minSize: 160,
+      size: 220,
+    },
+    {
+      accessorFn: formatRequestTarget,
+      cell: ({ row }) => (
+        <span className={styles.monoCell}>
+          {formatRequestTarget(row.original)}
         </span>
-      </button>
-    </Table.Th>
-  );
+      ),
+      header: "Path",
+      id: "path",
+      maxSize: 420,
+      minSize: 180,
+      size: 240,
+    },
+    {
+      accessorKey: "status_code",
+      cell: ({ row }) => row.original.status_code ?? "-",
+      header: "Status",
+      id: "status_code",
+      maxSize: 160,
+      minSize: 90,
+      size: 100,
+    },
+    {
+      accessorKey: "duration_ms",
+      cell: ({ row }) => formatDuration(row.original.duration_ms),
+      header: "Duration",
+      id: "duration_ms",
+      maxSize: 180,
+      minSize: 100,
+      size: 120,
+    },
+    {
+      accessorKey: "message",
+      cell: ({ row }) => (
+        <Text lineClamp={2} size="sm">
+          {row.original.message}
+        </Text>
+      ),
+      enableSorting: false,
+      header: "Message",
+      id: "message",
+      maxSize: 640,
+      minSize: 240,
+      size: 340,
+    },
+    {
+      accessorKey: "request_id",
+      cell: ({ row }) => (
+        <span className={styles.monoCell}>{row.original.request_id ?? "-"}</span>
+      ),
+      enableSorting: false,
+      header: "Request ID",
+      id: "request_id",
+      maxSize: 360,
+      minSize: 160,
+      size: 220,
+    },
+  ];
 }
 
-function sortItems(
-  items: OperationalEventItem[],
-  sort: { direction: SortDirection; key: OperationalEventSortKey }
-) {
-  return [...items].sort((first, second) => {
-    const result = compareValues(sortValue(first, sort.key), sortValue(second, sort.key));
-    return sort.direction === "asc" ? result : -result;
-  });
-}
-
-function sortValue(event: OperationalEventItem, key: OperationalEventSortKey) {
-  return event[key] ?? "";
-}
-
-function compareValues(first: unknown, second: unknown) {
-  if (typeof first === "number" && typeof second === "number") {
-    return first - second;
+function formatSortIndicator(sortState: false | "asc" | "desc") {
+  if (sortState === "asc") {
+    return "↑";
   }
-  return String(first ?? "").localeCompare(String(second ?? ""), undefined, {
-    numeric: true,
-    sensitivity: "base",
-  });
+  if (sortState === "desc") {
+    return "↓";
+  }
+  return "";
 }
 
 function formatDateTime(value: string) {

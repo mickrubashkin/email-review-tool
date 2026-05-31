@@ -14,8 +14,17 @@ import {
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  flexRender,
+  getCoreRowModel,
+  getSortedRowModel,
+  useReactTable,
+  type ColumnDef,
+  type SortingState,
+} from "@tanstack/react-table";
 
 import { AdminTableHeader } from "../../admin-table/AdminTableHeader";
+import { usePersistedColumnSizing } from "../../admin-table/usePersistedColumnSizing";
 import { usePersistedSort } from "../../admin-table/usePersistedSort";
 import { createAdminUser, fetchAdminUsers, updateAdminUserRole } from "../../emails/api";
 import type { UserAdminItem, UserRole } from "../../emails/types";
@@ -53,6 +62,9 @@ export function AdminUsers({ currentUserRole }: AdminUsersProps) {
     "reviewdesk:admin-table-sort:users",
     defaultSort,
     sortKeys
+  );
+  const [columnSizing, setColumnSizing] = usePersistedColumnSizing(
+    "reviewdesk:admin-table-column-sizing:users"
   );
   const [emailDraft, setEmailDraft] = useState("");
   const [roleDraft, setRoleDraft] = useState<UserRole>(
@@ -113,16 +125,57 @@ export function AdminUsers({ currentUserRole }: AdminUsersProps) {
     },
   });
 
-  const users = useMemo(
-    () => sortItems(usersQuery.data ?? [], sort),
-    [usersQuery.data, sort]
-  );
   const createRoleOptions =
     currentUserRole === "super_admin"
       ? roleOptions
       : roleOptions.filter((option) => option.value === "reviewer");
   const canUpdateRoles = currentUserRole === "super_admin";
   const trimmedEmailDraft = emailDraft.trim();
+  const columns = useMemo(
+    () =>
+      buildColumns({
+        canUpdateRoles,
+        isUpdatingRole: updateRoleMutation.isPending,
+        onRoleChange: (userId, role) =>
+          updateRoleMutation.mutate({
+            role,
+            userId,
+          }),
+      }),
+    [canUpdateRoles, updateRoleMutation]
+  );
+  const sorting = useMemo<SortingState>(
+    () => [{ desc: sort.direction === "desc", id: sort.key }],
+    [sort]
+  );
+  // eslint-disable-next-line react-hooks/incompatible-library
+  const table = useReactTable({
+    columnResizeMode: "onChange",
+    columns,
+    data: usersQuery.data ?? [],
+    enableColumnResizing: true,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    onColumnSizingChange: setColumnSizing,
+    onSortingChange: (updater) => {
+      const nextSorting =
+        typeof updater === "function" ? updater(sorting) : updater;
+      const nextSort = nextSorting[0];
+      if (!nextSort || !sortKeys.includes(nextSort.id as UserSortKey)) {
+        setSort(defaultSort);
+        return;
+      }
+      setSort({
+        direction: nextSort.desc ? "desc" : "asc",
+        key: nextSort.id as UserSortKey,
+      });
+    },
+    state: {
+      columnSizing,
+      sorting,
+    },
+  });
+  const rows = table.getRowModel().rows;
 
   return (
     <div className={styles.page}>
@@ -184,64 +237,75 @@ export function AdminUsers({ currentUserRole }: AdminUsersProps) {
           </Alert>
         ) : null}
 
-        {usersQuery.isSuccess && users.length === 0 ? (
+        {usersQuery.isSuccess && rows.length === 0 ? (
           <Stack align="center" justify="center" h={240}>
             <Text fw={600}>No users found</Text>
           </Stack>
         ) : null}
 
-        {usersQuery.isSuccess && users.length > 0 ? (
+        {usersQuery.isSuccess && rows.length > 0 ? (
           <ScrollArea type="auto">
             <Table
               className={styles.table}
               highlightOnHover
               horizontalSpacing="md"
+              style={{ width: table.getTotalSize() }}
               verticalSpacing="sm"
             >
               <Table.Thead>
-                <Table.Tr>
-                  <SortableTh label="Email" sortKey="email" sort={sort} onSort={setSort} />
-                  <SortableTh label="Role" sortKey="role" sort={sort} onSort={setSort} />
-                  <SortableTh label="Last seen" sortKey="last_seen_at" sort={sort} onSort={setSort} />
-                  <SortableTh label="Created" sortKey="created_at" sort={sort} onSort={setSort} />
-                  <SortableTh label="Updated" sortKey="updated_at" sort={sort} onSort={setSort} />
-                  <Table.Th>Change role</Table.Th>
-                </Table.Tr>
+                {table.getHeaderGroups().map((headerGroup) => (
+                  <Table.Tr key={headerGroup.id}>
+                    {headerGroup.headers.map((header) => (
+                      <Table.Th
+                        className={styles.resizableTh}
+                        key={header.id}
+                        style={{ width: header.getSize() }}
+                      >
+                        {header.isPlaceholder ? null : (
+                          <button
+                            className={styles.sortButton}
+                            disabled={!header.column.getCanSort()}
+                            type="button"
+                            onClick={header.column.getToggleSortingHandler()}
+                          >
+                            {flexRender(
+                              header.column.columnDef.header,
+                              header.getContext()
+                            )}
+                            <span className={styles.sortIndicator}>
+                              {formatSortIndicator(header.column.getIsSorted())}
+                            </span>
+                          </button>
+                        )}
+                        {header.column.getCanResize() ? (
+                          <button
+                            aria-label={`Resize ${header.column.columnDef.header} column`}
+                            className={styles.resizeHandle}
+                            type="button"
+                            onDoubleClick={() => header.column.resetSize()}
+                            onMouseDown={header.getResizeHandler()}
+                            onTouchStart={header.getResizeHandler()}
+                          />
+                        ) : null}
+                      </Table.Th>
+                    ))}
+                  </Table.Tr>
+                ))}
               </Table.Thead>
               <Table.Tbody>
-                {users.map((user) => (
-                  <Table.Tr key={user.id}>
-                    <Table.Td>{user.email}</Table.Td>
-                    <Table.Td>
-                      <Badge color={getRoleColor(user.role)} variant="light">
-                        {formatRole(user.role)}
-                      </Badge>
-                    </Table.Td>
-                    <Table.Td>{formatOptionalDateTime(user.last_seen_at)}</Table.Td>
-                    <Table.Td>{formatDateTime(user.created_at)}</Table.Td>
-                    <Table.Td>{formatDateTime(user.updated_at)}</Table.Td>
-                    <Table.Td>
-                      <Group gap="xs" wrap="nowrap">
-                        <Select
-                          allowDeselect={false}
-                          data={roleOptions}
-                          disabled={!canUpdateRoles || updateRoleMutation.isPending}
-                          size="xs"
-                          value={user.role}
-                          w={160}
-                          onChange={(value) => {
-                            const role = value as UserRole | null;
-                            if (!role || role === user.role) {
-                              return;
-                            }
-                            updateRoleMutation.mutate({
-                              role,
-                              userId: user.id,
-                            });
-                          }}
-                        />
-                      </Group>
-                    </Table.Td>
+                {rows.map((row) => (
+                  <Table.Tr key={row.id}>
+                    {row.getVisibleCells().map((cell) => (
+                      <Table.Td
+                        key={cell.id}
+                        style={{ width: cell.column.getSize() }}
+                      >
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext()
+                        )}
+                      </Table.Td>
+                    ))}
                   </Table.Tr>
                 ))}
               </Table.Tbody>
@@ -255,54 +319,103 @@ export function AdminUsers({ currentUserRole }: AdminUsersProps) {
 
 export default AdminUsers;
 
-function SortableTh({
-  label,
-  onSort,
-  sort,
-  sortKey,
+function buildColumns({
+  canUpdateRoles,
+  isUpdatingRole,
+  onRoleChange,
 }: {
-  label: string;
-  onSort: (sort: { direction: SortDirection; key: UserSortKey }) => void;
-  sort: { direction: SortDirection; key: UserSortKey };
-  sortKey: UserSortKey;
-}) {
-  const isActive = sort.key === sortKey;
-  return (
-    <Table.Th>
-      <button
-        className={styles.sortButton}
-        type="button"
-        onClick={() =>
-          onSort({
-            key: sortKey,
-            direction: isActive && sort.direction === "asc" ? "desc" : "asc",
-          })
-        }
-      >
-        {label}
-        <span className={styles.sortIndicator}>
-          {isActive ? (sort.direction === "asc" ? "↑" : "↓") : ""}
-        </span>
-      </button>
-    </Table.Th>
-  );
+  canUpdateRoles: boolean;
+  isUpdatingRole: boolean;
+  onRoleChange: (userId: string, role: UserRole) => void;
+}): ColumnDef<UserAdminItem>[] {
+  return [
+    {
+      accessorKey: "email",
+      cell: ({ row }) => row.original.email,
+      header: "Email",
+      id: "email",
+      maxSize: 420,
+      minSize: 220,
+      size: 280,
+    },
+    {
+      accessorKey: "role",
+      cell: ({ row }) => (
+        <Badge color={getRoleColor(row.original.role)} variant="light">
+          {formatRole(row.original.role)}
+        </Badge>
+      ),
+      header: "Role",
+      id: "role",
+      maxSize: 180,
+      minSize: 110,
+      size: 140,
+    },
+    {
+      accessorKey: "last_seen_at",
+      cell: ({ row }) => formatOptionalDateTime(row.original.last_seen_at),
+      header: "Last seen",
+      id: "last_seen_at",
+      maxSize: 260,
+      minSize: 140,
+      size: 170,
+    },
+    {
+      accessorKey: "created_at",
+      cell: ({ row }) => formatDateTime(row.original.created_at),
+      header: "Created",
+      id: "created_at",
+      maxSize: 260,
+      minSize: 140,
+      size: 170,
+    },
+    {
+      accessorKey: "updated_at",
+      cell: ({ row }) => formatDateTime(row.original.updated_at),
+      header: "Updated",
+      id: "updated_at",
+      maxSize: 260,
+      minSize: 140,
+      size: 170,
+    },
+    {
+      cell: ({ row }) => (
+        <Group gap="xs" wrap="nowrap">
+          <Select
+            allowDeselect={false}
+            data={roleOptions}
+            disabled={!canUpdateRoles || isUpdatingRole}
+            size="xs"
+            value={row.original.role}
+            w={160}
+            onChange={(value) => {
+              const role = value as UserRole | null;
+              if (!role || role === row.original.role) {
+                return;
+              }
+              onRoleChange(row.original.id, role);
+            }}
+          />
+        </Group>
+      ),
+      enableSorting: false,
+      header: "Change role",
+      id: "change_role",
+      maxSize: 260,
+      minSize: 190,
+      size: 220,
+    },
+  ];
 }
 
-function sortItems(
-  items: UserAdminItem[],
-  sort: { direction: SortDirection; key: UserSortKey }
-) {
-  return [...items].sort((first, second) => {
-    const result = compareValues(first[sort.key], second[sort.key]);
-    return sort.direction === "asc" ? result : -result;
-  });
-}
-
-function compareValues(first: unknown, second: unknown) {
-  return String(first ?? "").localeCompare(String(second ?? ""), undefined, {
-    numeric: true,
-    sensitivity: "base",
-  });
+function formatSortIndicator(sortState: false | "asc" | "desc") {
+  if (sortState === "asc") {
+    return "↑";
+  }
+  if (sortState === "desc") {
+    return "↓";
+  }
+  return "";
 }
 
 function formatDateTime(value: string) {
