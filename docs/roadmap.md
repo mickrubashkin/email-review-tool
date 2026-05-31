@@ -26,8 +26,9 @@ The current product already has:
 - board search, review statuses, threaded comments, comment severity, ownership/reviewer/due-date planning fields, and admin-editable send timing/adaptation labels;
 - editable email fields with approval-stale behavior after content edits;
 - simple version-change summaries for subject, preheader, editable fields, template/source hash, and review blocks;
-- configurable board-level approval areas with required/optional flags, ordering, archive behavior, email-level area approval decisions, and audit events;
-- minimal approved-email handoff package, sequence-level handoff export, structured manifest, and review activity timeline;
+- configurable board-level approval areas with required/optional flags, ordering, archive behavior, email-level area approval decisions, review UI matrix, and audit events;
+- approval gates that block final email approval while required area approvals are incomplete or open blocking comments remain;
+- minimal approved-email handoff package with in-app approval/risk summaries, sequence-level handoff export, structured manifest, and review activity timeline;
 - board/stage audit events, production smoke check for `GET /api/boards`, and deployment mapping docs.
 
 ## Priority 1: Approval Flow Completion
@@ -36,11 +37,11 @@ The current product already has:
   - admins can add, rename, archive, reorder, and mark areas required/optional per board;
   - new boards copy approval areas from the source board;
   - email area approvals store actor, decision note, status, content snapshot hash, and audit events.
-- [ ] Add approval areas to the email review UI:
+- [x] Add approval areas to the email review UI:
   - show the approval matrix in the review view;
   - allow admins to approve/request changes per area with an optional note;
   - show required vs optional areas clearly.
-- [ ] Add approval gates so an email cannot be fully approved while:
+- [x] Add approval gates so an email cannot be fully approved while:
   - required area approvals are pending, stale, or changes requested;
   - open blocking comments remain.
 - [ ] Mark area approvals stale after reviewed content changes:
@@ -75,11 +76,11 @@ The current product already has:
 
 ## Priority 4: Handoff And Activity History
 
-- [ ] Extend handoff package for full production handoff:
+- [ ] Extend handoff package beyond the current in-app approval/risk summary for full production handoff:
   - links and UTM values;
-  - final approval summary;
-  - required area approval summary;
-  - stale/pending/blocking risk summary.
+  - final approval summary in exported package;
+  - required area approval summary in exported package;
+  - stale/pending/blocking risk summary in exported package.
 - [ ] Extend activity history with:
   - area approvals;
   - stale area approvals;

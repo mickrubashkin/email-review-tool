@@ -617,9 +617,8 @@ export function EmailReview({
         await queryClient.invalidateQueries({ queryKey: ["emails", email.sequence] });
       }
       await queryClient.invalidateQueries({ queryKey: ["email-activity", emailId] });
-      if (!inlineEditPreviewNeedsFrameRef.current) {
-        setIsInlineEditPreviewRefreshing(false);
-      }
+      inlineEditPreviewNeedsFrameRef.current = false;
+      setIsInlineEditPreviewRefreshing(false);
       setSourceHTMLModalOpened(false);
       notifications.show({
         color: "green",
@@ -917,8 +916,8 @@ export function EmailReview({
         onCreateReviewComment={handleCreateReviewComment}
         onEditSourceHTML={openSourceHTMLModal}
         onInlineEditPreviewReady={() => {
+          inlineEditPreviewNeedsFrameRef.current = false;
           if (!inlineEditMutation.isPending) {
-            inlineEditPreviewNeedsFrameRef.current = false;
             setIsInlineEditPreviewRefreshing(false);
           }
         }}
