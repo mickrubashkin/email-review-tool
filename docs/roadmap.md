@@ -68,7 +68,12 @@ The current product already has:
   - CRM variables checked;
   - UTM/tracking checked.
 
-## Priority 3: Handoff And Activity History
+## Priority 3: UX Quality Fixes
+
+- [x] Fix long mobile modals and menus so their content remains scrollable within
+  the viewport.
+
+## Priority 4: Handoff And Activity History
 
 - [ ] Extend handoff package for full production handoff:
   - links and UTM values;
@@ -89,7 +94,7 @@ The current product already has:
   - treat RabbitMQ as an optional second step for delivery fan-out, retries, and learning a production-style async layer;
   - if RabbitMQ is added, publish from the persisted outbox with a separate publisher worker, not directly from request handlers.
 
-## Priority 4: Portfolio-Grade Demo
+## Priority 5: Portfolio-Grade Demo
 
 - [ ] Prepare a demo-ready seed flow that shows the product story end to end:
   - board;
@@ -109,7 +114,7 @@ The current product already has:
   - AI streaming;
   - deployment topology.
 
-## Priority 5: Audit And Operations
+## Priority 6: Audit And Operations
 
 - [ ] Replace request-level operational event persistence with structured stdout request logs suitable for Loki/Grafana ingestion.
 - [ ] Add request IDs to API responses and logs.
@@ -120,9 +125,11 @@ The current product already has:
   - `ai_analysis_logs` for AI run accounting and diagnostics.
 - [ ] Keep Sentry or equivalent error reporting as an optional production layer for frontend/backend exceptions.
 
-## Priority 6: Scale Boundaries
+## Priority 7: Scale Boundaries
 
 - [ ] Decide whether stages need stable IDs with editable display names.
+- [ ] Make stage event types configurable instead of overloading the current title
+  field as a de facto event type.
 - [ ] Add board archive/hide behavior.
 - [ ] Consider workspaces if the product expands beyond one team workflow.
 - [ ] Add content search over email body text/content parts after the review workflow and handoff flow are stable.
@@ -150,6 +157,11 @@ These ideas are useful, but they should not outrank the core review, approval, v
 - [ ] Add UI for viewing the effective AI instruction set used for a specific analysis run.
 - [ ] Decide whether AI instructions should support reusable presets, for example onboarding, activation, winback, or partner-manager flows.
 - [ ] Add rich text editing for email copy changes.
+- [ ] Add MJML as an optional email authoring source with server-side compilation,
+  compiled HTML review snapshots, and preserved review/comment anchoring. See
+  `docs/add-mjml.md`.
+- [ ] Consider client-side MJML compilation for reactive preview only after the
+  server-side MJML source and compiled snapshot model is stable.
 - [ ] Add automated CRM/ESP publishing integrations.
 
 ## Future Product Expansion
