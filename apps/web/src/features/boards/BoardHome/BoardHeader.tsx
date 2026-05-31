@@ -3,6 +3,7 @@ import {
   Burger,
   Group,
   Menu,
+  ScrollArea,
   Select,
   Stack,
   Text,
@@ -260,74 +261,84 @@ function CompactHeaderMenu({
             size="sm"
           />
         </Menu.Target>
-        <Menu.Dropdown>
-          <Menu.Label>Current board</Menu.Label>
-          <div className={styles.boardFilterMenuControl}>
-            <Select
-              data={boardOptions}
-              disabled={boardsLoading}
-              size="xs"
-              value={activeBoard?.key ?? null}
-              onChange={onBoardChange}
-            />
-          </div>
-          <Menu.Label>Search</Menu.Label>
-          <div className={styles.boardFilterMenuControl}>
-            <BoardSearchInput
-              boardSearchQuery={boardSearchQuery}
-              size="xs"
-              onBoardSearchQueryChange={onBoardSearchQueryChange}
-            />
-          </div>
-          <Menu.Label>Filters</Menu.Label>
-          <BoardFilterControls
-            boardFilterOptions={boardFilterOptions}
-            boardFilters={boardFilters}
-            commentLabel={`Open comments ${openCommentEmailCount}`}
-            onBoardFilterChange={onBoardFilterChange}
-          />
-          {hasBoardFilters ? (
-            <Menu.Item color="red" onClick={onResetBoardFilters}>
-              Clear filters
-            </Menu.Item>
-          ) : null}
-          <Menu.Divider />
-          <HandoffMenuContent
-            activeBoard={activeBoard}
-            activeHandoffFilterCount={activeHandoffFilterCount}
-            boardFilterOptions={boardFilterOptions}
-            boardKey={boardKey}
-            canExportSequenceHandoff={canExportSequenceHandoff}
-            handoffFilters={handoffFilters}
-            sequenceHandoffEmailCount={sequenceHandoffEmailCount}
-            sequenceHandoffJSON={sequenceHandoffJSON}
-            onHandoffFiltersChange={onHandoffFiltersChange}
-          />
-          <Menu.Divider />
-          <UserMenuLabel currentUser={currentUser} />
-          {isAdmin ? (
-            <>
-              <Menu.Divider />
-              <Menu.Label>Settings</Menu.Label>
-              <CreateActions onCreateBoard={onCreateBoard} />
-              <Menu.Item
-                leftSection={<SlidersHorizontalIcon aria-hidden="true" size={16} />}
-                onClick={onManageStages}
-              >
-                Board settings
-              </Menu.Item>
-              <Menu.Divider />
-              <OperationsMenuItems currentUser={currentUser} />
-            </>
-          ) : null}
-          <Menu.Divider />
-          <Menu.Item
-            color="red"
-            leftSection={<SignOutIcon aria-hidden="true" size={16} />}
-            onClick={onLogout}
+        <Menu.Dropdown className={styles.compactHeaderDropdown} p={0}>
+          <ScrollArea.Autosize
+            mah="calc(100dvh - var(--app-shell-header-height) - 24px)"
+            offsetScrollbars="y"
+            overscrollBehavior="contain"
+            scrollbars="y"
+            type="auto"
           >
-            {isLoggingOut ? "Logging out" : "Logout"}
-          </Menu.Item>
+            <Menu.Label>Current board</Menu.Label>
+            <div className={styles.boardFilterMenuControl}>
+              <Select
+                data={boardOptions}
+                disabled={boardsLoading}
+                size="xs"
+                value={activeBoard?.key ?? null}
+                onChange={onBoardChange}
+              />
+            </div>
+            <Menu.Label>Search</Menu.Label>
+            <div className={styles.boardFilterMenuControl}>
+              <BoardSearchInput
+                boardSearchQuery={boardSearchQuery}
+                size="xs"
+                onBoardSearchQueryChange={onBoardSearchQueryChange}
+              />
+            </div>
+            <Menu.Label>Filters</Menu.Label>
+            <BoardFilterControls
+              boardFilterOptions={boardFilterOptions}
+              boardFilters={boardFilters}
+              commentLabel={`Open comments ${openCommentEmailCount}`}
+              onBoardFilterChange={onBoardFilterChange}
+            />
+            {hasBoardFilters ? (
+              <Menu.Item color="red" onClick={onResetBoardFilters}>
+                Clear filters
+              </Menu.Item>
+            ) : null}
+            <Menu.Divider />
+            <HandoffMenuContent
+              activeBoard={activeBoard}
+              activeHandoffFilterCount={activeHandoffFilterCount}
+              boardFilterOptions={boardFilterOptions}
+              boardKey={boardKey}
+              canExportSequenceHandoff={canExportSequenceHandoff}
+              handoffFilters={handoffFilters}
+              sequenceHandoffEmailCount={sequenceHandoffEmailCount}
+              sequenceHandoffJSON={sequenceHandoffJSON}
+              onHandoffFiltersChange={onHandoffFiltersChange}
+            />
+            <Menu.Divider />
+            <UserMenuLabel currentUser={currentUser} />
+            {isAdmin ? (
+              <>
+                <Menu.Divider />
+                <Menu.Label>Settings</Menu.Label>
+                <CreateActions onCreateBoard={onCreateBoard} />
+                <Menu.Item
+                  leftSection={
+                    <SlidersHorizontalIcon aria-hidden="true" size={16} />
+                  }
+                  onClick={onManageStages}
+                >
+                  Board settings
+                </Menu.Item>
+                <Menu.Divider />
+                <OperationsMenuItems currentUser={currentUser} />
+              </>
+            ) : null}
+            <Menu.Divider />
+            <Menu.Item
+              color="red"
+              leftSection={<SignOutIcon aria-hidden="true" size={16} />}
+              onClick={onLogout}
+            >
+              {isLoggingOut ? "Logging out" : "Logout"}
+            </Menu.Item>
+          </ScrollArea.Autosize>
         </Menu.Dropdown>
       </Menu>
     </Group>
