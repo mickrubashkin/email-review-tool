@@ -232,9 +232,16 @@ export function SelectionComposer({
                 </ActionIcon>
               </Tooltip>
               {canEditContent && selectionMenu?.editableTarget ? (
-                <Tooltip label="Edit">
+                <Tooltip
+                  label={
+                    isApplyingInlineEdit
+                      ? "Preview is refreshing"
+                      : "Edit"
+                  }
+                >
                   <ActionIcon
                     aria-label="Edit"
+                    disabled={isApplyingInlineEdit}
                     size="lg"
                     variant="light"
                     onClick={onOpenInlineEditor}
@@ -244,9 +251,16 @@ export function SelectionComposer({
                 </Tooltip>
               ) : null}
               {canEditHTML ? (
-                <Tooltip label="Edit source HTML">
+                <Tooltip
+                  label={
+                    isApplyingInlineEdit
+                      ? "Preview is refreshing"
+                      : "Edit source HTML"
+                  }
+                >
                   <ActionIcon
                     aria-label="Edit source HTML"
+                    disabled={isApplyingInlineEdit}
                     size="lg"
                     variant="light"
                     onClick={() => {

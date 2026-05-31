@@ -142,6 +142,8 @@ export function EmailReview({
   const [duplicateModalOpened, setDuplicateModalOpened] = useState(false);
   const [sourceHTMLModalOpened, setSourceHTMLModalOpened] = useState(false);
   const [sourceHTMLDraft, setSourceHTMLDraft] = useState("");
+  const [isInlineEditPreviewRefreshing, setIsInlineEditPreviewRefreshing] =
+    useState(false);
   const [rightPanelPercent, setRightPanelPercent] = useState(30);
   const [activePanelTab, setActivePanelTab] =
     useState<ReviewPanelTab>("comments");
@@ -152,6 +154,7 @@ export function EmailReview({
   const queryClient = useQueryClient();
   const contentRef = useRef<HTMLElement | null>(null);
   const activeCommentTimeoutRef = useRef<number | null>(null);
+  const inlineEditPreviewNeedsFrameRef = useRef(false);
   const isResizingRef = useRef(false);
   const [isResizing, setIsResizing] = useState(false);
   const isCompactReview = useMediaQuery("(max-width: 64em)");
@@ -588,6 +591,9 @@ export function EmailReview({
   const inlineEditMutation = useMutation({
     mutationFn: (payload: UpdateEditableFieldsPayload) =>
       updateEmailEditableFields(emailId, payload),
+    onMutate: () => {
+      setIsInlineEditPreviewRefreshing(true);
+    },
     onSuccess: async () => {
       await queryClient.invalidateQueries({
         queryKey: ["emails", emailId, "review"],
@@ -600,6 +606,9 @@ export function EmailReview({
         await queryClient.invalidateQueries({ queryKey: ["emails", email.sequence] });
       }
       await queryClient.invalidateQueries({ queryKey: ["email-activity", emailId] });
+      if (!inlineEditPreviewNeedsFrameRef.current) {
+        setIsInlineEditPreviewRefreshing(false);
+      }
       setSourceHTMLModalOpened(false);
       notifications.show({
         color: "green",
@@ -608,6 +617,8 @@ export function EmailReview({
       });
     },
     onError: () => {
+      inlineEditPreviewNeedsFrameRef.current = false;
+      setIsInlineEditPreviewRefreshing(false);
       notifications.show({
         color: "red",
         message: "Try again or check the editable markers.",
@@ -783,14 +794,16 @@ export function EmailReview({
     createCommentMutation.mutate({ body, severity, selection });
   };
   const handleApplyInlineEdit = (update: InlineEditUpdate) => {
-    if (!email) {
+    if (!email || isInlineEditPreviewRefreshing || inlineEditMutation.isPending) {
       return;
     }
 
+    inlineEditPreviewNeedsFrameRef.current =
+      Object.keys(update.editableFields ?? {}).length > 0;
     inlineEditMutation.mutate(buildEditableFieldsPayload(email, update));
   };
   const openSourceHTMLModal = () => {
-    if (!email) {
+    if (!email || isInlineEditPreviewRefreshing || inlineEditMutation.isPending) {
       return;
     }
 
@@ -798,10 +811,11 @@ export function EmailReview({
     setSourceHTMLModalOpened(true);
   };
   const saveSourceHTML = () => {
-    if (!email) {
+    if (!email || isInlineEditPreviewRefreshing || inlineEditMutation.isPending) {
       return;
     }
 
+    inlineEditPreviewNeedsFrameRef.current = true;
     inlineEditMutation.mutate(
       buildEditableFieldsPayload(email, {}, sourceHTMLDraft)
     );
@@ -868,6 +882,8 @@ export function EmailReview({
     isResizingRef.current = false;
     setIsResizing(false);
   };
+  const isApplyingInlineEdit =
+    inlineEditMutation.isPending || isInlineEditPreviewRefreshing;
   const previewContent = (
     email ? (
       <MailPreview
@@ -881,7 +897,7 @@ export function EmailReview({
         enableReviewSelectionComposer
         hoveredCommentId={hoveredCommentId}
         inlineEditError={inlineEditMutation.isError}
-        isApplyingInlineEdit={inlineEditMutation.isPending}
+        isApplyingInlineEdit={isApplyingInlineEdit}
         isCreatingComment={createCommentMutation.isPending}
         isScanning={isAnalyzingCurrentEmail}
         onApplyInlineEdit={handleApplyInlineEdit}
@@ -889,6 +905,12 @@ export function EmailReview({
         onCommentBadgeHover={handleHoverCommentIds}
         onCreateReviewComment={handleCreateReviewComment}
         onEditSourceHTML={openSourceHTMLModal}
+        onInlineEditPreviewReady={() => {
+          if (!inlineEditMutation.isPending) {
+            inlineEditPreviewNeedsFrameRef.current = false;
+            setIsInlineEditPreviewRefreshing(false);
+          }
+        }}
         viewport={isCompactReview ? "mobile" : viewport}
       />
     ) : (
@@ -1115,7 +1137,7 @@ export function EmailReview({
       {email && currentUserRole === "super_admin" ? (
         <SourceHTMLModal
           draft={sourceHTMLDraft}
-          isSubmitting={inlineEditMutation.isPending}
+          isSubmitting={isApplyingInlineEdit}
           opened={sourceHTMLModalOpened}
           onChange={setSourceHTMLDraft}
           onClose={() => setSourceHTMLModalOpened(false)}

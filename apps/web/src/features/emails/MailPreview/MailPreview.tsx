@@ -81,6 +81,7 @@ type MailPreviewProps = {
     severity: EmailCommentSeverity
   ) => void;
   onEditSourceHTML?: () => void;
+  onInlineEditPreviewReady?: () => void;
   viewport: PreviewViewport;
 };
 
@@ -103,11 +104,13 @@ export function MailPreview({
   onCommentBadgeHover,
   onCreateReviewComment,
   onEditSourceHTML,
+  onInlineEditPreviewReady,
   viewport,
 }: MailPreviewProps) {
   const frameRef = useRef<HTMLIFrameElement | null>(null);
   const frameOverlayLayerRef = useRef<HTMLDivElement | null>(null);
   const overlayRootRef = useRef<HTMLElement | null>(null);
+  const isApplyingInlineEditRef = useRef(isApplyingInlineEdit);
   const wasApplyingInlineEditRef = useRef(false);
   const wasCreatingCommentRef = useRef(false);
   const shouldShowCommentOverlay = !useMediaQuery("(max-width: 64em)");
@@ -130,10 +133,18 @@ export function MailPreview({
       setFrameLoadVersion((version) => version + 1);
 
       if (enableReviewSelectionComposer) {
-        installReviewSelectionMenu(event.currentTarget, email, setSelectionMenu);
+        installReviewSelectionMenu(event.currentTarget, email, (nextSelectionMenu) => {
+          if (!isApplyingInlineEditRef.current) {
+            setSelectionMenu(nextSelectionMenu);
+          }
+        });
+      }
+
+      if (isApplyingInlineEditRef.current) {
+        onInlineEditPreviewReady?.();
       }
     },
-    [email, enableReviewSelectionComposer]
+    [email, enableReviewSelectionComposer, onInlineEditPreviewReady]
   );
   const closeSelectionComposer = () => {
     setSelectionMenu(null);
@@ -149,6 +160,10 @@ export function MailPreview({
     setDraftCommentSeverity("issue");
   };
   const openInlineEditor = () => {
+    if (isApplyingInlineEdit) {
+      return;
+    }
+
     setSelectionMenu((current) => {
       if (!current?.editableTarget) {
         return current;
@@ -225,6 +240,10 @@ export function MailPreview({
     reviewBlock: string,
     selectedText: string
   ) => {
+    if (isApplyingInlineEdit) {
+      return;
+    }
+
     const trimmedText = selectedText.trim();
     if (!trimmedText) {
       return;
@@ -262,6 +281,10 @@ export function MailPreview({
     overlayRootRef,
     viewport,
   });
+
+  useEffect(() => {
+    isApplyingInlineEditRef.current = isApplyingInlineEdit;
+  }, [isApplyingInlineEdit]);
 
   useEffect(() => {
     if (wasCreatingCommentRef.current && !isCreatingComment && !createCommentError) {
@@ -307,6 +330,14 @@ export function MailPreview({
         onOpenInlineEditor={openInlineEditor}
         onSubmitComment={handleSubmitComment}
       />
+
+      {isApplyingInlineEdit ? (
+        <div className={styles.inlineEditRefreshNotice}>
+          <Text fw={600} size="xs">
+            Saving changes and refreshing preview...
+          </Text>
+        </div>
+      ) : null}
 
       <div className={styles.mailClient}>
         <article className={styles.mailReadPane} ref={overlayRootRef}>

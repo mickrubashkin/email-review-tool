@@ -294,6 +294,21 @@
   color: var(--mantine-color-gray-7);
 }
 
+.inlineEditRefreshNotice {
+  position: absolute;
+  top: calc(var(--mantine-spacing-md) + 8px);
+  left: 50%;
+  z-index: 20;
+  padding: 6px 10px;
+  border: 1px solid var(--mantine-color-blue-2);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--mantine-color-blue-8);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
 .emailPreviewWrap[data-viewport="mobile"] {
   background:
     linear-gradient(135deg, rgba(245, 247, 250, 0.96), rgba(226, 232, 240, 0.96)),
