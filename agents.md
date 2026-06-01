@@ -1,46 +1,45 @@
 # AGENTS.md
 
 ## Context
-ReviewDesk is an internal tool for reviewing HTML email sequences.
+ReviewDesk — internal tool для ревью HTML-писем. Go backend (Chi + pgx, direct SQL) + React frontend (Mantine v9, TanStack Query, React Router).
 
 ## Repo layout
-- `apps/web/src/main.tsx` boots Mantine + TanStack Query.
-- `apps/web/src/App.tsx` is the real route switcher; it uses `react-router-dom`.
-- `apps/api/cmd/server` is the HTTP API entrypoint.
-- `apps/api/cmd/seed` seeds from `db/seeds/emails`.
-- `apps/api/cmd/syncmeta` regenerates `db/seeds/emails/meta.json`.
+- `apps/api/cmd/server` — HTTP API entrypoint; `main.go` загружает `../../.env`.
+- `apps/api/cmd/seed` — seed из `db/seeds/emails/{stage}/{email}/{lang[-old]}.html`; `meta.json` рядом.
+- `apps/api/cmd/syncmeta` — регенерация `meta.json`.
+- `apps/web/src/main.tsx` — точка входа фронта.
+- `apps/web/src/App.tsx` — роутер. `/emails/{id}/edit` редиректит на `/emails/{id}/review`.
+- `db/migrations/` — goose-миграции, применяются по порядку.
 
 ## Commands
-- `make setup-dev` runs DB up, migrations, then seed.
-- `make dev` starts DB, API, and web in parallel.
-- `make db-migrate` / `make db-seed` / `make db-sync-meta` are the repo task commands for data setup.
-- `cd apps/web && npm run dev|lint|build`.
-- `cd apps/api && go test ./...`.
+- `make setup-dev` — DB up → миграции → seed.
+- `make dev` — DB up, API, web параллельно.
+- `make db-migrate` / `make db-seed` / `make db-sync-meta`.
+- `cd apps/web && npm run dev|lint|build`. **build** запускает `tsc -b && vite build`.
+- `cd apps/api && go test ./...`. Для одного теста: `go test -run TestName ./cmd/server`.
 - `cd apps/api && go run ./cmd/server`.
+- Smoke-тест: `./scripts/smoke-check.sh`.
 
 ## Environment / tooling
-- `apps/api/cmd/server/main.go` and `apps/api/cmd/seed/main.go` both load `../../.env`.
-- `DATABASE_URL` is required for API, seed, and migration commands.
-- `goose` must be available on PATH; the Makefile and Docker entrypoint call it directly.
-- Docker starts migrations, conditionally runs seed when `RUN_DB_SEED=true`, then starts the server via `apps/api/entrypoint.sh`.
-- The seed tree is `db/seeds/emails/{stage}/{email}/{language[-old]}.html`; `meta.json` lives beside it.
+- `.env` лежит в корне репозитория; API грузит через `godotenv.Load("../../.env")`, web — через `envDir: "../.."` в vite.config.ts.
+- `DATABASE_URL` обязательна для всех Go-команд и миграций.
+- `goose` нужен на PATH (используется в Makefile и entrypoint.sh).
+- Web dev-server проксирует `/api` и `/health` на `localhost:8080`.
+- **Админские роли**: `admin` (управление досками, ревью, редактирование) и `super_admin` (управление пользователями, правами, HTML). `admin` видит не все административные страницы.
+- AI streaming: SSE/EventSource на `/api/emails/{id}/ai-analysis-stream`. Не WebSocket.
+- Комментарии: фронт-поллинг каждые 5 секунд (`refetchInterval: 5000`), не WebSocket/SSE.
+- ОTP-логин: `AUTH_DEV_LOGIN_ENABLED=true` локально для входа без кода. На проде должен быть `false`.
+- `VITE_AUTH_*` переменные дублируют `AUTH_*` для фронта (Vite их экранирует).
+- OpenAI: `OPENAI_API_KEY` включает AI-ревью; `AI_DEBUG_ENABLED=true` включает debug-эндпоинт.
 
 ## Product rules
-- Backend is the source of truth; write to DB first, then expose via API.
-- Keep original email HTML unchanged.
-- Comments attach to `data-review-block` + text range.
-- Preview untrusted HTML in isolation and do not execute scripts.
-- AI analysis streaming is SSE/EventSource on `/api/emails/{id}/ai-analysis-stream`, not WebSocket.
-- Auth is OTP + session cookies; `/api/auth/events` is admin-only.
-- Local dev may enable `AUTH_DEV_LOGIN_ENABLED=true`, but production must keep dev login disabled.
+- Backend source of truth — писать в БД, потом отдавать через API.
+- Оригинальный HTML письма не менять; редактирование шаблонное: админ меняет `data-edit-*` поля, бэкенд рендерит финальный HTML.
+- Комментарии крепятся к `data-review-block` + текстовый диапазон.
+- Превью стороннего HTML изолированно (sandbox iframe), скрипты не выполнять.
 
 ## Code conventions
-- Keep handlers thin; put logic in helpers/services.
-- Use direct SQL; no heavy ORM.
-- Prefer small, simple changes and existing structure.
-- Do not add new libraries unless necessary.
-
-## Frontend conventions
-- Web UI uses Mantine. When changing Mantine components, styling APIs, forms, tabs, modals, selects, or layout behavior, use the `mantine` MCP server when available.
-- If the Mantine MCP server is unavailable, use the LLM documentation index as the fallback reference: https://mantine.dev/llms.txt.
-- Prefer documented Mantine APIs, existing Mantine components, and CSS modules over private CSS variables, internal class names, or new UI libraries.
+- Хендлеры тонкие; логика в helpers/services.
+- Прямые SQL-запросы, без ORM.
+- Маленькие изменения, без новых библиотек без необходимости.
+- Approval-гейты: нельзя аппрувнуть письмо, пока есть открытые blocking комментарии или незакрытые required area approvals.

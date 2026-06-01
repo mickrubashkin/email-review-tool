@@ -1765,11 +1765,6 @@ func listEmailEventsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 	}
 }
 
-func isRequestAdmin(r *http.Request) bool {
-	user, ok := authUserFromContext(r)
-	return ok && isAdminUser(user)
-}
-
 func inspectEmailHTML(originalHTML string) (emailHTMLInspection, error) {
 	if originalHTML == "" {
 		return emailHTMLInspection{}, errors.New("original_html is required")
@@ -2150,6 +2145,10 @@ func mergeEditableFields(
 	mergedFields := emailedit.EditableFields{}
 	for key, extractedField := range extractedFields {
 		if submittedField, ok := submittedFields[key]; ok && submittedField.Type == extractedField.Type {
+			if shouldUseExtractedTextField(extractedField, submittedField) {
+				mergedFields[key] = extractedField
+				continue
+			}
 			mergedFields[key] = submittedField
 			continue
 		}
@@ -2157,6 +2156,24 @@ func mergeEditableFields(
 	}
 
 	return mergedFields
+}
+
+func shouldUseExtractedTextField(extractedField emailedit.EditableField, submittedField emailedit.EditableField) bool {
+	if extractedField.Type != emailedit.FieldTypeText || submittedField.Type != emailedit.FieldTypeText {
+		return false
+	}
+
+	extractedValue, extractedOK := extractedField.Value.(string)
+	submittedValue, submittedOK := submittedField.Value.(string)
+	if !extractedOK || !submittedOK || extractedValue == submittedValue {
+		return false
+	}
+
+	return canonicalEditableText(extractedValue) == canonicalEditableText(submittedValue)
+}
+
+func canonicalEditableText(value string) string {
+	return strings.Join(strings.Fields(value), " ")
 }
 
 func changedCommentAnchorTexts(
@@ -2490,13 +2507,6 @@ func trimmedOptionalString(value *string) *string {
 	}
 
 	return &trimmed
-}
-
-func isEmailSlugConflict(err error) bool {
-	var pgErr *pgconn.PgError
-	return errors.As(err, &pgErr) &&
-		pgErr.Code == "23505" &&
-		pgErr.ConstraintName == "emails_slug_unique"
 }
 
 func isEmailCreationConflict(err error) bool {

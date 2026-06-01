@@ -1914,6 +1914,62 @@ func TestUpdateEmailOriginalHTMLAsSuperAdmin(t *testing.T) {
 	assertEditableField(t, fields, "new_copy", "text", "New copy")
 }
 
+func TestUpdateEmailOriginalHTMLAsSuperAdminUsesExtractedTextForSoftWrappedSource(t *testing.T) {
+	dbpool := testDBPool(t)
+	emailID := createTestEmail(t, dbpool)
+	user := createTestUserWithRole(t, dbpool, "super_admin")
+
+	router := chi.NewRouter()
+	registerEmailRoutes(router, dbpool)
+
+	request := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/emails/"+emailID+"/editable-fields",
+		bytes.NewReader([]byte(`{
+			"editable_fields": {
+				"intro_body": {
+					"type": "text",
+					"value": "Hi there,\n\nYour application to join the Bitrix24 Partner Program has been\nreceived.\n\nYour partner account is ready. Use the credentials below to\nlog in."
+				}
+			},
+			"original_html": "<html><body><td data-review-block=\"intro_body\" data-edit-text=\"intro_body\">Hi there,<br /><br />Your application to join the Bitrix24 Partner Program has been\nreceived.<br /><br />Your partner account is ready. Use the credentials below to\nlog in.</td></body></html>"
+		}`)),
+	)
+	request = withAuthUser(request, user)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusNoContent {
+		t.Fatalf("expected PATCH status 204, got %d: %s", response.Code, response.Body.String())
+	}
+
+	fields := loadTestEmailEditableFields(t, dbpool, emailID)
+	assertEditableField(
+		t,
+		fields,
+		"intro_body",
+		"text",
+		"Hi there,\n\nYour application to join the Bitrix24 Partner Program has been received.\n\nYour partner account is ready. Use the credentials below to log in.",
+	)
+
+	var reviewHTML string
+	err := dbpool.QueryRow(context.Background(), `
+		SELECT review_html
+		FROM emails
+		WHERE id = $1;
+	`, emailID).Scan(&reviewHTML)
+	if err != nil {
+		t.Fatalf("failed to load review HTML: %v", err)
+	}
+	if strings.Contains(reviewHTML, "been<br/>received") || strings.Contains(reviewHTML, "to<br/>log in") {
+		t.Fatalf("expected source soft wraps not to render as <br>, got %q", reviewHTML)
+	}
+	expectedHTML := "Hi there,<br/><br/>Your application to join the Bitrix24 Partner Program has been received.<br/><br/>Your partner account is ready. Use the credentials below to log in."
+	if !strings.Contains(reviewHTML, expectedHTML) {
+		t.Fatalf("expected review HTML to contain %q, got %q", expectedHTML, reviewHTML)
+	}
+}
+
 func TestUpdateEmailEditableFieldsRejectsArchivedEmail(t *testing.T) {
 	dbpool := testDBPool(t)
 	emailID := createTestEmail(t, dbpool)
