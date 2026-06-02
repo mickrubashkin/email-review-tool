@@ -2,7 +2,7 @@ import { Button, Group, Stack, Text, Title } from "@mantine/core";
 import { HouseIcon } from "@phosphor-icons/react";
 import { Link } from "react-router-dom";
 
-import styles from "../EmailFieldsEditor/EmailFieldsEditor.module.css";
+import styles from "./EmailCreate.module.css";
 
 export function EmailCreateHeader() {
   return (

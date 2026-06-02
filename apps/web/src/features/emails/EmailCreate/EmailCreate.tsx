@@ -25,7 +25,7 @@ import {
   newEventGroupValue,
   type CreateEmailFormState,
 } from "./EmailCreate.types";
-import styles from "../EmailFieldsEditor/EmailFieldsEditor.module.css";
+import styles from "./EmailCreate.module.css";
 
 type EmailCreateProps = {
   currentUserRole: AuthUser["role"];

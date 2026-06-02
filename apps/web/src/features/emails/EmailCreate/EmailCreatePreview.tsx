@@ -1,7 +1,7 @@
 import { Badge, Group, Stack, Text } from "@mantine/core";
 
 import type { CreateEmailFormState } from "./EmailCreate.types";
-import styles from "../EmailFieldsEditor/EmailFieldsEditor.module.css";
+import styles from "./EmailCreate.module.css";
 
 export function EmailCreatePreview({
   formState,

@@ -63,7 +63,7 @@ function AuthenticatedApp() {
       />
       <Route
         path="/emails/:emailId/edit"
-        element={<EmailFieldsEditorRoute />}
+        element={<EmailEditRedirectRoute />}
       />
       <Route
         path="/emails/:emailId/review"
@@ -101,7 +101,7 @@ function EmailReviewRoute({
   );
 }
 
-function EmailFieldsEditorRoute() {
+function EmailEditRedirectRoute() {
   const { emailId } = useParams();
   return emailId ? (
     <Navigate replace to={`/emails/${encodeURIComponent(emailId)}/review`} />

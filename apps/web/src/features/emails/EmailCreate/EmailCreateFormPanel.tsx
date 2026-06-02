@@ -23,7 +23,7 @@ import {
   type EventGroupOption,
   newEventGroupValue,
 } from "./EmailCreate.types";
-import styles from "../EmailFieldsEditor/EmailFieldsEditor.module.css";
+import styles from "./EmailCreate.module.css";
 
 export function EmailCreateFormPanel({
   adaptationOptions,
