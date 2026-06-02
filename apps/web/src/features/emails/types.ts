@@ -199,6 +199,33 @@ export type RenderedEmail = {
   html: string;
 };
 
+export type EmailVersionSource = "initial" | "manual" | "restore";
+
+export type EmailVersionListItem = {
+  id: string;
+  email_id: string;
+  version_number: number;
+  created_at: string;
+  created_by_user_id: string | null;
+  created_by_email: string;
+  source: EmailVersionSource;
+  restored_from_version_id: string | null;
+  restored_from_version_number: number | null;
+  changed_field_count: number;
+  changed_metadata_count: number;
+  html_changed: boolean;
+};
+
+export type EmailVersionDetail = EmailVersionListItem & {
+  title: string;
+  subject: string | null;
+  preheader: string | null;
+  original_html: string;
+  template_html: string;
+  editable_fields: EditableFields;
+  review_html: string;
+};
+
 export type EmailAnalysis = {
   summary: string;
   score: number;

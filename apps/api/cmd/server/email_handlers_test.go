@@ -1317,6 +1317,230 @@ func TestUpdateEmailEditableFields(t *testing.T) {
 	}
 }
 
+func TestUpdateEmailEditableFieldsCreatesVersionSnapshot(t *testing.T) {
+	dbpool := testDBPool(t)
+	emailID := createTestEmail(t, dbpool)
+	user := createTestUserWithRole(t, dbpool, "admin")
+	setTestEmailTemplate(t, dbpool, emailID, `
+		<html>
+			<body>
+				<p data-edit-text="intro_text">Old intro</p>
+			</body>
+		</html>
+	`)
+	insertTestEmailVersion(t, dbpool, emailID, "system", "initial")
+
+	router := chi.NewRouter()
+	registerEmailRoutes(router, dbpool)
+
+	request := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/emails/"+emailID+"/editable-fields",
+		bytes.NewReader([]byte(`{
+			"title": "Versioned Email",
+			"subject": "Versioned subject",
+			"editable_fields": {
+				"intro_text": { "type": "text", "value": "New intro" }
+			}
+		}`)),
+	)
+	request = withAuthUser(request, user)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusNoContent {
+		t.Fatalf("expected PATCH status 204, got %d: %s", response.Code, response.Body.String())
+	}
+
+	var versionNumber int
+	var actorEmail string
+	var title string
+	var subject *string
+	var changedFieldCount int
+	var changedMetadataCount int
+	err := dbpool.QueryRow(context.Background(), `
+		SELECT version_number, created_by_email, title, subject, changed_field_count, changed_metadata_count
+		FROM email_versions
+		WHERE email_id = $1
+		ORDER BY version_number DESC
+		LIMIT 1;
+	`, emailID).Scan(&versionNumber, &actorEmail, &title, &subject, &changedFieldCount, &changedMetadataCount)
+	if err != nil {
+		t.Fatalf("failed to load email version: %v", err)
+	}
+	if versionNumber != 2 {
+		t.Fatalf("expected version 2, got %d", versionNumber)
+	}
+	if actorEmail != user.Email {
+		t.Fatalf("expected version actor %s, got %s", user.Email, actorEmail)
+	}
+	if title != "Versioned Email" || subject == nil || *subject != "Versioned subject" {
+		t.Fatalf("expected saved snapshot title/subject, got %q %#v", title, subject)
+	}
+	if changedFieldCount != 1 || changedMetadataCount != 2 {
+		t.Fatalf("expected field/metadata change counts 1/2, got %d/%d", changedFieldCount, changedMetadataCount)
+	}
+}
+
+func TestUpdateEmailEditableFieldsNoopDoesNotCreateVersion(t *testing.T) {
+	dbpool := testDBPool(t)
+	emailID := createTestEmail(t, dbpool)
+	user := createTestUserWithRole(t, dbpool, "admin")
+	setTestEmailTemplate(t, dbpool, emailID, `
+		<html>
+			<body>
+				<p data-edit-text="intro_text">Same intro</p>
+			</body>
+		</html>
+	`)
+	_, err := dbpool.Exec(context.Background(), `
+		UPDATE emails
+		SET editable_fields = '{"intro_text": { "type": "text", "value": "Same intro" }}'::jsonb
+		WHERE id = $1;
+	`, emailID)
+	if err != nil {
+		t.Fatalf("failed to prepare noop email: %v", err)
+	}
+	insertTestEmailVersion(t, dbpool, emailID, "system", "initial")
+
+	router := chi.NewRouter()
+	registerEmailRoutes(router, dbpool)
+
+	request := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/emails/"+emailID+"/editable-fields",
+		bytes.NewReader([]byte(`{
+			"title": "Comment Test Email",
+			"editable_fields": {
+				"intro_text": { "type": "text", "value": "Same intro" }
+			}
+		}`)),
+	)
+	request = withAuthUser(request, user)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusNoContent {
+		t.Fatalf("expected PATCH status 204, got %d: %s", response.Code, response.Body.String())
+	}
+
+	var versionCount int
+	err = dbpool.QueryRow(context.Background(), `
+		SELECT count(*)::int
+		FROM email_versions
+		WHERE email_id = $1;
+	`, emailID).Scan(&versionCount)
+	if err != nil {
+		t.Fatalf("failed to count email versions: %v", err)
+	}
+	if versionCount != 1 {
+		t.Fatalf("expected one version after noop save, got %d", versionCount)
+	}
+}
+
+func TestRestoreEmailVersionCreatesNewLatestVersion(t *testing.T) {
+	dbpool := testDBPool(t)
+	emailID := createTestEmail(t, dbpool)
+	user := createTestUserWithRole(t, dbpool, "admin")
+	setTestEmailTemplate(t, dbpool, emailID, `
+		<html>
+			<body>
+				<p data-edit-text="intro_text">Old intro</p>
+			</body>
+		</html>
+	`)
+	restoredVersionID := insertTestEmailVersion(t, dbpool, emailID, "system", "initial")
+	_, err := dbpool.Exec(context.Background(), `
+		UPDATE emails
+		SET
+			title = 'Current title',
+			editable_fields = '{"intro_text": { "type": "text", "value": "Current intro" }}'::jsonb,
+			review_status = 'approved'
+		WHERE id = $1;
+	`, emailID)
+	if err != nil {
+		t.Fatalf("failed to prepare restore email: %v", err)
+	}
+	insertTestEmailVersion(t, dbpool, emailID, user.Email, "manual")
+
+	router := chi.NewRouter()
+	registerEmailRoutes(router, dbpool)
+
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/api/emails/"+emailID+"/versions/"+restoredVersionID+"/restore",
+		http.NoBody,
+	)
+	request = withAuthUser(request, user)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusNoContent {
+		t.Fatalf("expected restore status 204, got %d: %s", response.Code, response.Body.String())
+	}
+
+	var title string
+	var reviewStatus string
+	var fieldsJSON []byte
+	err = dbpool.QueryRow(context.Background(), `
+		SELECT title, review_status, editable_fields
+		FROM emails
+		WHERE id = $1;
+	`, emailID).Scan(&title, &reviewStatus, &fieldsJSON)
+	if err != nil {
+		t.Fatalf("failed to load restored email: %v", err)
+	}
+	if title != "Comment Test Email" {
+		t.Fatalf("expected restored title, got %q", title)
+	}
+	if reviewStatus != "changes_requested" {
+		t.Fatalf("expected approved restore to become changes_requested, got %q", reviewStatus)
+	}
+	if !strings.Contains(string(fieldsJSON), "Old intro") {
+		t.Fatalf("expected restored editable fields, got %s", string(fieldsJSON))
+	}
+
+	var versionNumber int
+	var source string
+	var restoredFrom *string
+	err = dbpool.QueryRow(context.Background(), `
+		SELECT version_number, source, restored_from_version_id::text
+		FROM email_versions
+		WHERE email_id = $1
+		ORDER BY version_number DESC
+		LIMIT 1;
+	`, emailID).Scan(&versionNumber, &source, &restoredFrom)
+	if err != nil {
+		t.Fatalf("failed to load latest restored version: %v", err)
+	}
+	if versionNumber != 3 || source != "restore" || restoredFrom == nil || *restoredFrom != restoredVersionID {
+		t.Fatalf("expected restore version 3 from %s, got %d %s %#v", restoredVersionID, versionNumber, source, restoredFrom)
+	}
+}
+
+func TestRestoreEmailVersionRejectsReviewer(t *testing.T) {
+	dbpool := testDBPool(t)
+	emailID := createTestEmail(t, dbpool)
+	user := createTestUserWithRole(t, dbpool, "reviewer")
+	versionID := insertTestEmailVersion(t, dbpool, emailID, "system", "initial")
+
+	router := chi.NewRouter()
+	registerEmailRoutes(router, dbpool)
+
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/api/emails/"+emailID+"/versions/"+versionID+"/restore",
+		http.NoBody,
+	)
+	request = withAuthUser(request, user)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("expected restore status 403, got %d: %s", response.Code, response.Body.String())
+	}
+}
+
 func TestUpdateEmailEditableFieldsRecordsChangedReviewBlocks(t *testing.T) {
 	dbpool := testDBPool(t)
 	emailID := createTestEmail(t, dbpool)
@@ -2932,6 +3156,45 @@ func createTestUserWithRole(t *testing.T, dbpool *pgxpool.Pool, role string) Aut
 	})
 
 	return user
+}
+
+func insertTestEmailVersion(t *testing.T, dbpool *pgxpool.Pool, emailID string, actorEmail string, source string) string {
+	t.Helper()
+
+	var versionID string
+	err := dbpool.QueryRow(context.Background(), `
+		INSERT INTO email_versions (
+			email_id,
+			version_number,
+			created_by_email,
+			source,
+			title,
+			subject,
+			preheader,
+			original_html,
+			template_html,
+			editable_fields
+		)
+		SELECT
+			id,
+			coalesce((SELECT max(version_number) FROM email_versions WHERE email_id = emails.id), 0) + 1,
+			$2,
+			$3,
+			title,
+			subject,
+			preheader,
+			original_html,
+			template_html,
+			editable_fields
+		FROM emails
+		WHERE id = $1
+		RETURNING id;
+	`, emailID, actorEmail, source).Scan(&versionID)
+	if err != nil {
+		t.Fatalf("failed to insert test email version: %v", err)
+	}
+
+	return versionID
 }
 
 func withAuthUser(request *http.Request, user AuthUser) *http.Request {

@@ -33,6 +33,9 @@ func registerEmailRoutes(r chi.Router, dbpool *pgxpool.Pool) {
 	r.Get("/api/emails/{id}/activity", listEmailActivityHandler(dbpool))
 	r.Get("/api/emails/{id}/area-approvals", listEmailAreaApprovalsHandler(dbpool))
 	r.Get("/api/emails/{id}/rendered", getRenderedEmailHandler(dbpool))
+	r.Get("/api/emails/{id}/versions", listEmailVersionsHandler(dbpool))
+	r.Get("/api/emails/{id}/versions/{versionId}", getEmailVersionHandler(dbpool))
+	r.Post("/api/emails/{id}/versions/{versionId}/restore", restoreEmailVersionHandler(dbpool))
 	r.Patch("/api/emails/{id}/editable-fields", updateEmailEditableFieldsHandler(dbpool))
 	r.Patch("/api/emails/{id}/planning-fields", updateEmailPlanningFieldsHandler(dbpool))
 	r.Patch("/api/emails/{id}/review-status", updateEmailReviewStatusHandler(dbpool))
@@ -405,6 +408,21 @@ func createEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			http.Error(w, "failed to record email event", http.StatusInternalServerError)
 			return
 		}
+		if err := insertEmailVersion(r.Context(), tx, emailVersionSnapshot{
+			EmailID:            created.ID,
+			CreatedByUserID:    user.ID,
+			CreatedByEmail:     user.Email,
+			Source:             "initial",
+			Title:              created.Title,
+			Subject:            created.Subject,
+			Preheader:          created.Preheader,
+			OriginalHTML:       created.OriginalHTML,
+			TemplateHTML:       created.TemplateHTML,
+			EditableFieldsJSON: editableFieldsJSON,
+		}); err != nil {
+			http.Error(w, "failed to record email version", http.StatusInternalServerError)
+			return
+		}
 		if err := tx.Commit(r.Context()); err != nil {
 			http.Error(w, "failed to create email", http.StatusInternalServerError)
 			return
@@ -548,6 +566,13 @@ func updateEmailEditableFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			return
 		}
 
+		tx, err := dbpool.Begin(r.Context())
+		if err != nil {
+			http.Error(w, "failed to update editable fields", http.StatusInternalServerError)
+			return
+		}
+		defer tx.Rollback(r.Context())
+
 		var originalHTML string
 		var templateHTML string
 		var currentTitle string
@@ -556,11 +581,12 @@ func updateEmailEditableFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 		var currentEditableFieldsJSON []byte
 		var slug string
 		var currentReviewStatus string
-		err := dbpool.QueryRow(r.Context(), `
+		err = tx.QueryRow(r.Context(), `
 			SELECT slug, original_html, template_html, title, subject, preheader, editable_fields, review_status
 			FROM emails
 			WHERE id = $1
-				AND archived_at IS NULL;
+				AND archived_at IS NULL
+			FOR UPDATE;
 		`, id).Scan(&slug, &originalHTML, &templateHTML, &currentTitle, &currentSubject, &currentPreheader, &currentEditableFieldsJSON, &currentReviewStatus)
 		if err != nil {
 			http.Error(w, "email not found", http.StatusNotFound)
@@ -689,13 +715,6 @@ func updateEmailEditableFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			return
 		}
 
-		tx, err := dbpool.Begin(r.Context())
-		if err != nil {
-			http.Error(w, "failed to update editable fields", http.StatusInternalServerError)
-			return
-		}
-		defer tx.Rollback(r.Context())
-
 		result, err := tx.Exec(r.Context(), `
 			UPDATE emails
 			SET title = $2,
@@ -719,6 +738,26 @@ func updateEmailEditableFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 		if result.RowsAffected() == 0 {
 			http.Error(w, "email not found", http.StatusNotFound)
 			return
+		}
+		if len(changes) > 0 || originalHTMLChanged {
+			if err := insertEmailVersion(r.Context(), tx, emailVersionSnapshot{
+				EmailID:              id,
+				CreatedByUserID:      user.ID,
+				CreatedByEmail:       user.Email,
+				Source:               "manual",
+				Title:                title,
+				Subject:              subject,
+				Preheader:            preheader,
+				OriginalHTML:         nextOriginalHTML,
+				TemplateHTML:         nextTemplateHTML,
+				EditableFieldsJSON:   fieldsJSON,
+				ChangedFieldCount:    countEditableFieldChanges(changes),
+				ChangedMetadataCount: countMetadataChanges(changes),
+				HTMLChanged:          originalHTMLChanged,
+			}); err != nil {
+				http.Error(w, "failed to record email version", http.StatusInternalServerError)
+				return
+			}
 		}
 		if err := resetCommentAnchorsForReviewBlocks(r.Context(), tx, id, commentAnchorTexts); err != nil {
 			http.Error(w, "failed to update editable fields", http.StatusInternalServerError)

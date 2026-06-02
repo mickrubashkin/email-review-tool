@@ -17,6 +17,8 @@ import type {
   EmailEventItem,
   EmailHTMLInspection,
   EmailListItem,
+  EmailVersionDetail,
+  EmailVersionListItem,
   OperationalEventFilters,
   OperationalEventItem,
   CreateEmailPayload,
@@ -342,6 +344,35 @@ export function inspectEmailHTML(originalHTML: string): Promise<EmailHTMLInspect
 export function fetchRenderedEmail(emailId: string): Promise<RenderedEmail> {
   return fetchJson<RenderedEmail>(
     `/api/emails/${encodeURIComponent(emailId)}/rendered`
+  );
+}
+
+export function fetchEmailVersions(
+  emailId: string
+): Promise<EmailVersionListItem[]> {
+  return fetchJson<EmailVersionListItem[]>(
+    `/api/emails/${encodeURIComponent(emailId)}/versions`
+  );
+}
+
+export function fetchEmailVersion(
+  emailId: string,
+  versionId: string
+): Promise<EmailVersionDetail> {
+  return fetchJson<EmailVersionDetail>(
+    `/api/emails/${encodeURIComponent(emailId)}/versions/${encodeURIComponent(versionId)}`
+  );
+}
+
+export function restoreEmailVersion(
+  emailId: string,
+  versionId: string
+): Promise<void> {
+  return fetchJson<void>(
+    `/api/emails/${encodeURIComponent(emailId)}/versions/${encodeURIComponent(versionId)}/restore`,
+    {
+      method: "POST",
+    }
   );
 }
 

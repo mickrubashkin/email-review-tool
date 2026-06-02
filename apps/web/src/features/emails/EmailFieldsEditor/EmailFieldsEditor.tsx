@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Button,
@@ -14,7 +14,10 @@ import { Link, useNavigate } from "react-router-dom";
 import {
   fetchEmails,
   fetchEmailDetail,
+  fetchEmailVersion,
+  fetchEmailVersions,
   fetchRenderedEmail,
+  restoreEmailVersion,
   updateEmailEditableFields,
 } from "../api";
 import type {
@@ -42,8 +45,10 @@ import {
 import { EmailFieldsEditorHeader } from "./EmailFieldsEditorHeader";
 import {
   EditorFieldsPanel,
+  EmailVersionHistoryPanel,
   HTMLTemplatePanel,
   RenderedPreview,
+  RestoreVersionModal,
 } from "./EmailFieldsEditorPanels";
 import styles from "./EmailFieldsEditor.module.css";
 
@@ -138,6 +143,9 @@ function EmailFieldsEditorForm({
   const [formState, setFormState] = useState(initialState);
   const [renderedHTML, setRenderedHTML] = useState(initialRenderedHTML);
   const [saveError, setSaveError] = useState(false);
+  const [restoreError, setRestoreError] = useState(false);
+  const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
+  const [restoreVersionId, setRestoreVersionId] = useState<string | null>(null);
   const fieldGroups = useMemo(
     () => buildFieldGroups(formState.editableFields),
     [formState.editableFields]
@@ -145,6 +153,18 @@ function EmailFieldsEditorForm({
   const emailsQuery = useQuery({
     queryKey: ["emails", email.sequence],
     queryFn: () => fetchEmails(email.sequence),
+  });
+  const versionsQuery = useQuery({
+    queryKey: ["emails", email.id, "versions"],
+    queryFn: () => fetchEmailVersions(email.id),
+  });
+  const selectedVersion =
+    versionsQuery.data?.find((version) => version.id === selectedVersionId) ??
+    versionsQuery.data?.[0];
+  const versionDetailQuery = useQuery({
+    queryKey: ["emails", email.id, "versions", selectedVersion?.id],
+    queryFn: () => fetchEmailVersion(email.id, selectedVersion?.id ?? ""),
+    enabled: Boolean(selectedVersion?.id),
   });
   const stageColumns = useMemo(
     () => buildStageColumns(emailsQuery.data ?? []),
@@ -201,6 +221,12 @@ function EmailFieldsEditorForm({
     column.emailGroups.some((group) => group.key === emailGroup?.key)
   );
   const isDirty = serializeFormState(formState) !== serializeFormState(savedState);
+  useEffect(() => {
+    if (!selectedVersionId && versionsQuery.data?.[0]) {
+      setSelectedVersionId(versionsQuery.data[0].id);
+    }
+  }, [selectedVersionId, versionsQuery.data]);
+
   const saveMutation = useMutation({
     mutationFn: (payload: UpdateEditableFieldsPayload) =>
       updateEmailEditableFields(email.id, payload),
@@ -214,6 +240,9 @@ function EmailFieldsEditorForm({
       setRenderedHTML(rendered.html);
       void queryClient.invalidateQueries({ queryKey: ["emails"] });
       void queryClient.invalidateQueries({ queryKey: ["emails", email.id] });
+      void queryClient.invalidateQueries({
+        queryKey: ["emails", email.id, "versions"],
+      });
       void queryClient.invalidateQueries({ queryKey: ["email-comments", email.id] });
       notifications.show({
         color: "green",
@@ -236,6 +265,44 @@ function EmailFieldsEditorForm({
       ...(canEditHTML ? { original_html: formState.originalHTML } : {}),
     });
   };
+  const restoreMutation = useMutation({
+    mutationFn: (versionId: string) => restoreEmailVersion(email.id, versionId),
+    onSuccess: async () => {
+      setRestoreError(false);
+      setRestoreVersionId(null);
+      const [nextEmail, rendered] = await Promise.all([
+        queryClient.fetchQuery({
+          queryKey: ["emails", email.id],
+          queryFn: () => fetchEmailDetail(email.id),
+        }),
+        queryClient.fetchQuery({
+          queryKey: ["emails", email.id, "rendered"],
+          queryFn: () => fetchRenderedEmail(email.id),
+        }),
+      ]);
+      const nextState = buildInitialFormState(nextEmail);
+      setSavedState(nextState);
+      setFormState(nextState);
+      setRenderedHTML(rendered.html);
+      void queryClient.invalidateQueries({ queryKey: ["emails"] });
+      void queryClient.invalidateQueries({
+        queryKey: ["emails", email.id, "versions"],
+      });
+      void queryClient.invalidateQueries({ queryKey: ["email-comments", email.id] });
+      notifications.show({
+        color: "green",
+        message: "Email version was restored.",
+        title: "Restored",
+      });
+    },
+    onError: () => {
+      setRestoreError(true);
+      setRestoreVersionId(null);
+    },
+  });
+  const restoreCandidate = versionsQuery.data?.find(
+    (version) => version.id === restoreVersionId
+  );
   const navigateToEdit = (nextEmailId: string) => {
     navigate(`/emails/${encodeURIComponent(nextEmailId)}/edit`);
   };
@@ -306,6 +373,26 @@ function EmailFieldsEditorForm({
     />
   ) : null;
   const previewPanel = <RenderedPreview html={renderedHTML} title={email.title} />;
+  const historyPanel = (
+    <EmailVersionHistoryPanel
+      currentUserRole={currentUserRole}
+      isLoadingDetail={versionDetailQuery.isLoading}
+      isLoadingVersions={versionsQuery.isLoading}
+      isRestoring={restoreMutation.isPending}
+      restoreError={restoreError}
+      selectedVersion={selectedVersion}
+      versionDetail={versionDetailQuery.data}
+      versions={versionsQuery.data ?? []}
+      onRestore={(version) => {
+        setRestoreError(false);
+        setRestoreVersionId(version.id);
+      }}
+      onSelectVersion={(versionId) => {
+        setRestoreError(false);
+        setSelectedVersionId(versionId);
+      }}
+    />
+  );
 
   return (
     <div className={styles.page}>
@@ -335,12 +422,21 @@ function EmailFieldsEditorForm({
               <Tabs.List grow>
                 <Tabs.Tab value="fields">Fields</Tabs.Tab>
                 <Tabs.Tab value="html">HTML</Tabs.Tab>
+                <Tabs.Tab value="history">History</Tabs.Tab>
               </Tabs.List>
               <Tabs.Panel value="fields">{editorPanel}</Tabs.Panel>
               <Tabs.Panel value="html">{htmlPanel}</Tabs.Panel>
+              <Tabs.Panel value="history">{historyPanel}</Tabs.Panel>
             </Tabs>
           ) : (
-            editorPanel
+            <Tabs defaultValue="fields">
+              <Tabs.List grow>
+                <Tabs.Tab value="fields">Fields</Tabs.Tab>
+                <Tabs.Tab value="history">History</Tabs.Tab>
+              </Tabs.List>
+              <Tabs.Panel value="fields">{editorPanel}</Tabs.Panel>
+              <Tabs.Panel value="history">{historyPanel}</Tabs.Panel>
+            </Tabs>
           )}
         </section>
         <section className={styles.previewPanel}>{previewPanel}</section>
@@ -351,6 +447,7 @@ function EmailFieldsEditorForm({
           <Tabs.List grow>
             <Tabs.Tab value="fields">Fields</Tabs.Tab>
             {canEditHTML ? <Tabs.Tab value="html">HTML</Tabs.Tab> : null}
+            <Tabs.Tab value="history">History</Tabs.Tab>
             <Tabs.Tab value="preview">Preview</Tabs.Tab>
           </Tabs.List>
           <Tabs.Panel value="fields" pt="md">
@@ -361,11 +458,26 @@ function EmailFieldsEditorForm({
               <section className={styles.editorPanel}>{htmlPanel}</section>
             </Tabs.Panel>
           ) : null}
+          <Tabs.Panel value="history" pt="md">
+            <section className={styles.editorPanel}>{historyPanel}</section>
+          </Tabs.Panel>
           <Tabs.Panel value="preview" pt="md">
             <section className={styles.previewPanel}>{previewPanel}</section>
           </Tabs.Panel>
         </Tabs>
       </main>
+
+      <RestoreVersionModal
+        isOpen={Boolean(restoreCandidate)}
+        isRestoring={restoreMutation.isPending}
+        version={restoreCandidate}
+        onClose={() => setRestoreVersionId(null)}
+        onConfirm={() => {
+          if (restoreCandidate) {
+            restoreMutation.mutate(restoreCandidate.id);
+          }
+        }}
+      />
     </div>
   );
 }

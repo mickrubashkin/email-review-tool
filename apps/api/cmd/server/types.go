@@ -64,6 +64,32 @@ type EmailDetail struct {
 type EmailContentParts = emailtext.ContentParts
 type LinkGroups = emailtext.LinkGroups
 
+type EmailVersionListItem struct {
+	ID                        string    `json:"id"`
+	EmailID                   string    `json:"email_id"`
+	VersionNumber             int       `json:"version_number"`
+	CreatedAt                 time.Time `json:"created_at"`
+	CreatedByUserID           *string   `json:"created_by_user_id"`
+	CreatedByEmail            string    `json:"created_by_email"`
+	Source                    string    `json:"source"`
+	RestoredFromVersionID     *string   `json:"restored_from_version_id"`
+	RestoredFromVersionNumber *int      `json:"restored_from_version_number"`
+	ChangedFieldCount         int       `json:"changed_field_count"`
+	ChangedMetadataCount      int       `json:"changed_metadata_count"`
+	HTMLChanged               bool      `json:"html_changed"`
+}
+
+type EmailVersionDetail struct {
+	EmailVersionListItem
+	Title          string          `json:"title"`
+	Subject        *string         `json:"subject"`
+	Preheader      *string         `json:"preheader"`
+	OriginalHTML   string          `json:"original_html"`
+	TemplateHTML   string          `json:"template_html"`
+	EditableFields json.RawMessage `json:"editable_fields"`
+	ReviewHTML     string          `json:"review_html"`
+}
+
 type BoardItem struct {
 	ID        string    `json:"id"`
 	Key       string    `json:"key"`
