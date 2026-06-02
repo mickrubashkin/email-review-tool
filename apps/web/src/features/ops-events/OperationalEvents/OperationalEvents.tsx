@@ -72,6 +72,7 @@ const sortKeys: readonly OperationalEventSortKey[] = [
   "status_code",
   "duration_ms",
 ];
+const emptyOperationalEvents: OperationalEventItem[] = [];
 
 export function OperationalEvents() {
   const [filters, setFilters] = useState<OperationalEventFilters>({
@@ -89,6 +90,7 @@ export function OperationalEvents() {
   const eventsQuery = useQuery({
     queryKey: ["operational-events", filters],
     queryFn: () => fetchOperationalEvents(filters),
+    placeholderData: (previous) => previous,
   });
 
   const columns = useMemo(() => buildColumns(), []);
@@ -100,7 +102,7 @@ export function OperationalEvents() {
   const table = useReactTable({
     columnResizeMode: "onChange",
     columns,
-    data: eventsQuery.data ?? [],
+    data: eventsQuery.data ?? emptyOperationalEvents,
     enableColumnResizing: true,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),

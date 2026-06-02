@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Alert,
   Button,
@@ -221,12 +221,6 @@ function EmailFieldsEditorForm({
     column.emailGroups.some((group) => group.key === emailGroup?.key)
   );
   const isDirty = serializeFormState(formState) !== serializeFormState(savedState);
-  useEffect(() => {
-    if (!selectedVersionId && versionsQuery.data?.[0]) {
-      setSelectedVersionId(versionsQuery.data[0].id);
-    }
-  }, [selectedVersionId, versionsQuery.data]);
-
   const saveMutation = useMutation({
     mutationFn: (payload: UpdateEditableFieldsPayload) =>
       updateEmailEditableFields(email.id, payload),

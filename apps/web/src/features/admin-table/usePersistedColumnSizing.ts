@@ -10,6 +10,9 @@ export function usePersistedColumnSizing(storageKey: string) {
     (updater) => {
       setColumnSizingState((current) => {
         const next = applyUpdater(updater, current);
+        if (isSameColumnSizing(current, next)) {
+          return current;
+        }
         writeStoredColumnSizing(storageKey, next);
         return next;
       });
@@ -47,6 +50,19 @@ function writeStoredColumnSizing(
   } catch {
     // Resizing should still work if localStorage is blocked or full.
   }
+}
+
+function isSameColumnSizing(
+  current: ColumnSizingState,
+  next: ColumnSizingState
+) {
+  const currentEntries = Object.entries(current);
+  const nextEntries = Object.entries(next);
+  if (currentEntries.length !== nextEntries.length) {
+    return false;
+  }
+
+  return currentEntries.every(([key, value]) => next[key] === value);
 }
 
 function normalizeColumnSizing(value: unknown): ColumnSizingState {

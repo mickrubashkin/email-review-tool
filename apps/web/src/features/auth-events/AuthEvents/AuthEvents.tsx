@@ -54,6 +54,7 @@ const sortKeys: readonly AuthEventSortKey[] = [
   "ip_address",
   "user_agent",
 ];
+const emptyAuthEvents: AuthEventItem[] = [];
 
 export function AuthEvents() {
   const [filters, setFilters] = useState<AuthEventFilters>({
@@ -71,6 +72,7 @@ export function AuthEvents() {
   const eventsQuery = useQuery({
     queryKey: ["auth-events", filters],
     queryFn: () => fetchAuthEvents(filters),
+    placeholderData: (previous) => previous,
   });
 
   const columns = useMemo(() => buildColumns(), []);
@@ -82,7 +84,7 @@ export function AuthEvents() {
   const table = useReactTable({
     columnResizeMode: "onChange",
     columns,
-    data: eventsQuery.data ?? [],
+    data: eventsQuery.data ?? emptyAuthEvents,
     enableColumnResizing: true,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),

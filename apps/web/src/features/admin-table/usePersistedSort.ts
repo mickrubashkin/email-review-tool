@@ -23,6 +23,12 @@ export function usePersistedSort<SortKey extends string>(
             ? value(current)
             : value;
         const normalized = normalizeSort(next, defaultSort, allowedKeys);
+        if (
+          normalized.direction === current.direction &&
+          normalized.key === current.key
+        ) {
+          return current;
+        }
         writeStoredSort(storageKey, normalized);
         return normalized;
       });

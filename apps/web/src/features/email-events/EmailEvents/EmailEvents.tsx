@@ -82,6 +82,7 @@ const sortKeys: readonly EmailEventSortKey[] = [
   "summary",
   "changed_fields",
 ];
+const emptyEmailEvents: EmailEventItem[] = [];
 
 export function EmailEvents() {
   const [filters, setFilters] = useState<EmailEventFilters>({
@@ -99,6 +100,7 @@ export function EmailEvents() {
   const eventsQuery = useQuery({
     queryKey: ["email-events", filters],
     queryFn: () => fetchEmailEvents(filters),
+    placeholderData: (previous) => previous,
   });
 
   const columns = useMemo(() => buildColumns(), []);
@@ -110,7 +112,7 @@ export function EmailEvents() {
   const table = useReactTable({
     columnResizeMode: "onChange",
     columns,
-    data: eventsQuery.data ?? [],
+    data: eventsQuery.data ?? emptyEmailEvents,
     enableColumnResizing: true,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),

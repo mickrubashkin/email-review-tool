@@ -65,6 +65,7 @@ const sortKeys: readonly AILogSortKey[] = [
   "cached_tokens",
   "error_message",
 ];
+const emptyAIAnalysisLogs: AIAnalysisLogItem[] = [];
 
 export function AIAnalysisLogs() {
   const [filters, setFilters] = useState<AIAnalysisLogFilters>({
@@ -84,6 +85,7 @@ export function AIAnalysisLogs() {
   const logsQuery = useQuery({
     queryKey: ["ai-analysis-logs", filters],
     queryFn: () => fetchAIAnalysisLogs(filters),
+    placeholderData: (previous) => previous,
   });
 
   const columns = useMemo(
@@ -98,7 +100,7 @@ export function AIAnalysisLogs() {
   const table = useReactTable({
     columnResizeMode: "onChange",
     columns,
-    data: logsQuery.data ?? [],
+    data: logsQuery.data ?? emptyAIAnalysisLogs,
     enableColumnResizing: true,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),

@@ -51,6 +51,7 @@ const sortKeys: readonly UserSortKey[] = [
   "created_at",
   "updated_at",
 ];
+const emptyAdminUsers: UserAdminItem[] = [];
 
 type AdminUsersProps = {
   currentUserRole: UserRole;
@@ -152,7 +153,7 @@ export function AdminUsers({ currentUserRole }: AdminUsersProps) {
   const table = useReactTable({
     columnResizeMode: "onChange",
     columns,
-    data: usersQuery.data ?? [],
+    data: usersQuery.data ?? emptyAdminUsers,
     enableColumnResizing: true,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
