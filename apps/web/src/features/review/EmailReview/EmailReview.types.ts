@@ -14,7 +14,12 @@ export type ReviewContentTab =
   | "more";
 
 export type ReviewPanelTab = "ai" | "comments";
-export type ReviewUtilityPanel = "planning" | "approvals" | "handoff" | "activity";
+export type ReviewUtilityPanel =
+  | "planning"
+  | "approvals"
+  | "handoff"
+  | "history"
+  | "activity";
 export type CommentStatusFilter = "open" | "all";
 export type CommentBlockOption = {
   label: string;

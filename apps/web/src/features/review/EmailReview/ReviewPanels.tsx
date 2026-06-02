@@ -7,6 +7,7 @@ import {
   Button,
   Group,
   Loader,
+  Modal,
   Select,
   Skeleton,
   Stack,
@@ -34,6 +35,7 @@ import type {
   EmailAreaApproval,
   EmailActivityItem,
   EmailDetail,
+  EmailVersionListItem,
   UpdateEmailPlanningFieldsPayload,
   UserAdminItem,
   UserRole,
@@ -364,6 +366,170 @@ export function AreaApprovalsPanel({
   );
 }
 
+export function VersionHistoryPanel({
+  canManage,
+  currentUserRole,
+  isLoading,
+  isRestoring,
+  onRestore,
+  restoreError,
+  versions,
+}: {
+  canManage: boolean;
+  currentUserRole: UserRole;
+  isLoading: boolean;
+  isRestoring: boolean;
+  onRestore: (versionId: string) => void;
+  restoreError: boolean;
+  versions: EmailVersionListItem[];
+}) {
+  const [restoreVersion, setRestoreVersion] =
+    useState<EmailVersionListItem | null>(null);
+
+  if (isLoading) {
+    return (
+      <Stack className={styles.emptyState} align="center" justify="center">
+        <Loader size="sm" />
+        <Text c="dimmed" size="sm">
+          Loading versions
+        </Text>
+      </Stack>
+    );
+  }
+
+  if (versions.length === 0) {
+    return (
+      <Alert color="gray" title="No versions" variant="light">
+        Save an edit to create version history.
+      </Alert>
+    );
+  }
+
+  return (
+    <>
+      <Stack gap="sm">
+        {restoreError ? (
+          <Alert color="red" title="Restore failed" variant="light">
+            This version may require super admin access or contain invalid fields.
+          </Alert>
+        ) : null}
+        {versions.map((version) => {
+          const requiresSuperAdmin =
+            version.html_changed && currentUserRole !== "super_admin";
+          return (
+            <section className={styles.historyVersionCard} key={version.id}>
+              <Stack gap="xs">
+                <Group justify="space-between" gap="sm">
+                  <Group gap="xs">
+                    <Text fw={700} size="sm">
+                      v{version.version_number}
+                    </Text>
+                    <Badge size="sm" variant="light">
+                      {formatVersionSource(version)}
+                    </Badge>
+                    {version.restored_from_version_number ? (
+                      <Badge color="blue" size="sm" variant="light">
+                        from v{version.restored_from_version_number}
+                      </Badge>
+                    ) : null}
+                  </Group>
+                  {canManage ? (
+                    <Button
+                      disabled={requiresSuperAdmin}
+                      loading={isRestoring && restoreVersion?.id === version.id}
+                      size="xs"
+                      variant="light"
+                      onClick={() => setRestoreVersion(version)}
+                    >
+                      Restore
+                    </Button>
+                  ) : null}
+                </Group>
+                <Text c="dimmed" size="xs">
+                  {formatVersionDate(version.created_at)} by{" "}
+                  {version.created_by_email}
+                </Text>
+                <Text size="sm">{formatVersionSummary(version)}</Text>
+                {requiresSuperAdmin ? (
+                  <Text c="orange" size="xs">
+                    Source HTML changed. Restore requires super admin.
+                  </Text>
+                ) : null}
+              </Stack>
+            </section>
+          );
+        })}
+      </Stack>
+
+      <Modal
+        centered
+        opened={Boolean(restoreVersion)}
+        title="Restore version"
+        onClose={() => setRestoreVersion(null)}
+      >
+        <Stack gap="md">
+          <Text size="sm">
+            Restore {restoreVersion ? `v${restoreVersion.version_number}` : "this version"} as
+            the latest email state. This creates a new version.
+          </Text>
+          <Group justify="flex-end">
+            <Button
+              disabled={isRestoring}
+              variant="subtle"
+              onClick={() => setRestoreVersion(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              loading={isRestoring}
+              onClick={() => {
+                if (restoreVersion) {
+                  onRestore(restoreVersion.id);
+                  setRestoreVersion(null);
+                }
+              }}
+            >
+              Restore
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+    </>
+  );
+}
+
+function formatVersionDate(value: string) {
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
+
+function formatVersionSource(version: EmailVersionListItem) {
+  switch (version.source) {
+    case "initial":
+      return "Initial";
+    case "restore":
+      return "Restore";
+    default:
+      return "Manual";
+  }
+}
+
+function formatVersionSummary(version: EmailVersionListItem) {
+  const parts: string[] = [];
+  if (version.changed_metadata_count > 0) {
+    parts.push(`${version.changed_metadata_count} metadata fields`);
+  }
+  if (version.changed_field_count > 0) {
+    parts.push(`${version.changed_field_count} editable fields`);
+  }
+  if (version.html_changed) {
+    parts.push("source HTML");
+  }
+
+  return parts.length > 0 ? `${parts.join(", ")} changed` : "Baseline snapshot";
+}
 
 export function HandoffPanel({
   approvalActivity,
@@ -738,5 +904,3 @@ export function ActivityPanel({
     </Timeline>
   );
 }
-
-

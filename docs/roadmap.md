@@ -25,11 +25,12 @@ The current product already has:
 - reproducible backend/frontend checks;
 - board search, review statuses, threaded comments, comment severity, ownership/reviewer/due-date planning fields, and admin-editable send timing/adaptation labels;
 - editable email fields with approval-stale behavior after content edits;
-- simple version-change summaries for subject, preheader, editable fields, template/source hash, and review blocks;
+- immutable edit version snapshots for title, subject, preheader, editable fields, and source/template HTML, with admin history UI and restore-as-new-version behavior;
+- simple version/change summaries for subject, preheader, editable fields, template/source hash, review blocks, and email events;
 - configurable board-level approval areas with required/optional flags, ordering, archive behavior, email-level area approval decisions, review UI matrix, and audit events;
 - approval gates that block final email approval while required area approvals are incomplete or open blocking comments remain;
 - minimal approved-email handoff package with in-app approval/risk summaries, sequence-level handoff export, structured manifest, and review activity timeline;
-- board/stage audit events, production smoke check for `GET /api/boards`, and deployment mapping docs.
+- board/stage audit events, stable admin event table filtering, production smoke check for `GET /api/boards`, and deployment mapping docs.
 
 ## Priority 1: Approval Flow Completion
 
@@ -57,11 +58,20 @@ The current product already has:
 
 ## Priority 2: Versioning And Diff Review
 
+- [x] Add edit version history v1:
+  - create immutable snapshots on effective editable-field saves;
+  - backfill initial snapshots for existing active emails;
+  - show history in the editor with version metadata and preview;
+  - restore a selected snapshot by creating a new latest version.
 - [ ] Add version diff views:
   - compare subject and preheader changes;
   - compare editable field changes;
   - show changed review blocks between content snapshots;
   - connect diffs to approval snapshots and stale approval events.
+- [ ] Add version-aware approval context:
+  - show which version was approved or restored from;
+  - make restore events easier to read in activity history;
+  - show whether current approvals refer to the latest edit version.
 - [ ] Add a board-level review checklist:
   - links checked;
   - legal/compliance checked;

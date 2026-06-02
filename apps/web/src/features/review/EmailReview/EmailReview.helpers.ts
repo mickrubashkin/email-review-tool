@@ -127,6 +127,8 @@ export function formatUtilityPanelLabel(tab: ReviewUtilityPanel) {
       return "Approvals";
     case "handoff":
       return "Handoff";
+    case "history":
+      return "History";
     case "activity":
       return "Activity";
   }

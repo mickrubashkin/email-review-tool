@@ -38,12 +38,14 @@ import {
   fetchAdminUsers,
   fetchBoards,
   fetchEmailActivity,
+  fetchEmailVersions,
   listEmailAreaApprovals,
   fetchEmailComments,
   fetchEmailDetail,
   fetchEmails,
   fetchRenderedEmail,
   fetchSharedEmailAnalysis,
+  restoreEmailVersion,
   resolveComment,
   updateEmailAreaApproval,
   updateEmailEditableFields,
@@ -102,6 +104,7 @@ import {
   HandoffPanel,
   PlanningPanel,
   ReviewPreviewSkeleton,
+  VersionHistoryPanel,
 } from "./ReviewPanels";
 import type {
   CommentStatusFilter,
@@ -187,6 +190,11 @@ export function EmailReview({
     queryKey: ["emails", emailId, "rendered"],
     queryFn: () => fetchRenderedEmail(emailId),
     enabled: emailId.trim() !== "",
+  });
+  const versionsQuery = useQuery({
+    queryKey: ["emails", emailId, "versions"],
+    queryFn: () => fetchEmailVersions(emailId),
+    enabled: emailId.trim() !== "" && canManageEmail,
   });
   const email = emailQuery.data;
   const emailsQuery = useQuery({
@@ -599,6 +607,21 @@ export function EmailReview({
       });
     },
   });
+  const refreshEmailAfterContentChange = async () => {
+    await queryClient.invalidateQueries({
+      queryKey: ["emails", emailId, "review"],
+    });
+    await queryClient.invalidateQueries({
+      queryKey: ["emails", emailId, "rendered"],
+    });
+    await queryClient.invalidateQueries({ queryKey: ["emails"] });
+    if (email?.sequence) {
+      await queryClient.invalidateQueries({ queryKey: ["emails", email.sequence] });
+    }
+    await queryClient.invalidateQueries({ queryKey: ["email-activity", emailId] });
+    await queryClient.invalidateQueries({ queryKey: ["emails", emailId, "versions"] });
+    await queryClient.invalidateQueries({ queryKey: ["email-comments", emailId] });
+  };
   const inlineEditMutation = useMutation({
     mutationFn: (payload: UpdateEditableFieldsPayload) =>
       updateEmailEditableFields(emailId, payload),
@@ -606,17 +629,7 @@ export function EmailReview({
       setIsInlineEditPreviewRefreshing(true);
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: ["emails", emailId, "review"],
-      });
-      await queryClient.invalidateQueries({
-        queryKey: ["emails", emailId, "rendered"],
-      });
-      await queryClient.invalidateQueries({ queryKey: ["emails"] });
-      if (email?.sequence) {
-        await queryClient.invalidateQueries({ queryKey: ["emails", email.sequence] });
-      }
-      await queryClient.invalidateQueries({ queryKey: ["email-activity", emailId] });
+      await refreshEmailAfterContentChange();
       inlineEditPreviewNeedsFrameRef.current = false;
       setIsInlineEditPreviewRefreshing(false);
       setSourceHTMLModalOpened(false);
@@ -633,6 +646,29 @@ export function EmailReview({
         color: "red",
         message: "Try again or check the editable markers.",
         title: "Save failed",
+      });
+    },
+  });
+  const restoreVersionMutation = useMutation({
+    mutationFn: (versionId: string) => restoreEmailVersion(emailId, versionId),
+    onMutate: () => {
+      setIsInlineEditPreviewRefreshing(true);
+    },
+    onSuccess: async () => {
+      await refreshEmailAfterContentChange();
+      setIsInlineEditPreviewRefreshing(false);
+      notifications.show({
+        color: "green",
+        message: "Email version was restored.",
+        title: "Restored",
+      });
+    },
+    onError: () => {
+      setIsInlineEditPreviewRefreshing(false);
+      notifications.show({
+        color: "red",
+        message: "This version may require super admin access or contain invalid fields.",
+        title: "Restore failed",
       });
     },
   });
@@ -1044,6 +1080,17 @@ export function EmailReview({
       renderedHTMLError={renderedEmailQuery.isError}
     />
   );
+  const historyContent = (
+    <VersionHistoryPanel
+      canManage={canManageEmail}
+      currentUserRole={currentUserRole}
+      isLoading={versionsQuery.isLoading}
+      isRestoring={restoreVersionMutation.isPending}
+      restoreError={restoreVersionMutation.isError}
+      versions={versionsQuery.data ?? []}
+      onRestore={(versionId) => restoreVersionMutation.mutate(versionId)}
+    />
+  );
   const activityContent = (
     <ActivityPanel
       activities={activityQuery.data ?? []}
@@ -1056,6 +1103,7 @@ export function EmailReview({
     activity: activityContent,
     approvals: approvalsContent,
     handoff: handoffContent,
+    history: historyContent,
     planning: planningContent,
   };
   const utilityPanelContent = utilityContentByPanel[selectedUtilityPanel];

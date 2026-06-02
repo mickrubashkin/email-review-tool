@@ -153,6 +153,14 @@ export function ReviewLayout({
                     onClick={() => onUtilityPanelSelect("handoff")}
                   />
                   <UtilityNavButton
+                    active={selectedUtilityPanel === "history"}
+                    icon={
+                      <ClockCounterClockwiseIcon aria-hidden="true" size={15} />
+                    }
+                    label="History"
+                    onClick={() => onUtilityPanelSelect("history")}
+                  />
+                  <UtilityNavButton
                     active={selectedUtilityPanel === "activity"}
                     icon={
                       <ClockCounterClockwiseIcon aria-hidden="true" size={15} />
@@ -278,4 +286,3 @@ function UtilityPanelFrame({
     </section>
   );
 }
-

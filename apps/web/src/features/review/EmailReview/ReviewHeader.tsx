@@ -352,6 +352,16 @@ export function ReviewHeader({
                   </Menu.Item>
                   <Menu.Item
                     className={styles.sectionMenuItem}
+                    data-active={activeUtilityPanel === "history" || undefined}
+                    leftSection={
+                      <ClockCounterClockwiseIcon aria-hidden="true" size={15} />
+                    }
+                    onClick={() => onUtilityPanelSelect("history")}
+                  >
+                    History
+                  </Menu.Item>
+                  <Menu.Item
+                    className={styles.sectionMenuItem}
                     data-active={activeUtilityPanel === "activity" || undefined}
                     leftSection={
                       <ClockCounterClockwiseIcon aria-hidden="true" size={15} />
@@ -487,6 +497,16 @@ export function ReviewHeader({
                     onClick={() => onUtilityPanelSelect("handoff")}
                   >
                     Handoff
+                  </Menu.Item>
+                  <Menu.Item
+                    className={styles.sectionMenuItem}
+                    data-active={activeUtilityPanel === "history" || undefined}
+                    leftSection={
+                      <ClockCounterClockwiseIcon aria-hidden="true" size={15} />
+                    }
+                    onClick={() => onUtilityPanelSelect("history")}
+                  >
+                    History
                   </Menu.Item>
                   <Menu.Item
                     className={styles.sectionMenuItem}
@@ -753,4 +773,3 @@ function ViewportSwitch({
     </Group>
   );
 }
-

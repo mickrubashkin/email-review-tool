@@ -477,6 +477,13 @@
   background: var(--mantine-color-white);
 }
 
+.historyVersionCard {
+  padding: var(--mantine-spacing-sm);
+  border: 1px solid var(--mantine-color-gray-2);
+  border-radius: var(--mantine-radius-sm);
+  background: var(--mantine-color-white);
+}
+
 .handoffSection {
   padding: var(--mantine-spacing-sm);
   border: 1px solid var(--mantine-color-gray-2);
