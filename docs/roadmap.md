@@ -28,8 +28,9 @@ The current product already has:
 - immutable edit version snapshots for title, subject, preheader, editable fields, and source/template HTML, with admin history UI and restore-as-new-version behavior;
 - simple version/change summaries for subject, preheader, editable fields, template/source hash, review blocks, and email events;
 - configurable board-level approval areas with required/optional flags, ordering, archive behavior, email-level area approval decisions, review UI matrix, and audit events;
-- approval gates that block final email approval while required area approvals are incomplete or open blocking comments remain;
-- minimal approved-email handoff package with in-app approval/risk summaries, sequence-level handoff export, structured manifest, and review activity timeline;
+- approval gates that block production approval while required area approvals are incomplete or open blocking comments remain;
+- distinct review-approved and production-approved workflow states;
+- minimal production-approved email handoff package with in-app approval/risk summaries, sequence-level handoff export, structured manifest, and review activity timeline;
 - board/stage audit events, stable admin event table filtering, production smoke check for `GET /api/boards`, and deployment mapping docs.
 
 ## Priority 1: Approval Flow Completion
@@ -49,12 +50,7 @@ The current product already has:
   - compare area approval snapshot hashes to the current content snapshot;
   - surface stale areas in review UI, handoff, and activity history;
   - allow explicit re-approval per area.
-- [ ] Add reviewer/approver permissions at the email or area level:
-  - owner/editor manages the email and moves it through review;
-  - reviewer comments and requests changes for a specific area;
-  - approver approves a specific area or final production readiness;
-  - viewer can inspect the email, comments, approvals, and history without changing state.
-- [ ] Add final production approval as a distinct workflow state after required area approvals pass.
+- [x] Add final production approval as a distinct workflow state after required area approvals pass.
 
 ## Priority 2: Versioning And Diff Review
 
@@ -158,6 +154,11 @@ These ideas are useful, but they should not outrank the core review, approval, v
   - board admin: manages board workflow and email setup without owning the workspace;
   - reviewer: reviews emails, comments, and updates allowed statuses.
 - [ ] Add a board-level admin role if boards can be owned by different managers inside one workspace.
+- [ ] Add reviewer/approver permissions at the email or area level when real access-control pressure appears:
+  - owner/editor manages the email and moves it through review;
+  - reviewer comments and requests changes for a specific area;
+  - approver approves a specific area or final production readiness;
+  - viewer can inspect the email, comments, approvals, and history without changing state.
 - [ ] Add AI quick start for new boards: suggested review rules, default checks, and seed instructions based on board purpose.
 - [ ] Allow admins to edit AI instructions at multiple scopes:
   - global defaults for all boards;

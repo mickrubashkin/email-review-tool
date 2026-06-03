@@ -5,6 +5,7 @@ import { CheckIcon, DotsThreeVerticalIcon } from "@phosphor-icons/react";
 import {
   emailReviewStatusOptions,
   formatEmailReviewStatus,
+  isApprovedEmailReviewStatus,
 } from "../reviewStatus";
 import type { EmailListItem, EmailReviewStatus, EmailVariant } from "../types";
 
@@ -197,13 +198,14 @@ export function EmailCardMenu({
             {emailReviewStatusOptions.map((option) => (
               <Menu.Item
                 disabled={
-                  option.value === "approved" && selectedEmailApprovalBlocked
+                  isApprovedEmailReviewStatus(option.value) &&
+                  selectedEmailApprovalBlocked
                 }
                 key={option.value}
                 rightSection={
                   option.value === selectedEmail.review_status ? (
                     <CheckIcon aria-hidden="true" size={14} weight="bold" />
-                  ) : option.value === "approved" &&
+                  ) : isApprovedEmailReviewStatus(option.value) &&
                     selectedEmailApprovalBlocked ? (
                     <Text c="red" size="xs">
                       Resolve blockers

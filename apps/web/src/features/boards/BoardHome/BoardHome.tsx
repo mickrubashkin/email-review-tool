@@ -32,6 +32,7 @@ import {
 import { EmailBoard } from "../../emails/EmailBoard";
 import {
   formatEmailReviewStatus,
+  isApprovedEmailReviewStatus,
 } from "../../emails/reviewStatus";
 import { buildStageColumns } from "../../emails/stages";
 import type {
@@ -356,7 +357,7 @@ function EmailBoardApp({
   ) => {
     const targetEmail = (emailsQuery.data ?? []).find((email) => email.id === emailId);
     if (
-      reviewStatus === "approved" &&
+      isApprovedEmailReviewStatus(reviewStatus) &&
       targetEmail &&
       (targetEmail.open_blocking_comment_count ?? 0) > 0
     ) {

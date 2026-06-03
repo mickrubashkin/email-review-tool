@@ -36,7 +36,8 @@ export type EmailReviewStatus =
   | "draft"
   | "in_review"
   | "changes_requested"
-  | "approved";
+  | "approved"
+  | "production_approved";
 
 export type EmailCommentSeverity = "suggestion" | "issue" | "blocking";
 

@@ -1,7 +1,10 @@
 import { notifications } from "@mantine/notifications";
 import type { QueryClient } from "@tanstack/react-query";
 
-import { formatEmailReviewStatus } from "../../emails/reviewStatus";
+import {
+  formatEmailReviewStatus,
+  isProductionApprovedEmailReviewStatus,
+} from "../../emails/reviewStatus";
 import { formatStageName } from "../../emails/stages";
 import type { EmailDetail, EmailListItem, EmailReviewStatus, StageColumn } from "../../emails/types";
 
@@ -285,8 +288,8 @@ export function buildSequenceHandoffManifest(
     title: email.title,
     variant: email.variant,
   }));
-  const approvedCount = emails.filter(
-    (email) => email.review_status === "approved"
+  const productionApprovedCount = emails.filter((email) =>
+    isProductionApprovedEmailReviewStatus(email.review_status)
   ).length;
   const openBlockingCommentCount = emails.reduce(
     (total, email) => total + email.open_blocking_comment_count,
@@ -294,7 +297,8 @@ export function buildSequenceHandoffManifest(
   );
 
   return {
-    approved_count: approvedCount,
+    approved_count: productionApprovedCount,
+    production_approved_count: productionApprovedCount,
     board_key: boardKey,
     board_name: boardName,
     email_count: emails.length,
@@ -302,7 +306,7 @@ export function buildSequenceHandoffManifest(
     open_blocking_comment_count: openBlockingCommentCount,
     ready_for_handoff:
       emails.length > 0 &&
-      approvedCount === emails.length &&
+      productionApprovedCount === emails.length &&
       openBlockingCommentCount === 0,
   };
 }

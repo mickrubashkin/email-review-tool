@@ -11,7 +11,10 @@ import type {
   ReviewChangedBlockTarget,
   ReviewCommentTarget,
 } from "../../emails/reviewOverlayTypes";
-import { formatEmailReviewStatus } from "../../emails/reviewStatus";
+import {
+  formatEmailReviewStatus,
+  isApprovedEmailReviewStatus,
+} from "../../emails/reviewStatus";
 import { getVersionForVariant } from "../../emails/stages";
 import type {
   EmailActivityItem,
@@ -292,7 +295,7 @@ function latestApprovalTimestamp(activities: EmailActivityItem[]) {
       return (
         isRecord(reviewStatus) &&
         typeof reviewStatus.after === "string" &&
-        reviewStatus.after === "approved"
+        isApprovedEmailReviewStatus(reviewStatus.after)
       );
     })
     .map((activity) => timestamp(activity.created_at))
@@ -308,10 +311,10 @@ export function latestApprovalActivity(activities: EmailActivityItem[]) {
       .filter((activity) => {
         const reviewStatus = activity.changes.review_status;
         return (
-          isRecord(reviewStatus) &&
-          typeof reviewStatus.after === "string" &&
-          reviewStatus.after === "approved"
-        );
+        isRecord(reviewStatus) &&
+        typeof reviewStatus.after === "string" &&
+        isApprovedEmailReviewStatus(reviewStatus.after)
+      );
       })
       .sort((left, right) => {
         const leftTime = timestamp(left.created_at) ?? 0;

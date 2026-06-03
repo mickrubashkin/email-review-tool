@@ -7,7 +7,8 @@ export const emailReviewStatusOptions: Array<{
   { value: "draft", label: "Draft" },
   { value: "in_review", label: "In review" },
   { value: "changes_requested", label: "Changes requested" },
-  { value: "approved", label: "Approved" },
+  { value: "approved", label: "Review approved" },
+  { value: "production_approved", label: "Production approved" },
 ];
 
 export function formatEmailReviewStatus(status: string) {
@@ -26,8 +27,18 @@ export function emailReviewStatusColor(status: EmailReviewStatus) {
     case "changes_requested":
       return "yellow";
     case "approved":
+      return "teal";
+    case "production_approved":
       return "green";
     default:
       return "gray";
   }
+}
+
+export function isApprovedEmailReviewStatus(status: string) {
+  return status === "approved" || status === "production_approved";
+}
+
+export function isProductionApprovedEmailReviewStatus(status: string) {
+  return status === "production_approved";
 }

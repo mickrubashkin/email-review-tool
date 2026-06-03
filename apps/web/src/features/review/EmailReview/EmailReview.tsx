@@ -61,7 +61,10 @@ import type {
   ReviewTextSelection,
 } from "../../emails/MailPreview.types";
 
-import { formatEmailReviewStatus } from "../../emails/reviewStatus";
+import {
+  formatEmailReviewStatus,
+  isApprovedEmailReviewStatus,
+} from "../../emails/reviewStatus";
 
 import {
   buildStageColumns,
@@ -807,7 +810,7 @@ export function EmailReview({
     if (!email || !value || value === email.review_status) {
       return;
     }
-    if (value === "approved" && approvalBlockedCount > 0) {
+    if (isApprovedEmailReviewStatus(value) && approvalBlockedCount > 0) {
       notifications.show({
         color: "red",
         message: approvalBlockedMessage,

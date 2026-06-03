@@ -445,6 +445,56 @@ func TestUpdateEmailReviewStatus(t *testing.T) {
 	}
 }
 
+func TestUpdateEmailReviewStatusAllowsProductionApproval(t *testing.T) {
+	dbpool := testDBPool(t)
+	emailID := createTestEmail(t, dbpool)
+	user := createTestUserWithRole(t, dbpool, "admin")
+	approveRequiredTestAreas(t, dbpool, emailID, user)
+
+	router := chi.NewRouter()
+	registerEmailRoutes(router, dbpool)
+
+	request := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/emails/"+emailID+"/review-status",
+		bytes.NewReader([]byte(`{"review_status":"production_approved"}`)),
+	)
+	request = withAuthUser(request, user)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected PATCH status 200, got %d: %s", response.Code, response.Body.String())
+	}
+
+	var payload updateEmailReviewStatusResponse
+	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
+		t.Fatalf("failed to decode review status response: %v", err)
+	}
+	if payload.ReviewStatus != "production_approved" {
+		t.Fatalf("expected production approved status, got %q", payload.ReviewStatus)
+	}
+
+	var metadata []byte
+	if err := dbpool.QueryRow(context.Background(), `
+		SELECT metadata
+		FROM email_events
+		WHERE email_id = $1
+			AND action = 'email_review_status_updated'
+		ORDER BY created_at DESC
+		LIMIT 1;
+	`, emailID).Scan(&metadata); err != nil {
+		t.Fatalf("failed to load review status event: %v", err)
+	}
+	var approvalMetadata map[string]any
+	if err := json.Unmarshal(metadata, &approvalMetadata); err != nil {
+		t.Fatalf("failed to decode production approval metadata: %v", err)
+	}
+	if value, ok := approvalMetadata["approved_content_hash"].(string); !ok || len(value) != 64 {
+		t.Fatalf("expected production approval content hash, got %#v", approvalMetadata["approved_content_hash"])
+	}
+}
+
 func TestUpdateEmailReviewStatusMarksReapprovalAfterStaleEdit(t *testing.T) {
 	dbpool := testDBPool(t)
 	emailID := createTestEmail(t, dbpool)
@@ -1098,6 +1148,33 @@ func TestUpdateEmailReviewStatusRejectsApprovalWithPendingRequiredArea(t *testin
 	if !strings.Contains(response.Body.String(), "complete required approvals before approving") ||
 		!strings.Contains(response.Body.String(), "Legal") ||
 		strings.Contains(response.Body.String(), "Brand") {
+		t.Fatalf("expected required area approval error, got %q", response.Body.String())
+	}
+}
+
+func TestUpdateEmailReviewStatusRejectsProductionApprovalWithPendingRequiredArea(t *testing.T) {
+	dbpool := testDBPool(t)
+	boardKey := createTestBoard(t, dbpool, "production-approval-gate-board", []string{"review"})
+	createTestBoardApprovalArea(t, dbpool, boardKey, "legal", "Legal", true, 10)
+	emailID := createBoardTestEmail(t, dbpool, boardKey, "review")
+	user := createTestUserWithRole(t, dbpool, "admin")
+
+	router := chi.NewRouter()
+	registerEmailRoutes(router, dbpool)
+
+	request := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/emails/"+emailID+"/review-status",
+		bytes.NewReader([]byte(`{"review_status":"production_approved"}`)),
+	)
+	request = withAuthUser(request, user)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusConflict {
+		t.Fatalf("expected PATCH status 409, got %d: %s", response.Code, response.Body.String())
+	}
+	if !strings.Contains(response.Body.String(), "complete required approvals before approving") {
 		t.Fatalf("expected required area approval error, got %q", response.Body.String())
 	}
 }

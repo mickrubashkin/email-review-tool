@@ -32,6 +32,7 @@ import {
   emailReviewStatusColor,
   emailReviewStatusOptions,
   formatEmailReviewStatus,
+  isApprovedEmailReviewStatus,
 } from "../../emails/reviewStatus";
 
 import type { ReviewUtilityPanel, ReviewViewport } from "./EmailReview.types";
@@ -612,7 +613,8 @@ function ReviewStatusControl({
     );
   }
 
-  const approvalBlocked = approvalBlockedCount > 0 && status !== "approved";
+  const approvalBlocked =
+    approvalBlockedCount > 0 && !isApprovedEmailReviewStatus(status);
   return (
     <Select
       allowDeselect={false}
@@ -621,7 +623,7 @@ function ReviewStatusControl({
       classNames={{ input: styles.headerSelectInput }}
       data={emailReviewStatusOptions.map((option) => ({
         ...option,
-        disabled: option.value === "approved" && approvalBlocked,
+        disabled: isApprovedEmailReviewStatus(option.value) && approvalBlocked,
       }))}
       disabled={isUpdating}
       size="xs"

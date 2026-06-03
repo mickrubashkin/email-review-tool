@@ -32,6 +32,7 @@ import { fetchEmailVersion } from "../../emails/api";
 import {
   emailReviewStatusColor,
   formatEmailReviewStatus,
+  isProductionApprovedEmailReviewStatus,
 } from "../../emails/reviewStatus";
 import type {
   EmailAreaApproval,
@@ -809,7 +810,9 @@ export function HandoffPanel({
     );
   }
 
-  const isApproved = email.review_status === "approved";
+  const isProductionApproved = isProductionApprovedEmailReviewStatus(
+    email.review_status
+  );
   const incompleteRequiredApprovals = areaApprovals.filter(
     (approval) => approval.required && approval.status !== "approved"
   );
@@ -822,9 +825,9 @@ export function HandoffPanel({
 
   return (
     <Stack gap="sm">
-      {!isApproved ? (
+      {!isProductionApproved ? (
         <Alert color="gray" title="Handoff not ready" variant="light">
-          Approve this email to prepare handoff.
+          Mark this email production approved to prepare handoff.
         </Alert>
       ) : null}
 
@@ -874,7 +877,7 @@ export function HandoffPanel({
           Approval
         </Text>
         <HandoffRow label="Status" value={formatEmailReviewStatus(email.review_status)} />
-        {isApproved ? <HandoffRow label="Approved by" value={approvalLabel} /> : null}
+        {isProductionApproved ? <HandoffRow label="Approved by" value={approvalLabel} /> : null}
         <HandoffRow
           label="Open comments"
           value={`${openCommentCount}${openBlockingCommentCount > 0 ? ` (${openBlockingCommentCount} blocking)` : ""}`}
@@ -948,7 +951,7 @@ export function HandoffPanel({
           <>
             <Textarea
               autosize
-              disabled={!isApproved || isLoadingRenderedHTML}
+              disabled={!isProductionApproved || isLoadingRenderedHTML}
               maxRows={8}
               minRows={5}
               readOnly
@@ -960,7 +963,7 @@ export function HandoffPanel({
             />
             <Group gap="xs" grow>
               <Button
-                disabled={!isApproved || !renderedHTML}
+                disabled={!isProductionApproved || !renderedHTML}
                 leftSection={<CopyIcon aria-hidden="true" size={15} />}
                 size="xs"
                 variant="light"
@@ -969,7 +972,7 @@ export function HandoffPanel({
                 Copy HTML
               </Button>
               <Button
-                disabled={!isApproved || !renderedHTML}
+                disabled={!isProductionApproved || !renderedHTML}
                 leftSection={<DownloadSimpleIcon aria-hidden="true" size={15} />}
                 size="xs"
                 variant="light"

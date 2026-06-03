@@ -694,7 +694,7 @@ func updateEmailEditableFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			return
 		}
 		nextReviewStatus := currentReviewStatus
-		approvalBecameStale := len(changes) > 0 && currentReviewStatus == "approved"
+		approvalBecameStale := len(changes) > 0 && isApprovedEmailReviewStatus(currentReviewStatus)
 		if approvalBecameStale {
 			nextReviewStatus = "changes_requested"
 		}
@@ -1017,7 +1017,7 @@ func updateEmailReviewStatusHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 		}
 
 		if currentStatus != nextStatus {
-			if nextStatus == "approved" {
+			if isApprovedEmailReviewStatus(nextStatus) {
 				blockers, err := emailApprovalGateBlockers(r.Context(), tx, id)
 				if err != nil {
 					http.Error(w, "failed to update review status", http.StatusInternalServerError)
@@ -1030,7 +1030,7 @@ func updateEmailReviewStatusHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			}
 
 			eventMetadata := map[string]any{}
-			if nextStatus == "approved" {
+			if isApprovedEmailReviewStatus(nextStatus) {
 				for key, value := range approvalContentSnapshot(
 					title,
 					currentSubject,
@@ -1042,7 +1042,7 @@ func updateEmailReviewStatusHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 					eventMetadata[key] = value
 				}
 			}
-			if currentStatus == "changes_requested" && nextStatus == "approved" {
+			if currentStatus == "changes_requested" && isApprovedEmailReviewStatus(nextStatus) {
 				eventMetadata["reason"] = "reapproved"
 				reapprovesStaleEdit, err := latestReviewStatusEventMarkedApprovalStale(r.Context(), tx, id)
 				if err != nil {
@@ -1214,11 +1214,15 @@ func contentHash(value string) string {
 
 func isValidEmailReviewStatus(status string) bool {
 	switch status {
-	case "draft", "in_review", "changes_requested", "approved":
+	case "draft", "in_review", "changes_requested", "approved", "production_approved":
 		return true
 	default:
 		return false
 	}
+}
+
+func isApprovedEmailReviewStatus(status string) bool {
+	return status == "approved" || status == "production_approved"
 }
 
 type duplicateEmailRequest struct {

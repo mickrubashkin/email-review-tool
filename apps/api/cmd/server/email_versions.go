@@ -306,7 +306,7 @@ func restoreEmailVersionHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			return
 		}
 		nextReviewStatus := currentReviewStatus
-		approvalBecameStale := currentReviewStatus == "approved"
+		approvalBecameStale := isApprovedEmailReviewStatus(currentReviewStatus)
 		if approvalBecameStale {
 			nextReviewStatus = "changes_requested"
 		}

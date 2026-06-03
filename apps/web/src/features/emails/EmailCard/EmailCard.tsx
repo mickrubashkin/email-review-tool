@@ -25,6 +25,7 @@ import {
   getVersionForVariant,
   getVersionsForVariantAndAdaptation,
 } from "../stages";
+import { isApprovedEmailReviewStatus } from "../reviewStatus";
 import { EmailCardMenu } from "./EmailCardMenu";
 import { formatEmailTitle } from "./EmailCard.helpers";
 import { OverflowTooltipText } from "./OverflowTooltipText";
@@ -76,7 +77,7 @@ export function EmailCard({
     0
   );
   const selectedEmailApprovalBlocked =
-    selectedEmail.review_status !== "approved" &&
+    !isApprovedEmailReviewStatus(selectedEmail.review_status) &&
     (selectedEmail.open_blocking_comment_count ?? 0) > 0;
   const commentedVersions = emailGroup.versions.filter(
     (email) => (email.open_comment_count ?? 0) > 0
@@ -132,7 +133,7 @@ export function EmailCard({
     reviewStatus: EmailReviewStatus
   ) => {
     event.stopPropagation();
-    if (reviewStatus === "approved" && selectedEmailApprovalBlocked) {
+    if (isApprovedEmailReviewStatus(reviewStatus) && selectedEmailApprovalBlocked) {
       return;
     }
     if (reviewStatus !== selectedEmail.review_status) {
