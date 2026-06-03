@@ -130,6 +130,11 @@ These ideas are useful, but they should not outrank the core review, approval, v
   - reviewer comments and requests changes for a specific area;
   - approver approves a specific area or final production readiness;
   - viewer can inspect the email, comments, approvals, and history without changing state.
+- [ ] Add MJML as an optional email authoring source with server-side compilation:
+  - compiled HTML review snapshots;
+  - preserved review/comment anchoring;
+  - see `docs/add-mjml.md`.
+- [ ] Consider client-side MJML compilation for reactive preview only after the server-side MJML source and compiled snapshot model is stable.
 - [ ] Add AI quick start for new boards: suggested review rules, default checks, and seed instructions based on board purpose.
 - [ ] Allow admins to edit AI instructions at multiple scopes:
   - global defaults for all boards;
@@ -140,11 +145,6 @@ These ideas are useful, but they should not outrank the core review, approval, v
 - [ ] Add UI for viewing the effective AI instruction set used for a specific analysis run.
 - [ ] Decide whether AI instructions should support reusable presets, for example onboarding, activation, winback, or partner-manager flows.
 - [ ] Add rich text editing for email copy changes.
-- [ ] Add MJML as an optional email authoring source with server-side compilation,
-  compiled HTML review snapshots, and preserved review/comment anchoring. See
-  `docs/add-mjml.md`.
-- [ ] Consider client-side MJML compilation for reactive preview only after the
-  server-side MJML source and compiled snapshot model is stable.
 - [ ] Add automated CRM/ESP publishing integrations.
 
 ## Future Product Expansion
