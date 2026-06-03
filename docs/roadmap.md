@@ -25,40 +25,16 @@ The current product already has:
 - reproducible backend/frontend checks;
 - board search, review statuses, threaded comments, comment severity, ownership/reviewer/due-date planning fields, and admin-editable send timing/adaptation labels;
 - editable email fields with approval-stale behavior after content edits;
-- immutable edit version snapshots for title, subject, preheader, editable fields, and source/template HTML, with admin history UI and restore-as-new-version behavior;
+- immutable edit version snapshots for title, subject, preheader, editable fields, and source/template HTML, with admin history UI, restore-as-new-version behavior, and edit version history v1;
 - simple version/change summaries for subject, preheader, editable fields, template/source hash, review blocks, and email events;
 - configurable board-level approval areas with required/optional flags, ordering, archive behavior, email-level area approval decisions, review UI matrix, and audit events;
-- approval gates that block production approval while required area approvals are incomplete or open blocking comments remain;
-- distinct review-approved and production-approved workflow states;
+- approval flow completion with required/optional area approvals, stale area re-approval, approval gates, and distinct review-approved/production-approved workflow states;
 - minimal production-approved email handoff package with in-app approval/risk summaries, sequence-level handoff export, structured manifest, and review activity timeline;
+- long mobile modals and menus remain scrollable within the viewport;
 - board/stage audit events, stable admin event table filtering, production smoke check for `GET /api/boards`, and deployment mapping docs.
-
-## Priority 1: Approval Flow Completion
-
-- [x] Add configurable board-level approval areas:
-  - admins can add, rename, archive, reorder, and mark areas required/optional per board;
-  - new boards copy approval areas from the source board;
-  - email area approvals store actor, decision note, status, content snapshot hash, and audit events.
-- [x] Add approval areas to the email review UI:
-  - show the approval matrix in the review view;
-  - allow admins to approve/request changes per area with an optional note;
-  - show required vs optional areas clearly.
-- [x] Add approval gates so an email cannot be fully approved while:
-  - required area approvals are pending, stale, or changes requested;
-  - open blocking comments remain.
-- [x] Mark area approvals stale after reviewed content changes:
-  - compare area approval snapshot hashes to the current content snapshot;
-  - surface stale areas in review UI, handoff, and activity history;
-  - allow explicit re-approval per area.
-- [x] Add final production approval as a distinct workflow state after required area approvals pass.
 
 ## Priority 2: Versioning And Diff Review
 
-- [x] Add edit version history v1:
-  - create immutable snapshots on effective editable-field saves;
-  - backfill initial snapshots for existing active emails;
-  - show history in the editor with version metadata and preview;
-  - restore a selected snapshot by creating a new latest version.
 - [ ] Add version diff views:
   - compare subject and preheader changes;
   - compare editable field changes;
@@ -74,11 +50,6 @@ The current product already has:
   - localization checked;
   - CRM variables checked;
   - UTM/tracking checked.
-
-## Priority 3: UX Quality Fixes
-
-- [x] Fix long mobile modals and menus so their content remains scrollable within
-  the viewport.
 
 ## Priority 4: Handoff And Activity History
 
