@@ -621,6 +621,7 @@ export function EmailReview({
     await queryClient.invalidateQueries({ queryKey: ["email-activity", emailId] });
     await queryClient.invalidateQueries({ queryKey: ["emails", emailId, "versions"] });
     await queryClient.invalidateQueries({ queryKey: ["email-comments", emailId] });
+    await queryClient.invalidateQueries({ queryKey: ["email-area-approvals", emailId] });
   };
   const inlineEditMutation = useMutation({
     mutationFn: (payload: UpdateEditableFieldsPayload) =>

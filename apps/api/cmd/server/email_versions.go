@@ -378,6 +378,18 @@ func restoreEmailVersionHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			http.Error(w, "failed to record email event", http.StatusInternalServerError)
 			return
 		}
+		if len(changes) > 0 || htmlChanged {
+			if err := markStaleAreaApprovalsAfterContentChange(
+				r.Context(),
+				tx,
+				id,
+				user,
+				"approval_stale_after_restore",
+			); err != nil {
+				http.Error(w, "failed to update area approvals", http.StatusInternalServerError)
+				return
+			}
+		}
 		if approvalBecameStale {
 			if err := insertEmailEvent(r.Context(), tx, emailEvent{
 				ActorUserID: user.ID,

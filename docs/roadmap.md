@@ -45,7 +45,7 @@ The current product already has:
 - [x] Add approval gates so an email cannot be fully approved while:
   - required area approvals are pending, stale, or changes requested;
   - open blocking comments remain.
-- [ ] Mark area approvals stale after reviewed content changes:
+- [x] Mark area approvals stale after reviewed content changes:
   - compare area approval snapshot hashes to the current content snapshot;
   - surface stale areas in review UI, handoff, and activity history;
   - allow explicit re-approval per area.

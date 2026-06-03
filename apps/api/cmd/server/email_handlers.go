@@ -781,6 +781,19 @@ func updateEmailEditableFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			http.Error(w, "failed to record email event", http.StatusInternalServerError)
 			return
 		}
+		if len(changes) > 0 || originalHTMLChanged {
+			if err := markStaleAreaApprovalsAfterContentChange(
+				r.Context(),
+				tx,
+				id,
+				user,
+				"approval_stale_after_edit",
+			); err != nil {
+				fmt.Fprintf(os.Stderr, "failed to mark stale area approvals for %s: %v\n", id, err)
+				http.Error(w, "failed to update area approvals", http.StatusInternalServerError)
+				return
+			}
+		}
 		if approvalBecameStale {
 			if err := insertEmailEvent(r.Context(), tx, emailEvent{
 				ActorUserID: user.ID,

@@ -380,6 +380,26 @@ func emailEventActivitySummary(action string, changes []byte, metadata []byte) s
 			return "Changed review status to " + nextStatus
 		}
 		return "Changed review status"
+	case emailEventAreaApprovalUpdated:
+		areaName := metadataString(metadata, "area_name")
+		if areaName == "" {
+			areaName = metadataString(metadata, "area")
+		}
+		reason := metadataString(metadata, "reason")
+		if reason == "approval_stale_after_edit" {
+			return "Marked " + areaName + " approval stale after edit"
+		}
+		if reason == "approval_stale_after_restore" {
+			return "Marked " + areaName + " approval stale after restore"
+		}
+		if reason == "reapproved_after_stale_edit" {
+			return "Re-approved " + areaName + " after stale edit"
+		}
+		nextStatus := changedFieldAfter(changes, "area_approval_status")
+		if nextStatus != "" {
+			return "Changed " + areaName + " approval to " + nextStatus
+		}
+		return "Changed " + areaName + " approval"
 	case emailEventDuplicated:
 		return "Duplicated email"
 	case emailEventAdaptationCreated:

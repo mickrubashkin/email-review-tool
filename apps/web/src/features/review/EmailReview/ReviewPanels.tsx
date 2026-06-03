@@ -259,8 +259,17 @@ export function AreaApprovalsPanel({
     );
   }
 
+  const staleApprovals = approvals.filter((approval) => approval.status === "stale");
+
   return (
     <Stack gap="sm">
+      {staleApprovals.length > 0 ? (
+        <Alert color="orange" title="Approval stale after edit" variant="light">
+          Re-approve {staleApprovals.map((approval) => approval.name).join(", ")} before
+          final approval or handoff.
+        </Alert>
+      ) : null}
+
       {approvals.map((approval) => {
         const noteDraft =
           notesByArea[approval.area] ?? approval.decision_note ?? "";
@@ -804,6 +813,9 @@ export function HandoffPanel({
   const incompleteRequiredApprovals = areaApprovals.filter(
     (approval) => approval.required && approval.status !== "approved"
   );
+  const staleApprovals = areaApprovals.filter(
+    (approval) => approval.status === "stale"
+  );
   const approvalLabel = approvalActivity
     ? `${approvalActivity.actor_email ?? "System"} on ${formatCommentDate(approvalActivity.created_at)}`
     : "Approved";
@@ -825,6 +837,13 @@ export function HandoffPanel({
       {incompleteRequiredApprovals.length > 0 ? (
         <Alert color="red" title="Required approvals incomplete" variant="light">
           Complete required area approvals before production handoff.
+        </Alert>
+      ) : null}
+
+      {staleApprovals.length > 0 ? (
+        <Alert color="orange" title="Stale area approvals" variant="light">
+          Re-approve {staleApprovals.map((approval) => approval.name).join(", ")} after
+          the latest content change.
         </Alert>
       ) : null}
 

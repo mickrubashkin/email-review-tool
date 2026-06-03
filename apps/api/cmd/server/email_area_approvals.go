@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -29,6 +30,13 @@ type emailAreaApprovalItem struct {
 type updateEmailAreaApprovalRequest struct {
 	Status       string  `json:"status"`
 	DecisionNote *string `json:"decision_note"`
+}
+
+type staleEmailAreaApproval struct {
+	ID                  string
+	Area                string
+	Name                string
+	ContentSnapshotHash *string
 }
 
 func listEmailAreaApprovalsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
@@ -274,6 +282,16 @@ func updateEmailAreaApprovalHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 		if previousNote.Valid {
 			previousNoteValue = &previousNote.String
 		}
+		eventMetadata := map[string]any{
+			"area":                  area,
+			"area_name":             areaName,
+			"status":                nextStatus,
+			"decision_note":         decisionNote,
+			"content_snapshot_hash": contentSnapshotHash,
+		}
+		if previousStatusValue == "stale" && nextStatus == "approved" {
+			eventMetadata["reason"] = "reapproved_after_stale_edit"
+		}
 		if err := insertEmailEvent(r.Context(), tx, emailEvent{
 			ActorUserID: user.ID,
 			ActorEmail:  user.Email,
@@ -281,12 +299,7 @@ func updateEmailAreaApprovalHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			EmailID:     &id,
 			EmailSlug:   &slug,
 			EmailTitle:  &title,
-			Metadata: map[string]any{
-				"area":                  area,
-				"status":                nextStatus,
-				"decision_note":         decisionNote,
-				"content_snapshot_hash": contentSnapshotHash,
-			},
+			Metadata:    eventMetadata,
 			Changes: map[string]any{
 				"area_approval_status": map[string]any{
 					"before": previousStatusValue,
@@ -320,4 +333,125 @@ func isValidEmailAreaApprovalUpdateStatus(status string) bool {
 	default:
 		return false
 	}
+}
+
+func markStaleAreaApprovalsAfterContentChange(
+	ctx context.Context,
+	db emailEventExecutor,
+	emailID string,
+	actor AuthUser,
+	reason string,
+) error {
+	var slug string
+	var title string
+	var subject *string
+	var preheader *string
+	var templateHash *string
+	var templateHTML string
+	var editableFieldsText string
+	err := db.QueryRow(ctx, `
+		SELECT slug, title, subject, preheader, template_hash, template_html, editable_fields::text
+		FROM emails
+		WHERE id = $1
+			AND archived_at IS NULL;
+	`, emailID).Scan(
+		&slug,
+		&title,
+		&subject,
+		&preheader,
+		&templateHash,
+		&templateHTML,
+		&editableFieldsText,
+	)
+	if err != nil {
+		return err
+	}
+
+	snapshot := approvalContentSnapshot(
+		title,
+		subject,
+		preheader,
+		templateHash,
+		templateHTML,
+		editableFieldsText,
+	)
+	currentContentHash, ok := snapshot["approved_content_hash"].(string)
+	if !ok || currentContentHash == "" {
+		return fmt.Errorf("failed to calculate approval content hash")
+	}
+
+	rows, err := db.Query(ctx, `
+		SELECT
+			email_area_approvals.id,
+			approval_areas.key,
+			board_approval_areas.name,
+			email_area_approvals.content_snapshot_hash
+		FROM email_area_approvals
+		JOIN board_approval_areas ON board_approval_areas.id = email_area_approvals.board_approval_area_id
+		JOIN approval_areas ON approval_areas.id = board_approval_areas.approval_area_id
+		WHERE email_area_approvals.email_id = $1
+			AND email_area_approvals.status = 'approved'
+			AND email_area_approvals.content_snapshot_hash IS DISTINCT FROM $2
+		ORDER BY board_approval_areas.sort_order, board_approval_areas.created_at
+		FOR UPDATE OF email_area_approvals;
+	`, emailID, currentContentHash)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	staleApprovals := []staleEmailAreaApproval{}
+	for rows.Next() {
+		var approval staleEmailAreaApproval
+		if err := rows.Scan(
+			&approval.ID,
+			&approval.Area,
+			&approval.Name,
+			&approval.ContentSnapshotHash,
+		); err != nil {
+			return err
+		}
+		staleApprovals = append(staleApprovals, approval)
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	for _, approval := range staleApprovals {
+		if _, err := db.Exec(ctx, `
+			UPDATE email_area_approvals
+			SET status = 'stale',
+				updated_at = now()
+			WHERE id = $1;
+		`, approval.ID); err != nil {
+			return err
+		}
+
+		if err := insertEmailEvent(ctx, db, emailEvent{
+			ActorUserID: actor.ID,
+			ActorEmail:  actor.Email,
+			Action:      emailEventAreaApprovalUpdated,
+			EmailID:     &emailID,
+			EmailSlug:   &slug,
+			EmailTitle:  &title,
+			Metadata: map[string]any{
+				"area":                          approval.Area,
+				"area_name":                     approval.Name,
+				"status":                        "stale",
+				"reason":                        reason,
+				"content_snapshot_hash":         approval.ContentSnapshotHash,
+				"current_content_snapshot_hash": currentContentHash,
+			},
+			Changes: map[string]any{
+				"area_approval_status": map[string]any{
+					"before": "approved",
+					"after":  "stale",
+				},
+			},
+		}); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

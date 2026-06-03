@@ -1797,6 +1797,89 @@ func TestUpdateEmailEditableFieldsRecordsStaleApprovalEvent(t *testing.T) {
 	}
 }
 
+func TestUpdateEmailEditableFieldsMarksAreaApprovalStale(t *testing.T) {
+	dbpool := testDBPool(t)
+	emailID := createTestEmail(t, dbpool)
+	user := createTestUserWithRole(t, dbpool, "admin")
+	setTestEmailTemplate(t, dbpool, emailID, `
+		<html>
+			<body>
+				<p data-edit-text="intro_text">Old intro</p>
+			</body>
+		</html>
+	`)
+
+	router := chi.NewRouter()
+	registerEmailRoutes(router, dbpool)
+
+	approveRequest := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/emails/"+emailID+"/area-approvals/product",
+		bytes.NewReader([]byte(`{"status":"approved"}`)),
+	)
+	approveRequest = withAuthUser(approveRequest, user)
+	approveResponse := httptest.NewRecorder()
+	router.ServeHTTP(approveResponse, approveRequest)
+	if approveResponse.Code != http.StatusOK {
+		t.Fatalf("expected area approval status 200, got %d: %s", approveResponse.Code, approveResponse.Body.String())
+	}
+
+	updateRequest := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/emails/"+emailID+"/editable-fields",
+		bytes.NewReader([]byte(`{
+			"editable_fields": {
+				"intro_text": { "type": "text", "value": "New intro" }
+			}
+		}`)),
+	)
+	updateRequest = withAuthUser(updateRequest, user)
+	updateResponse := httptest.NewRecorder()
+	router.ServeHTTP(updateResponse, updateRequest)
+	if updateResponse.Code != http.StatusNoContent {
+		t.Fatalf("expected PATCH status 204, got %d: %s", updateResponse.Code, updateResponse.Body.String())
+	}
+
+	var status string
+	err := dbpool.QueryRow(context.Background(), `
+		SELECT email_area_approvals.status
+		FROM email_area_approvals
+		JOIN board_approval_areas ON board_approval_areas.id = email_area_approvals.board_approval_area_id
+		JOIN approval_areas ON approval_areas.id = board_approval_areas.approval_area_id
+		WHERE email_area_approvals.email_id = $1
+			AND approval_areas.key = 'product';
+	`, emailID).Scan(&status)
+	if err != nil {
+		t.Fatalf("failed to load area approval status: %v", err)
+	}
+	if status != "stale" {
+		t.Fatalf("expected area approval to become stale, got %q", status)
+	}
+
+	var metadataJSON []byte
+	var changesJSON []byte
+	err = dbpool.QueryRow(context.Background(), `
+		SELECT metadata, changes
+		FROM email_events
+		WHERE email_id = $1
+			AND action = 'email_area_approval_updated'
+			AND metadata->>'reason' = 'approval_stale_after_edit'
+		ORDER BY created_at DESC
+		LIMIT 1;
+	`, emailID).Scan(&metadataJSON, &changesJSON)
+	if err != nil {
+		t.Fatalf("failed to load stale area approval event: %v", err)
+	}
+	if !strings.Contains(string(metadataJSON), `"area": "product"`) ||
+		!strings.Contains(string(metadataJSON), `"status": "stale"`) {
+		t.Fatalf("expected stale area approval metadata, got %s", string(metadataJSON))
+	}
+	if !strings.Contains(string(changesJSON), `"before": "approved"`) ||
+		!strings.Contains(string(changesJSON), `"after": "stale"`) {
+		t.Fatalf("expected stale area approval status change, got %s", string(changesJSON))
+	}
+}
+
 func TestUpdateEmailEditableFieldsKeepsOpenCommentsOpen(t *testing.T) {
 	dbpool := testDBPool(t)
 	emailID := createTestEmail(t, dbpool)
