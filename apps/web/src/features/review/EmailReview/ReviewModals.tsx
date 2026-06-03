@@ -41,7 +41,7 @@ export function SourceHTMLModal({
   opened: boolean;
 }) {
   return (
-    <Modal opened={opened} size="xl" title="Edit source HTML" onClose={onClose}>
+    <Modal opened={opened} size="xl" title="Edit template HTML" onClose={onClose}>
       <Stack gap="sm">
         <Textarea
           autosize
@@ -55,7 +55,7 @@ export function SourceHTMLModal({
             Cancel
           </Button>
           <Button loading={isSubmitting} onClick={onSubmit}>
-            Save HTML
+            Save template HTML
           </Button>
         </Group>
       </Stack>

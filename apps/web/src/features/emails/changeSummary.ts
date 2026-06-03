@@ -39,7 +39,7 @@ function emailUpdateChangeParts(
     parts.push("Preheader");
   }
   if (hasChange(changes, "original_html")) {
-    parts.push("Source HTML");
+    parts.push("Template HTML");
   }
   if (hasChange(changes, "template_hash")) {
     parts.push("Template hash");

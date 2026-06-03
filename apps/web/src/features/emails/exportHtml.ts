@@ -2,22 +2,11 @@ import { notifications } from "@mantine/notifications";
 
 import type { EmailDetail } from "./types";
 
-export async function copyOriginalHTML(email: EmailDetail) {
-  return copyHTML(email.original_html, {
-    failureMessage: "Browser blocked clipboard access. Try downloading the HTML instead.",
-    successMessage: "Original HTML copied to clipboard",
-  });
-}
-
 export async function copyRenderedHTML(html: string) {
   return copyHTML(html, {
     failureMessage: "Browser blocked clipboard access. Try downloading the HTML instead.",
     successMessage: "Rendered HTML copied to clipboard",
   });
-}
-
-export function downloadOriginalHTML(email: EmailDetail) {
-  downloadHTML(email.original_html, buildHTMLFileName(email), "Downloaded");
 }
 
 export function downloadRenderedHTML(email: EmailDetail, html: string) {

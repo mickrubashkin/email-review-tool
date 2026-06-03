@@ -497,7 +497,7 @@ export function VersionHistoryPanel({
                 <Text size="sm">{formatVersionSummary(version)}</Text>
                 {requiresSuperAdmin ? (
                   <Text c="orange" size="xs">
-                    Source HTML changed. Restore requires super admin.
+                    Template HTML changed. Restore requires super admin.
                   </Text>
                 ) : null}
                 {isSelected ? (
@@ -582,7 +582,7 @@ function formatVersionSummary(version: EmailVersionListItem) {
     parts.push(`${version.changed_field_count} editable fields`);
   }
   if (version.html_changed) {
-    parts.push("source HTML");
+    parts.push("template HTML");
   }
 
   return parts.length > 0 ? `${parts.join(", ")} changed` : "Baseline snapshot";

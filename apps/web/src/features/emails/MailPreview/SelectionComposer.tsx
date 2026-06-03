@@ -255,11 +255,11 @@ export function SelectionComposer({
                   label={
                     isApplyingInlineEdit
                       ? "Preview is refreshing"
-                      : "Edit source HTML"
+                      : "Edit template HTML"
                   }
                 >
                   <ActionIcon
-                    aria-label="Edit source HTML"
+                    aria-label="Edit template HTML"
                     disabled={isApplyingInlineEdit}
                     size="lg"
                     variant="light"
