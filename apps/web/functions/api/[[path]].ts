@@ -32,7 +32,14 @@ export async function onRequest(context: PagesFunctionContext) {
     init.body = context.request.body;
   }
 
-  return fetch(targetURL, init);
+  try {
+    return await fetch(targetURL, init);
+  } catch (error) {
+    return new Response(formatProxyError(error), {
+      headers: { "content-type": "text/plain; charset=utf-8" },
+      status: 502,
+    });
+  }
 }
 
 function normalizeBackendOrigin(value: string | undefined) {

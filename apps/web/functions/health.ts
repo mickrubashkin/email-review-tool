@@ -12,11 +12,21 @@ export async function onRequest(context: PagesFunctionContext) {
     });
   }
 
-  return fetch(targetURL, {
-    headers: new Headers(context.request.headers),
-    method: context.request.method,
-    redirect: "manual",
-  });
+  const headers = new Headers(context.request.headers);
+  headers.delete("host");
+
+  try {
+    return await fetch(targetURL, {
+      headers,
+      method: context.request.method,
+      redirect: "manual",
+    });
+  } catch (error) {
+    return new Response(formatProxyError(error), {
+      headers: { "content-type": "text/plain; charset=utf-8" },
+      status: 502,
+    });
+  }
 }
 
 function normalizeBackendOrigin(value: string | undefined) {
