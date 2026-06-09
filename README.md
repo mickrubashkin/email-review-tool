@@ -2,6 +2,11 @@
 
 Internal tool for reviewing HTML email sequences.
 
+## Why this exists
+ReviewDesk is a focused review and approval layer for HTML email journeys before they are implemented in CRM, ESP, messaging, or other publishing systems. It keeps feedback attached to the reviewed content, makes approvals auditable, and helps teams hand off final approved assets without turning the product into a full email builder.
+
+The portfolio case study is in `docs/case-study.md`.
+
 ## What it does
 - OTP login with session cookies
 - multiple review boards with URL-based board switching
@@ -13,6 +18,7 @@ Internal tool for reviewing HTML email sequences.
 - backend HTML inspection before creating an email: generated review HTML, review block count, editable fields, and warnings
 - email duplication, versioning, delivery adaptations, archive, rendered preview, and rendered HTML export
 - shared AI analysis for an email, including streaming first-run updates and cached reuse
+- AI-assisted journey review that evaluates an email in context: stage, audience, send timing, subject, preheader, body copy, clarity, conversion friction, compliance risk, and handoff readiness
 - admin auth events, email events, user management, and AI analysis logs
 - download/copy original HTML
 
@@ -22,6 +28,33 @@ Internal tool for reviewing HTML email sequences.
 - DB: PostgreSQL
 - Streaming: SSE/EventSource for AI analysis
 - Auth: OTP + session cookies
+
+## Portfolio demo path
+The intended demo flow is:
+
+1. Start the local stack with `make setup-dev` and `make dev`.
+2. Open the onboarding board and choose a seeded email.
+3. Review the email preview, add or resolve comments, and inspect activity history.
+4. Edit template-backed copy or planning metadata as an admin.
+5. Show approvals becoming stale after content changes, then re-approve required areas.
+6. Inspect the production handoff package.
+
+Screenshots and a short demo video should be captured after the seeded demo path is finalized:
+
+- board overview with stages and email variants
+- review screen with anchored comments
+- editable fields or version history after a content change
+- approval matrix with stale or pending areas
+- production handoff package
+- AI analysis or AI logs, if configured for the demo
+
+## Architecture highlights
+- Backend is the source of truth for review state, comments, approval gates, versions, and handoff data.
+- Original HTML is preserved; template-backed edits update `data-edit-*` fields and the backend renders the final HTML.
+- Comments attach to `data-review-block` anchors and text ranges so review context survives normal workflow changes.
+- Approval flow blocks completion while blocking comments or required area approvals remain open.
+- AI analysis reviews email effectiveness inside the journey, not only generic copy quality; it streams over SSE/EventSource for first-run progress and reuses cached shared results afterward.
+- Admin and super-admin roles separate board/review operations from user, permission, and HTML administration.
 
 ## Screens
 - `/` redirects to the preferred board, usually `/boards/onboarding`
@@ -57,10 +90,20 @@ Internal tool for reviewing HTML email sequences.
 ## Commands
 - `make setup-dev` runs DB up, migrations, then seed.
 - `make dev` starts DB, API, and web in parallel.
+- `make lint` runs backend tests, frontend lint, and frontend build.
+- `make test-api` runs `cd apps/api && go test ./...`.
+- `make test-web` runs `cd apps/web && npm run lint && npm run build`.
 - `make db-migrate` / `make db-seed` / `make db-sync-meta` for data setup.
 - `cd apps/web && npm run dev|lint|build`.
 - `cd apps/api && go test ./...`.
 - `cd apps/api && go run ./cmd/server`.
+
+## Quality checks
+- Local full check: `make lint`.
+- API check: `make test-api`.
+- Web check: `make test-web`.
+- Production smoke check: `make smoke-check SMOKE_ORIGIN=https://your-origin.example`.
+- GitHub Actions runs API tests plus web lint/build on pushes to `main` and pull requests.
 
 ## API
 - `GET /health` returns service and database health.

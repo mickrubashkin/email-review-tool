@@ -4,6 +4,58 @@ This roadmap tracks active product and production-hardening work for ReviewDesk.
 
 Closed work is intentionally summarized rather than kept as long checked-off sections. Detailed implementation history belongs in git commits and release notes; the roadmap should stay useful for choosing the next task.
 
+Engineering maturity work, including AI provider architecture, CI, infrastructure, refactoring, and observability, belongs in `docs/improvement-plan.md`. Current-product bugs and polish belong in `docs/stabilization-audit.md`.
+
+## Portfolio Good Enough Finish Line
+
+ReviewDesk is no longer being expanded as an open-ended product backlog. The near-term goal is to finish it as a portfolio-ready product-engineering case study: a working review workflow, credible demo data, clear architecture, basic engineering maturity, and enough UX polish that the demo feels intentional.
+
+This is the finish-line checklist before showing the project publicly:
+
+- [ ] Demo story:
+  - prepare reproducible seed/demo data that shows board -> review -> comment -> edit -> stale approval -> re-approval -> handoff;
+  - make the demo path easy to reset and rerun locally;
+  - ensure the demo illustrates the core product idea without requiring private customer data.
+- [ ] Engineering credibility:
+  - complete `P0. Актуализировать проверки` from `docs/improvement-plan.md`;
+  - add top-level checks such as `make lint`, `make test-api`, and `make test-web`;
+  - add a basic GitHub Actions workflow for backend tests, frontend lint, and frontend build.
+- [ ] Refactor credibility:
+  - complete one visible, safe engineering maturity improvement from `docs/improvement-plan.md`;
+  - recommended: `[AI] AI architecture maturity` if the portfolio story should emphasize modern backend, AI, and product engineering;
+  - alternative: split `email_handlers.go` if the portfolio story should emphasize maintainability in an existing Go codebase;
+  - do not do a large backend and frontend refactor in the same finishing pass.
+- [ ] Demo polish:
+  - close the `P1` items from `docs/stabilization-audit.md`;
+  - add confirmations for destructive board settings actions;
+  - add a centralized 401/session-expired recovery flow.
+- [ ] Portfolio-facing documentation:
+  - explain the problem statement, user workflow, architecture decisions, security/auth decisions, review anchoring model, approval model, AI streaming, and deployment topology;
+  - make the documentation explain why the implementation choices are strong, not only what was built.
+- [ ] Portfolio packaging:
+  - write a case study in the shape `problem -> solution -> implementation -> result`;
+  - polish the GitHub repository landing experience: README, description, topics, setup instructions, demo scenario, and checks;
+  - capture 4-6 strong screenshots: board, review with comments, editable fields/versioning, approvals, handoff, and AI analysis/logs if available;
+  - record a short 60-120 second demo video that shows the end-to-end workflow without a long introduction;
+  - create a small landing page only if a separate product-style public link is useful after README, screenshots, and video are done.
+
+Recommended finish order:
+
+1. Demo dataset and demo flow.
+2. P0 checks from `docs/improvement-plan.md`.
+3. P1 stabilization items from `docs/stabilization-audit.md`.
+4. One engineering showcase improvement from `docs/improvement-plan.md`.
+5. Portfolio-facing documentation and packaging.
+
+Out of scope for the portfolio finish:
+
+- new large product features;
+- workspaces;
+- CRM/ESP publishing integrations;
+- MJML;
+- a broad permission-model redesign;
+- a full visual redesign.
+
 ## Current Product Direction
 
 ReviewDesk should stay focused on being the review, approval, versioning, and handoff layer for communication journeys before they are implemented in CRM, ESP, messaging, or other publishing systems.
@@ -74,6 +126,7 @@ The current product already has:
 
 ## Priority 5: Portfolio-Grade Demo
 
+- [ ] Use the `Portfolio Good Enough Finish Line` section above as the source of truth for the public-demo finish.
 - [ ] Prepare a demo-ready seed flow that shows the product story end to end:
   - board;
   - review;

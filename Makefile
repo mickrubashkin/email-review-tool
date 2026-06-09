@@ -1,4 +1,4 @@
-.PHONY: db-up db-down db-logs db-migrate db-migrate-status db-migrate-down db-seed db-sync-meta api-dev web-dev dev setup-dev smoke-check
+.PHONY: db-up db-down db-logs db-migrate db-migrate-status db-migrate-down db-seed db-sync-meta api-dev web-dev dev setup-dev test-api test-web lint smoke-check
 
 db-up:
 	docker compose up -d db
@@ -31,6 +31,14 @@ web-dev:
 	cd apps/web && npm run dev
 
 setup-dev: db-up db-migrate db-seed
+
+test-api:
+	cd apps/api && go test ./...
+
+test-web:
+	cd apps/web && npm run lint && npm run build
+
+lint: test-api test-web
 
 dev: db-up
 	@echo "Starting API and web dev servers..."
