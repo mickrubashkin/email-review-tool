@@ -64,6 +64,25 @@ make test-web
 - `apps/web/src` - React application.
 - `db/migrations` - PostgreSQL migrations.
 - `docs/case-study.md` - concise product/engineering case study.
+- `docs/demo-plan.md` - public demo environment strategy.
+
+## Demo Data
+
+Generic public-demo data is seeded separately from normal team data:
+
+```sh
+DEMO_SEED_ENABLED=true make db-seed-demo
+DEMO_SEED_ENABLED=true DEMO_RESET_CONFIRM=demo make db-reset-demo
+```
+
+See `docs/demo-plan.md` for the public demo strategy.
+
+Public demo login is also environment-gated:
+
+```env
+AUTH_DEMO_LOGIN_ENABLED=true
+VITE_AUTH_DEMO_LOGIN_ENABLED=true
+```
 
 ## Notes
 

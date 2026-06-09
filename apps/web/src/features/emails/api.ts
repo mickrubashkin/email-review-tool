@@ -105,6 +105,12 @@ export function devLogin(email: string): Promise<{ ok: boolean }> {
   });
 }
 
+export function demoLogin(): Promise<{ ok: boolean }> {
+  return fetchJson<{ ok: boolean }>("/api/auth/demo-login", {
+    method: "POST",
+  });
+}
+
 export function fetchCurrentUser(): Promise<AuthUser> {
   return fetchJson<AuthUser>("/api/auth/me");
 }

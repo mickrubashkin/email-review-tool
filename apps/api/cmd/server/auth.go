@@ -23,6 +23,7 @@ import (
 )
 
 const sessionCookieName = "email_review_session"
+const demoLoginEmail = "demo-reviewer@example.com"
 
 type authContextKey string
 
@@ -41,6 +42,7 @@ func registerAuthRoutes(r chi.Router, dbpool *pgxpool.Pool, emailSender EmailSen
 	r.Post("/api/auth/request-code", requestOTPCodeHandler(dbpool, emailSender))
 	r.Post("/api/auth/verify-code", verifyOTPCodeHandler(dbpool))
 	r.Post("/api/auth/dev-login", devLoginHandler(dbpool))
+	r.Post("/api/auth/demo-login", demoLoginHandler(dbpool))
 	r.Get("/api/auth/events", listAuthEventsHandler(dbpool))
 	r.Get("/api/auth/me", meHandler(dbpool))
 	r.Post("/api/auth/logout", logoutHandler(dbpool))
@@ -300,6 +302,36 @@ func devLoginHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 	}
 }
 
+func demoLoginHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !demoLoginEnabled() {
+			http.NotFound(w, r)
+			return
+		}
+
+		user, err := upsertDemoAuthUser(r.Context(), dbpool)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "failed to upsert demo auth user %s: %v\n", demoLoginEmail, err)
+			http.Error(w, "failed to sign in", http.StatusInternalServerError)
+			return
+		}
+		logAuthEvent(r.Context(), dbpool, r, AuthEvent{
+			UserID:    &user.ID,
+			Email:     user.Email,
+			EventType: "demo_login",
+			Success:   true,
+		})
+
+		if err := createSessionCookie(r.Context(), dbpool, w, user); err != nil {
+			fmt.Fprintf(os.Stderr, "failed to create demo session for %s: %v\n", user.Email, err)
+			http.Error(w, "failed to sign in", http.StatusInternalServerError)
+			return
+		}
+
+		writeAuthOK(w)
+	}
+}
+
 func meHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		user, err := currentUserFromRequest(r.Context(), dbpool, r)
@@ -444,6 +476,23 @@ func upsertAuthUser(ctx context.Context, dbpool *pgxpool.Pool, email string) (Au
 			updated_at = now()
 		RETURNING id, email, role;
 	`, email, role).Scan(&user.ID, &user.Email, &user.Role)
+
+	return user, err
+}
+
+func upsertDemoAuthUser(ctx context.Context, dbpool *pgxpool.Pool) (AuthUser, error) {
+	var user AuthUser
+	err := dbpool.QueryRow(ctx, `
+		INSERT INTO users (email, role)
+		VALUES ($1, 'reviewer')
+		ON CONFLICT (email) DO UPDATE SET
+			role = CASE
+				WHEN users.role = 'super_admin' THEN users.role
+				ELSE 'reviewer'
+			END,
+			updated_at = now()
+		RETURNING id, email, role;
+	`, demoLoginEmail).Scan(&user.ID, &user.Email, &user.Role)
 
 	return user, err
 }
@@ -832,6 +881,10 @@ func authCookieSecure() bool {
 
 func devLoginEnabled() bool {
 	return strings.EqualFold(strings.TrimSpace(os.Getenv("AUTH_DEV_LOGIN_ENABLED")), "true")
+}
+
+func demoLoginEnabled() bool {
+	return strings.EqualFold(strings.TrimSpace(os.Getenv("AUTH_DEMO_LOGIN_ENABLED")), "true")
 }
 
 func writeAuthOK(w http.ResponseWriter) {

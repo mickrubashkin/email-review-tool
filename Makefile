@@ -1,4 +1,4 @@
-.PHONY: db-up db-down db-logs db-migrate db-migrate-status db-migrate-down db-seed db-sync-meta api-dev web-dev dev setup-dev test-api test-web lint smoke-check
+.PHONY: db-up db-down db-logs db-migrate db-migrate-status db-migrate-down db-seed db-seed-demo db-reset-demo db-sync-meta api-dev web-dev dev setup-dev test-api test-web lint smoke-check
 
 db-up:
 	docker compose up -d db
@@ -20,6 +20,12 @@ db-migrate-down:
 
 db-seed:
 	cd apps/api && go run ./cmd/seed
+
+db-seed-demo:
+	cd apps/api && go run ./cmd/demoseed
+
+db-reset-demo:
+	cd apps/api && go run ./cmd/demoseed -reset
 
 db-sync-meta:
 	cd apps/api && go run ./cmd/syncmeta

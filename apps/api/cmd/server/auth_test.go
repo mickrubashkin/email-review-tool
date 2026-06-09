@@ -141,6 +141,56 @@ func TestDevLoginCreatesSessionWhenEnabled(t *testing.T) {
 	}
 }
 
+func TestDemoLoginDisabledByDefault(t *testing.T) {
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/api/auth/demo-login",
+		nil,
+	)
+	response := httptest.NewRecorder()
+
+	demoLoginHandler(nil).ServeHTTP(response, request)
+
+	if response.Code != http.StatusNotFound {
+		t.Fatalf("expected status 404, got %d", response.Code)
+	}
+}
+
+func TestDemoLoginCreatesReviewerSessionWhenEnabled(t *testing.T) {
+	t.Setenv("AUTH_DEMO_LOGIN_ENABLED", "true")
+	dbpool := testDBPool(t)
+
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/api/auth/demo-login",
+		nil,
+	)
+	response := httptest.NewRecorder()
+
+	demoLoginHandler(dbpool).ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", response.Code, response.Body.String())
+	}
+	cookies := response.Result().Cookies()
+	if len(cookies) != 1 || cookies[0].Name != sessionCookieName {
+		t.Fatalf("expected one session cookie, got %#v", cookies)
+	}
+
+	var role string
+	err := dbpool.QueryRow(
+		context.Background(),
+		`SELECT role FROM users WHERE email = $1`,
+		demoLoginEmail,
+	).Scan(&role)
+	if err != nil {
+		t.Fatalf("expected demo user to be created: %v", err)
+	}
+	if role != "reviewer" {
+		t.Fatalf("expected demo user to be reviewer, got %q", role)
+	}
+}
+
 func TestIsAllowedRequestOrigin(t *testing.T) {
 	t.Setenv("CORS_ORIGIN", "")
 	t.Setenv("AUTH_ALLOWED_ORIGINS", "https://reviewdesk.example.com")

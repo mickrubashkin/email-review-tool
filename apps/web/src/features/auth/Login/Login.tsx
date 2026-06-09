@@ -10,13 +10,14 @@ import {
 } from "@mantine/core";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { devLogin, requestLoginCode, verifyLoginCode } from "../../emails/api";
+import { demoLogin, devLogin, requestLoginCode, verifyLoginCode } from "../../emails/api";
 import styles from "./Login.module.css";
 
 const allowedDomains = getAllowedDomains();
 const allowedDomainsLabel = allowedDomains.map((domain) => `@${domain}`).join(", ");
 const storedEmailKey = "reviewdesk_login_email";
 const devLoginEnabled = import.meta.env.VITE_AUTH_DEV_LOGIN_ENABLED === "true";
+const demoLoginEnabled = import.meta.env.VITE_AUTH_DEMO_LOGIN_ENABLED === "true";
 
 export function Login() {
   const queryClient = useQueryClient();
@@ -36,6 +37,12 @@ export function Login() {
   });
   const devLoginMutation = useMutation({
     mutationFn: devLogin,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
+    },
+  });
+  const demoLoginMutation = useMutation({
+    mutationFn: demoLogin,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
     },
@@ -64,7 +71,9 @@ export function Login() {
             <Stack gap={4}>
               <Title order={2}>ReviewDesk</Title>
               <Text c="dimmed" size="sm">
-                Private workspace for authorized email review teams.
+                {demoLoginEnabled
+                  ? "Public demo workspace for reviewing HTML email journeys."
+                  : "Private workspace for authorized email review teams."}
               </Text>
               <Text c="dimmed" size="sm">
                 Operated by Mikhail Rubashkin for collaborative email review.
@@ -101,6 +110,25 @@ export function Login() {
               <Alert color="blue" title="Local development login">
                 Email delivery is bypassed for this local environment.
               </Alert>
+            ) : null}
+
+            {demoLoginEnabled ? (
+              <Alert color="teal" title="Public demo">
+                Enter with a demo reviewer account. Demo data is disposable.
+              </Alert>
+            ) : null}
+
+            {demoLoginEnabled ? (
+              <Button
+                loading={demoLoginMutation.isPending}
+                type="button"
+                fullWidth
+                onClick={() => {
+                  demoLoginMutation.mutate();
+                }}
+              >
+                Enter demo
+              </Button>
             ) : null}
 
             {devLoginEnabled ? (
@@ -196,6 +224,12 @@ export function Login() {
             {devLoginMutation.isError ? (
               <Alert color="red" title="Could not sign in locally">
                 Check that dev login is enabled on the API server.
+              </Alert>
+            ) : null}
+
+            {demoLoginMutation.isError ? (
+              <Alert color="red" title="Could not enter demo">
+                Check that demo login is enabled on the API server.
               </Alert>
             ) : null}
           </Stack>
