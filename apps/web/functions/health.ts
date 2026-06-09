@@ -21,11 +21,21 @@ export async function onRequest(context: PagesFunctionContext) {
   headers.delete("host");
 
   try {
-    return await fetch(targetURL, {
+    const response = await fetch(targetURL, {
       headers,
       method: context.request.method,
       redirect: "manual",
     });
+    if (!response.ok) {
+      return new Response(
+        `Cloudflare proxy upstream health failed: status=${response.status} target=${targetURL.origin}`,
+        {
+          headers: { "content-type": "text/plain; charset=utf-8" },
+          status: 502,
+        },
+      );
+    }
+    return response;
   } catch (error) {
     return new Response(formatProxyError(error), {
       headers: { "content-type": "text/plain; charset=utf-8" },
