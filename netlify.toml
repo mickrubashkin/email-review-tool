@@ -1,5 +1,0 @@
-[[redirects]]
-  from = "/*"
-  to = "https://reviewdesk.rubashkin.xyz/:splat"
-  status = 301
-  force = true
