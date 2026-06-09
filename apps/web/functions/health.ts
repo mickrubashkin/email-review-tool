@@ -1,10 +1,15 @@
 const defaultBackendOrigin = "https://email-review-tool-production.up.railway.app";
 
 export async function onRequest(context: PagesFunctionContext) {
+  let requestURL: URL;
   let targetURL: URL;
 
   try {
+    requestURL = new URL(context.request.url);
     targetURL = new URL("/health", normalizeBackendOrigin(context.env.BACKEND_ORIGIN));
+    if (targetURL.host === requestURL.host) {
+      throw new Error("BACKEND_ORIGIN must point to the API origin, not this Pages domain");
+    }
   } catch (error) {
     return new Response(formatProxyError(error), {
       headers: { "content-type": "text/plain; charset=utf-8" },

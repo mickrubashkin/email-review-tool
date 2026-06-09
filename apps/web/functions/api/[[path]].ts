@@ -10,6 +10,9 @@ export async function onRequest(context: PagesFunctionContext) {
       requestURL.pathname + requestURL.search,
       normalizeBackendOrigin(context.env.BACKEND_ORIGIN),
     );
+    if (targetURL.host === requestURL.host) {
+      throw new Error("BACKEND_ORIGIN must point to the API origin, not this Pages domain");
+    }
   } catch (error) {
     return new Response(formatProxyError(error), {
       headers: { "content-type": "text/plain; charset=utf-8" },
