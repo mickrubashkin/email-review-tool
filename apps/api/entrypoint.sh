@@ -22,5 +22,17 @@ else
   echo "Skipping seed; set RUN_DB_SEED=true to seed initial email data"
 fi
 
+if [ "$RUN_DEMO_SEED" = "true" ]; then
+  if [ "$DEMO_RESET_ON_DEPLOY" = "true" ]; then
+    echo "Running demo seed reset"
+    /app/demoseed -reset
+  else
+    echo "Running demo seed"
+    /app/demoseed
+  fi
+else
+  echo "Skipping demo seed; set RUN_DEMO_SEED=true to seed demo data"
+fi
+
 echo "Starting server"
 exec /app/server
