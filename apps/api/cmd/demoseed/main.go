@@ -25,6 +25,7 @@ import (
 const (
 	demoBoardKey       = "demo-onboarding"
 	demoBoardName      = "Demo Onboarding Review"
+	defaultBoardKey    = "onboarding"
 	demoReviewerEmail  = "demo-reviewer@example.com"
 	demoAdminEmail     = "demo-admin@example.com"
 	demoFixtureRootEnv = "DEMO_EMAILS_DIR"
@@ -362,6 +363,9 @@ func resetDemoData(ctx context.Context, tx pgx.Tx) error {
 	if _, err := tx.Exec(ctx, `DELETE FROM boards WHERE key = $1;`, demoBoardKey); err != nil {
 		return err
 	}
+	if err := deleteEmptyDefaultBoard(ctx, tx); err != nil {
+		return err
+	}
 	if _, err := tx.Exec(ctx, `
 		DELETE FROM sessions
 		USING users
@@ -372,6 +376,19 @@ func resetDemoData(ctx context.Context, tx pgx.Tx) error {
 	}
 
 	return nil
+}
+
+func deleteEmptyDefaultBoard(ctx context.Context, tx pgx.Tx) error {
+	_, err := tx.Exec(ctx, `
+		DELETE FROM boards
+		WHERE key = $1
+			AND NOT EXISTS (
+				SELECT 1
+				FROM emails
+				WHERE coalesce(nullif(trim(sequence), ''), $1) = $1
+			);
+	`, defaultBoardKey)
+	return err
 }
 
 func ensureDemoUsers(ctx context.Context, tx pgx.Tx) (demoActor, demoActor, error) {
