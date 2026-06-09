@@ -1,21 +1,50 @@
 const defaultBackendOrigin = "https://email-review-tool-production.up.railway.app";
 
 export async function onRequest(context: PagesFunctionContext) {
-  const backendOrigin = context.env.BACKEND_ORIGIN ?? defaultBackendOrigin;
-  const requestURL = new URL(context.request.url);
-  const targetURL = new URL(requestURL.pathname + requestURL.search, backendOrigin);
+  let requestURL: URL;
+  let targetURL: URL;
+
+  try {
+    requestURL = new URL(context.request.url);
+    targetURL = new URL(
+      requestURL.pathname + requestURL.search,
+      normalizeBackendOrigin(context.env.BACKEND_ORIGIN),
+    );
+  } catch (error) {
+    return new Response(formatProxyError(error), {
+      headers: { "content-type": "text/plain; charset=utf-8" },
+      status: 502,
+    });
+  }
 
   const headers = new Headers(context.request.headers);
   headers.delete("host");
   headers.set("x-forwarded-host", requestURL.host);
   headers.set("x-forwarded-proto", requestURL.protocol.replace(":", ""));
 
-  return fetch(targetURL, {
-    body: context.request.body,
+  const init: RequestInit = {
     headers,
     method: context.request.method,
     redirect: "manual",
-  });
+  };
+
+  if (!["GET", "HEAD"].includes(context.request.method.toUpperCase())) {
+    init.body = context.request.body;
+  }
+
+  return fetch(targetURL, init);
+}
+
+function normalizeBackendOrigin(value: string | undefined) {
+  const origin = (value ?? defaultBackendOrigin).trim().replace(/^['"]|['"]$/g, "");
+  return new URL(origin).origin;
+}
+
+function formatProxyError(error: unknown) {
+  if (error instanceof Error) {
+    return `Cloudflare proxy configuration error: ${error.message}`;
+  }
+  return "Cloudflare proxy configuration error";
 }
 
 type Env = {

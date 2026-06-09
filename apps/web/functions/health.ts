@@ -1,14 +1,34 @@
 const defaultBackendOrigin = "https://email-review-tool-production.up.railway.app";
 
 export async function onRequest(context: PagesFunctionContext) {
-  const backendOrigin = context.env.BACKEND_ORIGIN ?? defaultBackendOrigin;
-  const targetURL = new URL("/health", backendOrigin);
+  let targetURL: URL;
+
+  try {
+    targetURL = new URL("/health", normalizeBackendOrigin(context.env.BACKEND_ORIGIN));
+  } catch (error) {
+    return new Response(formatProxyError(error), {
+      headers: { "content-type": "text/plain; charset=utf-8" },
+      status: 502,
+    });
+  }
 
   return fetch(targetURL, {
-    headers: context.request.headers,
+    headers: new Headers(context.request.headers),
     method: context.request.method,
     redirect: "manual",
   });
+}
+
+function normalizeBackendOrigin(value: string | undefined) {
+  const origin = (value ?? defaultBackendOrigin).trim().replace(/^['"]|['"]$/g, "");
+  return new URL(origin).origin;
+}
+
+function formatProxyError(error: unknown) {
+  if (error instanceof Error) {
+    return `Cloudflare proxy configuration error: ${error.message}`;
+  }
+  return "Cloudflare proxy configuration error";
 }
 
 type Env = {
