@@ -59,6 +59,12 @@ DEMO_SEED_ENABLED=true make db-seed-demo
 DEMO_SEED_ENABLED=true DEMO_RESET_CONFIRM=demo make db-reset-demo
 ```
 
+In the Railway backend service console, run the compiled demo seed binary from `/app`:
+
+```sh
+DEMO_SEED_ENABLED=true DEMO_RESET_CONFIRM=demo /app/demoseed -reset
+```
+
 The demo board key is `demo-onboarding`. Reset deletes only demo-owned board/email/session data and then recreates the generic demo scenario.
 
 Demo login is controlled by environment variables:
