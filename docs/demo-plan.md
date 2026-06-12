@@ -52,7 +52,7 @@ Interactive demo option:
 
 ## Seed Commands
 
-Demo seed is intentionally separate from the normal production/current-team seed.
+Demo seed is intentionally separate from the normal production/current-team seed. It uses synthetic generic content, not copied or anonymized production emails.
 
 ```sh
 DEMO_SEED_ENABLED=true make db-seed-demo
@@ -75,6 +75,13 @@ DEMO_RESET_CONFIRM=demo
 ```
 
 The demo board key is `demo-onboarding`. Reset deletes only demo-owned board/email/session data and then recreates the generic demo scenario. It also removes the migration-created `onboarding` fallback board only when that board has no emails.
+
+The seeded dataset is production-like but disposable:
+
+- 8 stages: `signup`, `profile`, `activation`, `education`, `integration`, `first-value`, `expansion`, `retention`;
+- 20 generic email concepts across 3 languages: `en`, `de`, `fr`;
+- 60 emails total, with mixed review statuses, comments, approval states, stale approvals, and handoff-ready examples;
+- optional hand-crafted fixtures under `db/seeds/demo-emails` can override generated emails with the same slug.
 
 Demo login is controlled by environment variables:
 
