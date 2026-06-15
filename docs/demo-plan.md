@@ -42,13 +42,13 @@ Interactive demo option:
 - Limit AI force refresh or make demo AI cached-only.
 - Keep production and demo secrets, databases, and cookies separate.
 
-## Implementation Order
+## Current Implementation
 
-1. Add demo seed/reset strategy.
-2. Add `AUTH_DEMO_LOGIN_ENABLED` for demo-only session creation.
-3. Deploy demo frontend/backend with separate database.
-4. Add basic rate limits at the edge.
-5. Capture screenshots and a short demo video from the disposable demo environment.
+- Demo seed/reset strategy is implemented and isolated from normal seed data.
+- Demo login is implemented behind `AUTH_DEMO_LOGIN_ENABLED`.
+- Demo backend can reset synthetic data automatically on deploy.
+- Public demo uses a separate frontend, backend, and PostgreSQL database.
+- Remaining demo work: edge rate limits, screenshots, and short demo video.
 
 ## Seed Commands
 

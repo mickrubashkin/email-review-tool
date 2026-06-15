@@ -45,7 +45,7 @@ The intended demo story is:
 
 ## Result
 
-ReviewDesk demonstrates a complete product-engineering slice: authenticated workflow software, PostgreSQL-backed domain state, review anchoring, approval gates, version-aware editing, AI-assisted analysis, and production handoff. The remaining finish work is focused on making the demo reproducible and the public project presentation clear.
+ReviewDesk demonstrates a complete product-engineering slice: authenticated workflow software, PostgreSQL-backed domain state, review anchoring, approval gates, version-aware editing, AI-assisted analysis, and production handoff. The public demo uses disposable synthetic data so the workflow can be shown without exposing production content.
 
 ## Assets To Capture
 

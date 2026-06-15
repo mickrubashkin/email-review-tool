@@ -4,7 +4,8 @@ ReviewDesk is now being finished as a portfolio-ready product-engineering case s
 
 ## Finish Line
 
-- [ ] Demo data: board -> review -> comment -> edit -> stale approval -> re-approval -> handoff.
+- [x] Demo data: disposable synthetic `demo-onboarding` board with 60 emails, comments, approvals, stale states, and handoff examples.
+- [ ] Demo recording path: board -> review -> comment -> edit -> stale approval -> re-approval -> handoff.
 - [x] Basic checks: top-level `make lint`, `make test-api`, `make test-web`, and GitHub Actions.
 - [ ] Demo polish: destructive-action confirmations and centralized session-expired recovery.
 - [ ] Engineering showcase: complete one focused backend improvement, preferably AI architecture maturity or a small `sqlc` migration.
