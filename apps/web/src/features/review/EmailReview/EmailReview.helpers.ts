@@ -217,6 +217,10 @@ export function buildReviewBlockFreshness(
   const commentsByBlock = new Map<string, EmailComment[]>();
 
   comments.forEach((comment) => {
+    if (comment.status !== "open") {
+      return;
+    }
+
     commentsByBlock.set(comment.review_block, [
       ...(commentsByBlock.get(comment.review_block) ?? []),
       comment,
