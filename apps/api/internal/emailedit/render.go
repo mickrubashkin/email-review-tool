@@ -266,7 +266,12 @@ func urlFieldValue(fields EditableFields, key string) (string, error) {
 		return "", fmt.Errorf("editable field %q has invalid URL: %w", key, err)
 	}
 
-	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+	field := fields[key]
+	allowedScheme := parsed.Scheme == "http" || parsed.Scheme == "https"
+	if field.Type == FieldTypeURL && parsed.Scheme == "mailto" {
+		allowedScheme = true
+	}
+	if !allowedScheme {
 		return "", fmt.Errorf("editable field %q has disallowed URL scheme %q", key, parsed.Scheme)
 	}
 

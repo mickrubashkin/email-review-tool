@@ -96,6 +96,38 @@ func TestRenderEditableHTMLRejectsUnsafeURLScheme(t *testing.T) {
 	}
 }
 
+func TestRenderEditableHTMLAllowsMailtoURLScheme(t *testing.T) {
+	templateHTML := `<a href="mailto:old@example.com" data-edit-attr-href="contact_url">Contact us</a>`
+	fields := EditableFields{
+		"contact_url": {
+			Type:  FieldTypeURL,
+			Value: "mailto:partners@bitrix24.com",
+		},
+	}
+
+	rendered, err := RenderEditableHTML(templateHTML, fields)
+	if err != nil {
+		t.Fatalf("RenderEditableHTML returned error: %v", err)
+	}
+
+	assertContains(t, rendered, `href="mailto:partners@bitrix24.com"`)
+}
+
+func TestRenderEditableHTMLRejectsMailtoImageURL(t *testing.T) {
+	templateHTML := `<img src="https://example.com/image.png" data-edit-attr-src="image_url">`
+	fields := EditableFields{
+		"image_url": {
+			Type:  FieldTypeImage,
+			Value: "mailto:partners@bitrix24.com",
+		},
+	}
+
+	_, err := RenderEditableHTML(templateHTML, fields)
+	if err == nil {
+		t.Fatal("RenderEditableHTML expected error for mailto image URL")
+	}
+}
+
 func TestRenderEditableHTMLWithMetadataUpdatesPreheaderTarget(t *testing.T) {
 	templateHTML := `
 		<div>
