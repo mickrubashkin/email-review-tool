@@ -22,6 +22,7 @@ import {
   getVersionsForVariantAndAdaptation,
 } from "../../../emails/stages";
 import type {
+  EmailDetail,
   EmailListItem,
   EmailVariant,
 } from "../../../emails/types";
