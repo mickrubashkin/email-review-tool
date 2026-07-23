@@ -2,91 +2,41 @@ import { useMediaQuery } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { useNavigate } from "react-router-dom";
 
-import {
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 
-import {
-  Alert,
-  Button,
-  Loader,
-  Stack,
-  Text,
-} from "@mantine/core";
-
+import { Alert, Button, Loader, Stack, Text } from "@mantine/core";
 import { SparkleIcon } from "@phosphor-icons/react";
 
-import {
-  type PointerEvent,
-  type ReactNode,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useEffect, useRef } from "react";
 
 import { AnalysisPanel } from "../../emails/AnalysisPanel";
 
 import {
-  ApiError,
-  archiveEmail,
-  createCommentMessage,
-  createEmailComment,
-  duplicateEmail,
-  fetchAdminUsers,
-  fetchBoards,
-  fetchEmailActivity,
-  fetchEmailVersions,
-  listEmailAreaApprovals,
   fetchEmailComments,
   fetchEmailDetail,
-  fetchEmails,
-  fetchRenderedEmail,
-  fetchSharedEmailAnalysis,
-  restoreEmailVersion,
-  resolveComment,
-  updateEmailAreaApproval,
-  updateEmailEditableFields,
-  updateEmailPlanningFields,
-  updateEmailReviewStatus,
 } from "../../emails/api";
 
-import {
-  MailPreview,
-} from "../../emails/MailPreview";
+import { MailPreview } from "../../emails/MailPreview";
 import type {
   InlineEditUpdate,
   ReviewTextSelection,
 } from "../../emails/MailPreview.types";
 
 import {
-  formatEmailReviewStatus,
   isApprovedEmailReviewStatus,
 } from "../../emails/reviewStatus";
 
 import {
-  buildStageColumns,
-  getAvailableAdaptations,
-  getAvailableVariants,
-  getSelectedAdaptation,
-  getSelectedVariant,
   getVersionForVariant,
-  getVersionsForVariantAndAdaptation,
 } from "../../emails/stages";
 
 import { buildStreamPreview } from "../../emails/streamPreview";
 
 import type {
-  DuplicateEmailPayload,
   EmailComment,
   EmailCommentSeverity,
-  EmailDetail,
-  EmailListItem,
   EmailReviewStatus,
   EmailVariant,
-  UpdateEditableFieldsPayload,
   UpdateEmailPlanningFieldsPayload,
 } from "../../emails/types";
 
@@ -94,13 +44,13 @@ import { useEmailAnalysisStream } from "../../emails/useEmailAnalysisStream";
 
 import { CommentsPanel } from "./CommentsPanel";
 import styles from "./EmailReview.module.css";
-import { ReviewHeader } from "./ReviewHeader";
-import { ReviewLayout } from "./ReviewLayout";
+
 import {
-  ArchiveEmailModal,
-  DuplicateEmailModal,
-  SourceHTMLModal,
-} from "./ReviewModals";
+  useEmailReviewData,
+  useEmailReviewLayout,
+  useEmailReviewMutations,
+} from "./hooks";
+
 import {
   ActivityPanel,
   AreaApprovalsPanel,
@@ -108,203 +58,132 @@ import {
   PlanningPanel,
   ReviewPreviewSkeleton,
   VersionHistoryPanel,
-} from "./ReviewPanels";
+} from "./panels";
+
+import { ReviewHeader } from "./ReviewHeader";
+import { ReviewLayout } from "./ReviewLayout";
+import {
+  ArchiveEmailModal,
+  DuplicateEmailModal,
+  SourceHTMLModal,
+} from "./ReviewModals";
 import type {
-  CommentStatusFilter,
   EmailReviewProps,
-  ReviewContentTab,
-  ReviewPanelTab,
   ReviewUtilityPanel,
-  ReviewViewport,
 } from "./EmailReview.types";
 import {
-  applyPlanningFieldsToCaches,
-  applyReviewStatusToCaches,
-  buildApprovalBlockedMessage,
-  buildChangedBlockTargets,
   buildCommentBlockOptions,
   buildEditableFieldsPayload,
-  buildReviewBlockFreshness,
-  clampPercent,
-  commentToTarget,
-  findNeighborEmail,
-  latestApprovalActivity,
 } from "./EmailReview.helpers";
-
-const minRightPanelPercent = 24;
-const maxRightPanelPercent = 48;
 
 export function EmailReview({
   currentUserRole,
   emailId,
 }: EmailReviewProps) {
   const navigate = useNavigate();
-  const [viewport, setViewport] = useState<ReviewViewport>("desktop");
-  const [actionMenuOpened, setActionMenuOpened] = useState(false);
-  const [activeContentTab, setActiveContentTab] =
-    useState<ReviewContentTab>("email");
-  const [activeUtilityPanel, setActiveUtilityPanel] =
-    useState<ReviewUtilityPanel | null>(null);
-  const [archiveModalOpened, setArchiveModalOpened] = useState(false);
-  const [duplicateModalOpened, setDuplicateModalOpened] = useState(false);
-  const [sourceHTMLModalOpened, setSourceHTMLModalOpened] = useState(false);
-  const [sourceHTMLDraft, setSourceHTMLDraft] = useState("");
-  const [isInlineEditPreviewRefreshing, setIsInlineEditPreviewRefreshing] =
-    useState(false);
-  const [rightPanelPercent, setRightPanelPercent] = useState(30);
-  const [activePanelTab, setActivePanelTab] =
-    useState<ReviewPanelTab>("comments");
-  const [activeCommentId, setActiveCommentId] = useState<string | null>(null);
-  const [commentStatusFilter, setCommentStatusFilter] =
-    useState<CommentStatusFilter>("open");
-  const [hoveredCommentId, setHoveredCommentId] = useState<string | null>(null);
   const queryClient = useQueryClient();
-  const contentRef = useRef<HTMLElement | null>(null);
   const activeCommentTimeoutRef = useRef<number | null>(null);
   const inlineEditPreviewNeedsFrameRef = useRef(false);
-  const isResizingRef = useRef(false);
-  const [isResizing, setIsResizing] = useState(false);
   const isCompactReview = useMediaQuery("(max-width: 64em)");
   const canManageEmail =
     currentUserRole === "admin" || currentUserRole === "super_admin";
-  const emailQuery = useQuery({
-    queryKey: ["emails", emailId, "review"],
-    queryFn: () => fetchEmailDetail(emailId),
-    enabled: emailId.trim() !== "",
-  });
-  const commentsQuery = useQuery({
-    queryKey: ["email-comments", emailId],
-    queryFn: () => fetchEmailComments(emailId),
-    enabled: emailId.trim() !== "",
-    refetchInterval: 5000,
-    refetchIntervalInBackground: false,
-  });
-  const activityQuery = useQuery({
-    queryKey: ["email-activity", emailId],
-    queryFn: () => fetchEmailActivity(emailId),
-    enabled: emailId.trim() !== "",
-  });
-  const areaApprovalsQuery = useQuery({
-    queryKey: ["email-area-approvals", emailId],
-    queryFn: () => listEmailAreaApprovals(emailId),
-    enabled: emailId.trim() !== "",
-  });
-  const renderedEmailQuery = useQuery({
-    queryKey: ["emails", emailId, "rendered"],
-    queryFn: () => fetchRenderedEmail(emailId),
-    enabled: emailId.trim() !== "",
-  });
-  const versionsQuery = useQuery({
-    queryKey: ["emails", emailId, "versions"],
-    queryFn: () => fetchEmailVersions(emailId),
-    enabled: emailId.trim() !== "" && canManageEmail,
-  });
-  const email = emailQuery.data;
-  const emailsQuery = useQuery({
-    queryKey: ["emails", email?.sequence ?? "all"],
-    queryFn: () => fetchEmails(email?.sequence),
-    enabled: Boolean(email?.sequence),
-  });
-  const sharedAnalysisQuery = useQuery({
-    queryKey: ["emails", emailId, "ai-analysis"],
-    queryFn: () => fetchSharedEmailAnalysis(emailId),
-    enabled: emailId.trim() !== "",
-  });
-  const adminUsersQuery = useQuery({
-    queryKey: ["admin", "users"],
-    queryFn: fetchAdminUsers,
-    enabled: canManageEmail,
-  });
-  const boardsQuery = useQuery({
-    queryKey: ["boards"],
-    queryFn: fetchBoards,
-    enabled: duplicateModalOpened && canManageEmail,
-  });
-  const duplicateEmailsQuery = useQuery({
-    queryKey: ["emails"],
-    queryFn: () => fetchEmails(),
-    enabled: duplicateModalOpened && canManageEmail,
-  });
-  const stageColumns = useMemo(
-    () => buildStageColumns(emailsQuery.data ?? []),
-    [emailsQuery.data]
-  );
-  const emailGroup = useMemo(() => {
-    return stageColumns
-      .flatMap((column) => column.emailGroups)
-      .find((group) => group.versions.some((version) => version.id === emailId));
-  }, [emailId, stageColumns]);
-  const nextEmailWithOpenComments = useMemo(() => {
-    const orderedEmails = stageColumns.flatMap(
-      (column) => column.emailGroups.flatMap((group) => group.versions)
-    );
-    const currentEmailIndex = orderedEmails.findIndex(
-      (orderedEmail) => orderedEmail.id === emailId
-    );
 
-    if (currentEmailIndex === -1) {
-      return null;
-    }
+  const layout = useEmailReviewLayout();
+  const {
+    actionMenuOpened,
+    activeCommentId,
+    activeContentTab,
+    activePanelTab,
+    activeUtilityPanel,
+    archiveModalOpened,
+    commentStatusFilter,
+    contentRef,
+    duplicateModalOpened,
+    hoveredCommentId,
+    isInlineEditPreviewRefreshing,
+    isResizing,
+    rightPanelPercent,
+    setActionMenuOpened,
+    setActiveCommentId,
+    setActiveContentTab,
+    setActivePanelTab,
+    setActiveUtilityPanel,
+    setArchiveModalOpened,
+    setCommentStatusFilter,
+    setDuplicateModalOpened,
+    setHoveredCommentId,
+    setIsInlineEditPreviewRefreshing,
+    setSourceHTMLDraft,
+    setSourceHTMLModalOpened,
+    setViewport,
+    sourceHTMLDraft,
+    sourceHTMLModalOpened,
+    viewport,
+  } = layout;
 
-    return (
-      orderedEmails
-        .slice(currentEmailIndex + 1)
-        .find((orderedEmail) => (orderedEmail.open_comment_count ?? 0) > 0) ??
-      null
-    );
-  }, [emailId, stageColumns]);
-  const selectedVariant = emailGroup
-    ? getSelectedVariant(emailGroup.versions, emailId)
-    : email?.variant ?? "v1";
-  const selectedAdaptation = emailGroup
-    ? getSelectedAdaptation(emailGroup.versions, emailId)
-    : email?.adaptation_key ?? "default";
-  const selectedVariantVersions = emailGroup
-    ? getVersionsForVariantAndAdaptation(
-      emailGroup.versions,
-      selectedVariant,
-      selectedAdaptation
-    )
-    : [];
-  const languageVersions =
-    selectedVariantVersions.length > 0 || !email
-      ? selectedVariantVersions
-      : [{ id: email.id, language: email.language }];
-  const availableVariants = emailGroup
-    ? getAvailableVariants(emailGroup.versions)
-    : email
-      ? [email.variant as EmailVariant]
-      : [];
-  const availableAdaptations = emailGroup
-    ? getAvailableAdaptations(emailGroup.versions, selectedVariant)
-    : email
-      ? [email]
-      : [];
-  const hasLanguageOptions = languageVersions.length > 1;
-  const hasVariantOptions = availableVariants.length > 1;
-  const hasAdaptationOptions = availableAdaptations.length > 1;
-  const boardEmailGroups = useMemo(
-    () => stageColumns.flatMap((column) => column.emailGroups),
-    [stageColumns]
-  );
-  const currentBoardGroupIndex = emailGroup
-    ? boardEmailGroups.findIndex((group) => group.key === emailGroup.key)
-    : -1;
-  const previousBoardEmail = findNeighborEmail(
-    [...boardEmailGroups.slice(0, Math.max(currentBoardGroupIndex, 0))].reverse(),
+  const data = useEmailReviewData({
+    canManageEmail,
+    commentStatusFilter,
+    duplicateModalOpened,
+    emailId,
+  });
+
+  const {
+    activityQuery,
+    adminUsersQuery,
+    approvalActivity,
+    approvalBlockedCount,
+    approvalBlockedMessage,
+    areaApprovalsQuery,
+    availableAdaptations,
+    availableVariants,
+    boardsQuery,
+    changedBlockTargets,
+    comments,
+    commentsQuery,
+    commentTargets,
+    currentStage,
+    duplicateEmailsQuery,
+    email,
+    emailGroup,
+    emailQuery,
+    filteredComments,
+    hasAdaptationOptions,
+    hasLanguageOptions,
+    hasVariantOptions,
+    languageVersions,
+    nextBoardEmail,
+    nextEmailWithOpenComments,
+    openBlockingCommentCount,
+    openCommentCount,
+    previousBoardEmail,
+    renderedEmailQuery,
+    reviewBlockFreshness,
+    selectedAdaptation,
     selectedVariant,
-    email?.language,
-    selectedAdaptation
-  );
-  const nextBoardEmail = findNeighborEmail(
-    boardEmailGroups.slice(currentBoardGroupIndex + 1),
-    selectedVariant,
-    email?.language,
-    selectedAdaptation
-  );
-  const currentStage = stageColumns.find((column) =>
-    column.emailGroups.some((group) => group.key === emailGroup?.key)
-  );
+    sharedAnalysisQuery,
+    versionsQuery,
+  } = data;
+
+  const mutations = useEmailReviewMutations({
+    approvalBlockedMessage,
+    emailId,
+    sequence: email?.sequence,
+  });
+
+  const {
+    archiveEmailMutation,
+    areaApprovalMutation,
+    createCommentMutation,
+    createReplyMutation,
+    duplicateEmailMutation,
+    planningFieldsMutation,
+    resolveCommentMutation,
+    restoreVersionMutation,
+    reviewStatusMutation,
+    saveEditableFieldsMutation,
+  } = mutations;
+
   const {
     analyze,
     reanalyze,
@@ -317,12 +196,14 @@ export function EmailReview({
     queryClient.setQueryData(["emails", emailId, "ai-analysis"], analysis);
     void queryClient.invalidateQueries({ queryKey: ["email-activity", emailId] });
   });
+
   const isCurrentStream = streamEmailId === email?.id;
   useEffect(() => {
     if (isCurrentStream && (streamStatus === "done" || streamStatus === "error")) {
       void queryClient.invalidateQueries({ queryKey: ["email-activity", emailId] });
     }
   }, [emailId, isCurrentStream, queryClient, streamStatus]);
+
   const displayedAnalysis =
     streamAnalysis && isCurrentStream
       ? streamAnalysis
@@ -331,393 +212,6 @@ export function EmailReview({
   const shouldShowAnalysisPanel =
     (isCurrentStream && streamStatus !== "idle") || Boolean(displayedAnalysis);
   const isAnalyzingCurrentEmail = streamStatus === "streaming" && isCurrentStream;
-  const comments = useMemo(
-    () => commentsQuery.data ?? [],
-    [commentsQuery.data]
-  );
-  const openCommentCount = comments.filter(
-    (comment) => comment.status === "open"
-  ).length;
-  const openBlockingCommentCount = comments.filter(
-    (comment) => comment.status === "open" && comment.severity === "blocking"
-  ).length;
-  const effectiveOpenBlockingCommentCount = Math.max(
-    openBlockingCommentCount,
-    email?.open_blocking_comment_count ?? 0
-  );
-  const incompleteRequiredApprovalCount = (areaApprovalsQuery.data ?? []).filter(
-    (approval) => approval.required && approval.status !== "approved"
-  ).length;
-  const approvalBlockedCount =
-    effectiveOpenBlockingCommentCount + incompleteRequiredApprovalCount;
-  const approvalBlockedMessage = buildApprovalBlockedMessage(
-    effectiveOpenBlockingCommentCount,
-    incompleteRequiredApprovalCount
-  );
-  const filteredComments = useMemo(
-    () =>
-      commentStatusFilter === "open"
-        ? comments.filter((comment) => comment.status === "open")
-        : comments,
-    [commentStatusFilter, comments]
-  );
-  const reviewBlockFreshness = useMemo(
-    () => buildReviewBlockFreshness(comments, activityQuery.data ?? []),
-    [activityQuery.data, comments]
-  );
-  const commentTargets = useMemo(
-    () =>
-      filteredComments.map((comment) =>
-        commentToTarget(
-          comment,
-          reviewBlockFreshness.changedAfterCommentCommentIds.has(comment.id)
-        )
-      ),
-    [filteredComments, reviewBlockFreshness.changedAfterCommentCommentIds]
-  );
-  const changedBlockTargets = useMemo(
-    () => buildChangedBlockTargets(reviewBlockFreshness),
-    [reviewBlockFreshness]
-  );
-  useEffect(() => {
-    if (!commentsQuery.data) {
-      return;
-    }
-
-    queryClient.setQueryData<EmailListItem[]>(["emails"], (currentEmails) => {
-      if (!currentEmails) {
-        return currentEmails;
-      }
-
-      return currentEmails.map((currentEmail) =>
-        currentEmail.id === emailId
-          ? {
-            ...currentEmail,
-            open_comment_count: openCommentCount,
-            open_blocking_comment_count: openBlockingCommentCount,
-          }
-          : currentEmail
-      );
-    });
-    if (email?.sequence) {
-      queryClient.setQueryData<EmailListItem[]>(
-        ["emails", email.sequence],
-        (currentEmails) => {
-          if (!currentEmails) {
-            return currentEmails;
-          }
-
-          return currentEmails.map((currentEmail) =>
-            currentEmail.id === emailId
-              ? {
-                ...currentEmail,
-                open_comment_count: openCommentCount,
-                open_blocking_comment_count: openBlockingCommentCount,
-              }
-              : currentEmail
-          );
-        }
-      );
-    }
-
-    queryClient.setQueryData<EmailDetail>(
-      ["emails", emailId, "review"],
-      (currentEmail) =>
-        currentEmail
-          ? {
-            ...currentEmail,
-            open_comment_count: openCommentCount,
-            open_blocking_comment_count: openBlockingCommentCount,
-          }
-          : currentEmail
-    );
-  }, [
-    commentsQuery.data,
-    email?.sequence,
-    emailId,
-    openBlockingCommentCount,
-    openCommentCount,
-    queryClient,
-  ]);
-
-  const duplicateEmailMutation = useMutation({
-    mutationFn: ({
-      sourceEmailId,
-      payload,
-    }: {
-      sourceEmailId: string;
-      payload: DuplicateEmailPayload;
-    }) => duplicateEmail(sourceEmailId, payload),
-    onSuccess: (createdEmail) => {
-      void queryClient.invalidateQueries({ queryKey: ["emails"] });
-      void queryClient.invalidateQueries({ queryKey: ["email-activity", emailId] });
-      queryClient.setQueryData(["emails", createdEmail.id, "review"], createdEmail);
-      navigate(`/emails/${encodeURIComponent(createdEmail.id)}/review`);
-    },
-  });
-  const archiveEmailMutation = useMutation({
-    mutationFn: archiveEmail,
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["emails"] });
-      void queryClient.invalidateQueries({ queryKey: ["email-activity", emailId] });
-      notifications.show({
-        color: "green",
-        message: "Email was removed from the active board.",
-        title: "Email archived",
-      });
-      navigate("/");
-    },
-    onError: () => {
-      notifications.show({
-        color: "red",
-        message: "Try again or check that you have admin access.",
-        title: "Archive failed",
-      });
-    },
-  });
-  const reviewStatusMutation = useMutation({
-    mutationFn: ({
-      nextStatus,
-      targetEmailId,
-    }: {
-      nextStatus: EmailReviewStatus;
-      targetEmailId: string;
-    }) =>
-      updateEmailReviewStatus(targetEmailId, {
-        review_status: nextStatus,
-      }),
-    onSuccess: (response, variables) => {
-      applyReviewStatusToCaches(
-        queryClient,
-        variables.targetEmailId,
-        response.review_status,
-        email?.sequence
-      );
-      void queryClient.invalidateQueries({
-        queryKey: ["email-activity", variables.targetEmailId],
-      });
-      notifications.show({
-        color: "green",
-        message: `Review status changed to ${formatEmailReviewStatus(response.review_status)}.`,
-        title: "Status updated",
-      });
-    },
-    onError: (error) => {
-      const conflictMessage =
-        error instanceof ApiError && error.status === 409
-          ? error.message.trim() || approvalBlockedMessage
-          : null;
-      notifications.show({
-        color: "red",
-        message: conflictMessage ?? "Try again or check that you have admin access.",
-        title: conflictMessage ? "Approval blocked" : "Status update failed",
-      });
-    },
-  });
-  const planningFieldsMutation = useMutation({
-    mutationFn: ({
-      payload,
-      targetEmailId,
-    }: {
-      payload: UpdateEmailPlanningFieldsPayload;
-      targetEmailId: string;
-    }) => updateEmailPlanningFields(targetEmailId, payload),
-    onSuccess: (response, variables) => {
-      applyPlanningFieldsToCaches(
-        queryClient,
-        variables.targetEmailId,
-        response,
-        email?.sequence
-      );
-      void queryClient.invalidateQueries({
-        queryKey: ["email-activity", variables.targetEmailId],
-      });
-      notifications.show({
-        color: "green",
-        message: "Planning fields updated.",
-        title: "Planning updated",
-      });
-    },
-    onError: () => {
-      notifications.show({
-        color: "red",
-        message: "Try again or check that you have admin access.",
-        title: "Planning update failed",
-      });
-    },
-  });
-  const areaApprovalMutation = useMutation({
-    mutationFn: ({
-      area,
-      decisionNote,
-      status,
-    }: {
-      area: string;
-      decisionNote: string | null;
-      status: "approved" | "changes_requested";
-    }) =>
-      updateEmailAreaApproval(emailId, area, {
-        decision_note: decisionNote,
-        status,
-      }),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({
-        queryKey: ["email-area-approvals", emailId],
-      });
-      void queryClient.invalidateQueries({
-        queryKey: ["email-activity", emailId],
-      });
-      notifications.show({
-        color: "green",
-        message: "Approval area updated.",
-        title: "Approval updated",
-      });
-    },
-    onError: () => {
-      notifications.show({
-        color: "red",
-        message: "Try again or check that you have admin access.",
-        title: "Approval update failed",
-      });
-    },
-  });
-  const createCommentMutation = useMutation({
-    mutationFn: ({
-      body,
-      severity,
-      selection,
-    }: {
-      body: string;
-      severity: EmailCommentSeverity;
-      selection: ReviewTextSelection;
-    }) =>
-      createEmailComment(emailId, {
-        review_block: selection.reviewBlock,
-        selected_text: selection.selectedText,
-        start_offset: selection.startOffset,
-        end_offset: selection.endOffset,
-        body,
-        severity,
-      }),
-    onSuccess: () => {
-      setActivePanelTab("comments");
-      setActiveContentTab("comments");
-      void queryClient.invalidateQueries({
-        queryKey: ["email-comments", emailId],
-      });
-      void queryClient.invalidateQueries({
-        queryKey: ["email-activity", emailId],
-      });
-    },
-  });
-  const refreshEmailAfterContentChange = async () => {
-    await queryClient.invalidateQueries({
-      queryKey: ["emails", emailId, "review"],
-    });
-    await queryClient.invalidateQueries({
-      queryKey: ["emails", emailId, "rendered"],
-    });
-    await queryClient.invalidateQueries({ queryKey: ["emails"] });
-    if (email?.sequence) {
-      await queryClient.invalidateQueries({ queryKey: ["emails", email.sequence] });
-    }
-    await queryClient.invalidateQueries({ queryKey: ["email-activity", emailId] });
-    await queryClient.invalidateQueries({ queryKey: ["emails", emailId, "versions"] });
-    await queryClient.invalidateQueries({ queryKey: ["email-comments", emailId] });
-    await queryClient.invalidateQueries({ queryKey: ["email-area-approvals", emailId] });
-  };
-  const inlineEditMutation = useMutation({
-    mutationFn: (payload: UpdateEditableFieldsPayload) =>
-      updateEmailEditableFields(emailId, payload),
-    onMutate: () => {
-      setIsInlineEditPreviewRefreshing(true);
-    },
-    onSuccess: async () => {
-      await refreshEmailAfterContentChange();
-      inlineEditPreviewNeedsFrameRef.current = false;
-      setIsInlineEditPreviewRefreshing(false);
-      setSourceHTMLModalOpened(false);
-      notifications.show({
-        color: "green",
-        message: "Email content was updated.",
-        title: "Saved",
-      });
-    },
-    onError: () => {
-      inlineEditPreviewNeedsFrameRef.current = false;
-      setIsInlineEditPreviewRefreshing(false);
-      notifications.show({
-        color: "red",
-        message: "Try again or check the editable markers.",
-        title: "Save failed",
-      });
-    },
-  });
-  const restoreVersionMutation = useMutation({
-    mutationFn: (versionId: string) => restoreEmailVersion(emailId, versionId),
-    onMutate: () => {
-      setIsInlineEditPreviewRefreshing(true);
-    },
-    onSuccess: async () => {
-      await refreshEmailAfterContentChange();
-      setIsInlineEditPreviewRefreshing(false);
-      notifications.show({
-        color: "green",
-        message: "Email version was restored.",
-        title: "Restored",
-      });
-    },
-    onError: () => {
-      setIsInlineEditPreviewRefreshing(false);
-      notifications.show({
-        color: "red",
-        message: "This version may require super admin access or contain invalid fields.",
-        title: "Restore failed",
-      });
-    },
-  });
-  const resolveMutation = useMutation({
-    mutationFn: resolveComment,
-    onSuccess: () => {
-      void queryClient.invalidateQueries({
-        queryKey: ["email-comments", emailId],
-      });
-      void queryClient.invalidateQueries({
-        queryKey: ["email-activity", emailId],
-      });
-    },
-  });
-  const createCommentMessageMutation = useMutation({
-    mutationFn: ({ body, commentId }: { body: string; commentId: string }) =>
-      createCommentMessage(commentId, { body }),
-    onSuccess: (message, variables) => {
-      queryClient.setQueryData<EmailComment[]>(
-        ["email-comments", emailId],
-        (currentComments) =>
-          currentComments?.map((comment) =>
-            comment.id === variables.commentId
-              ? {
-                ...comment,
-                messages: [...(comment.messages ?? []), message],
-              }
-              : comment
-          ) ?? currentComments
-      );
-      void queryClient.invalidateQueries({
-        queryKey: ["email-activity", emailId],
-      });
-    },
-    onError: (error) => {
-      notifications.show({
-        color: "red",
-        message:
-          error instanceof ApiError && error.status === 409
-            ? "This comment is already resolved."
-            : "Try again in a moment.",
-        title: "Reply failed",
-      });
-    },
-  });
 
   useEffect(
     () => () => {
@@ -780,6 +274,7 @@ export function EmailReview({
       navigateToReview(nextEmail.id);
     }
   };
+
   const handleAdaptationSelect = (adaptationKey: string) => {
     if (!emailGroup || !email) {
       return;
@@ -794,18 +289,21 @@ export function EmailReview({
       navigateToReview(nextEmail.id);
     }
   };
+
   const handleAnalyze = () => {
     setActivePanelTab("ai");
     setActiveContentTab("ai");
     analyze();
     void queryClient.invalidateQueries({ queryKey: ["email-activity", emailId] });
   };
+
   const handleReanalyze = () => {
     setActivePanelTab("ai");
     setActiveContentTab("ai");
     reanalyze();
     void queryClient.invalidateQueries({ queryKey: ["email-activity", emailId] });
   };
+
   const handleReviewStatusChange = (value: string | null) => {
     if (!email || !value || value === email.review_status) {
       return;
@@ -824,6 +322,7 @@ export function EmailReview({
       targetEmailId: email.id,
     });
   };
+
   const handlePlanningFieldsSubmit = (
     payload: UpdateEmailPlanningFieldsPayload
   ) => {
@@ -836,6 +335,7 @@ export function EmailReview({
       targetEmailId: email.id,
     });
   };
+
   const handleCreateReviewComment = (
     selection: ReviewTextSelection,
     body: string,
@@ -843,39 +343,45 @@ export function EmailReview({
   ) => {
     createCommentMutation.mutate({ body, severity, selection });
   };
+
   const handleApplyInlineEdit = (update: InlineEditUpdate) => {
-    if (!email || isInlineEditPreviewRefreshing || inlineEditMutation.isPending) {
+    if (!email || isInlineEditPreviewRefreshing || saveEditableFieldsMutation.isPending) {
       return;
     }
 
     inlineEditPreviewNeedsFrameRef.current =
       Object.keys(update.editableFields ?? {}).length > 0;
-    inlineEditMutation.mutate(buildEditableFieldsPayload(email, update));
+    saveEditableFieldsMutation.mutate(buildEditableFieldsPayload(email, update));
   };
+
   const openSourceHTMLModal = () => {
-    if (!email || isInlineEditPreviewRefreshing || inlineEditMutation.isPending) {
+    if (!email || isInlineEditPreviewRefreshing || saveEditableFieldsMutation.isPending) {
       return;
     }
 
     setSourceHTMLDraft(email.original_html);
     setSourceHTMLModalOpened(true);
   };
+
   const saveSourceHTML = () => {
-    if (!email || isInlineEditPreviewRefreshing || inlineEditMutation.isPending) {
+    if (!email || isInlineEditPreviewRefreshing || saveEditableFieldsMutation.isPending) {
       return;
     }
 
     inlineEditPreviewNeedsFrameRef.current = true;
-    inlineEditMutation.mutate(
+    saveEditableFieldsMutation.mutate(
       buildEditableFieldsPayload(email, {}, sourceHTMLDraft)
     );
   };
+
   const handleHoverComment = (comment: EmailComment | null) => {
     setHoveredCommentId(comment?.id ?? null);
   };
+
   const handleHoverCommentIds = (commentIds: string[] | null) => {
     setHoveredCommentId(commentIds?.[0] ?? null);
   };
+
   const handleSelectComment = (comment: EmailComment) => {
     setActivePanelTab("comments");
     setActiveContentTab("comments");
@@ -889,6 +395,7 @@ export function EmailReview({
       activeCommentTimeoutRef.current = null;
     }, 2400);
   };
+
   const handleSelectCommentIds = (commentIds: string[]) => {
     const comment = (commentsQuery.data ?? []).find(
       (commentItem) => commentItem.id === commentIds[0]
@@ -897,43 +404,10 @@ export function EmailReview({
       handleSelectComment(comment);
     }
   };
-  const updatePanelWidth = (clientX: number) => {
-    const contentElement = contentRef.current;
-    if (!contentElement) {
-      return;
-    }
 
-    const rect = contentElement.getBoundingClientRect();
-    const nextRightPanelPercent = ((rect.right - clientX) / rect.width) * 100;
-    setRightPanelPercent(
-      clampPercent(
-        nextRightPanelPercent,
-        minRightPanelPercent,
-        maxRightPanelPercent
-      )
-    );
-  };
-  const handleResizeStart = (event: PointerEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    event.currentTarget.setPointerCapture(event.pointerId);
-    isResizingRef.current = true;
-    setIsResizing(true);
-    updatePanelWidth(event.clientX);
-  };
-  const handleResizeMove = (event: PointerEvent<HTMLDivElement>) => {
-    if (isResizingRef.current) {
-      updatePanelWidth(event.clientX);
-    }
-  };
-  const handleResizeEnd = (event: PointerEvent<HTMLDivElement>) => {
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
-    isResizingRef.current = false;
-    setIsResizing(false);
-  };
   const isApplyingInlineEdit =
-    inlineEditMutation.isPending || isInlineEditPreviewRefreshing;
+    saveEditableFieldsMutation.isPending || isInlineEditPreviewRefreshing;
+
   const previewContent = (
     email ? (
       <MailPreview
@@ -946,7 +420,7 @@ export function EmailReview({
         email={email}
         enableReviewSelectionComposer
         hoveredCommentId={hoveredCommentId}
-        inlineEditError={inlineEditMutation.isError}
+        inlineEditError={saveEditableFieldsMutation.isError}
         isApplyingInlineEdit={isApplyingInlineEdit}
         isCreatingComment={createCommentMutation.isPending}
         isScanning={isAnalyzingCurrentEmail}
@@ -957,7 +431,7 @@ export function EmailReview({
         onEditSourceHTML={openSourceHTMLModal}
         onInlineEditPreviewReady={() => {
           inlineEditPreviewNeedsFrameRef.current = false;
-          if (!inlineEditMutation.isPending) {
+          if (!saveEditableFieldsMutation.isPending) {
             setIsInlineEditPreviewRefreshing(false);
           }
         }}
@@ -967,6 +441,7 @@ export function EmailReview({
       <ReviewPreviewSkeleton />
     )
   );
+
   const analysisContent = shouldShowAnalysisPanel ? (
     <AnalysisPanel
       analysis={displayedAnalysis}
@@ -1009,6 +484,7 @@ export function EmailReview({
       )}
     </Stack>
   );
+
   const commentBlockOptions = buildCommentBlockOptions(email);
   const commentsContent = (
     <CommentsPanel
@@ -1023,7 +499,7 @@ export function EmailReview({
       isCreatingComment={createCommentMutation.isPending}
       isError={commentsQuery.isError}
       isLoading={commentsQuery.isLoading}
-      isResolving={resolveMutation.isPending}
+      isResolving={resolveCommentMutation.isPending}
       nextEmailWithOpenComments={nextEmailWithOpenComments}
       onCreateComment={handleCreateReviewComment}
       onFilterChange={setCommentStatusFilter}
@@ -1034,17 +510,20 @@ export function EmailReview({
         }
       }}
       onReply={(commentId, body) =>
-        createCommentMessageMutation.mutate({ body, commentId })
+        createReplyMutation.mutate({ body, commentId })
       }
-      onResolve={resolveMutation.mutate}
+      onResolve={(commentId) =>
+        resolveCommentMutation.mutate(commentId)
+      }
       onSelectComment={handleSelectComment}
       replyingCommentId={
-        createCommentMessageMutation.isPending
-          ? createCommentMessageMutation.variables?.commentId
+        createReplyMutation.isPending
+          ? createReplyMutation.variables?.commentId
           : null
       }
     />
   );
+
   const planningContent = (
     <PlanningPanel
       adminUsers={adminUsersQuery.data ?? []}
@@ -1056,6 +535,7 @@ export function EmailReview({
       onSubmit={handlePlanningFieldsSubmit}
     />
   );
+
   const approvalsContent = (
     <AreaApprovalsPanel
       approvals={areaApprovalsQuery.data ?? []}
@@ -1072,18 +552,20 @@ export function EmailReview({
       }
     />
   );
+
   const handoffContent = (
     <HandoffPanel
-      approvalActivity={latestApprovalActivity(activityQuery.data ?? [])}
+      approvalActivity={approvalActivity}
       areaApprovals={areaApprovalsQuery.data ?? []}
       email={email}
       isLoadingRenderedHTML={renderedEmailQuery.isLoading}
-      openBlockingCommentCount={effectiveOpenBlockingCommentCount}
+      openBlockingCommentCount={openBlockingCommentCount}
       openCommentCount={openCommentCount}
       renderedHTML={renderedEmailQuery.data?.html ?? ""}
       renderedHTMLError={renderedEmailQuery.isError}
     />
   );
+
   const historyContent = (
     <VersionHistoryPanel
       canManage={canManageEmail}
@@ -1095,6 +577,7 @@ export function EmailReview({
       onRestore={(versionId) => restoreVersionMutation.mutate(versionId)}
     />
   );
+
   const activityContent = (
     <ActivityPanel
       activities={activityQuery.data ?? []}
@@ -1102,8 +585,9 @@ export function EmailReview({
       isLoading={activityQuery.isLoading}
     />
   );
+
   const selectedUtilityPanel = activeUtilityPanel ?? "planning";
-  const utilityContentByPanel: Record<ReviewUtilityPanel, ReactNode> = {
+  const utilityContentByPanel: Record<ReviewUtilityPanel, React.ReactNode> = {
     activity: activityContent,
     approvals: approvalsContent,
     handoff: handoffContent,
@@ -1111,12 +595,14 @@ export function EmailReview({
     planning: planningContent,
   };
   const utilityPanelContent = utilityContentByPanel[selectedUtilityPanel];
+
   const handleUtilityPanelSelect = (panel: ReviewUtilityPanel) => {
     setActiveUtilityPanel(panel);
     if (isCompactReview) {
       setActiveContentTab("more");
     }
   };
+
   const handleEmailPanelSelect = () => {
     setActiveUtilityPanel(null);
     setActiveContentTab("email");
@@ -1228,9 +714,9 @@ export function EmailReview({
         utilityPanelContent={utilityPanelContent}
         onActiveContentTabChange={setActiveContentTab}
         onActivePanelTabChange={setActivePanelTab}
-        onResizeEnd={handleResizeEnd}
-        onResizeMove={handleResizeMove}
-        onResizeStart={handleResizeStart}
+        onResizeEnd={layout.handleResizeStart}
+        onResizeMove={layout.handleResizeStart}
+        onResizeStart={layout.handleResizeStart}
         onUtilityPanelChange={setActiveUtilityPanel}
         onUtilityPanelSelect={handleUtilityPanelSelect}
       />
