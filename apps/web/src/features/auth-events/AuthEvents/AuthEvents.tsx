@@ -5,26 +5,17 @@ import {
   Button,
   Group,
   Loader,
-  ScrollArea,
   Select,
   Stack,
-  Table,
   Text,
   TextInput,
 } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
-import {
-  flexRender,
-  getCoreRowModel,
-  getSortedRowModel,
-  useReactTable,
-  type ColumnDef,
-  type SortingState,
-} from "@tanstack/react-table";
+import type { ColumnDef } from "@tanstack/react-table";
 
+import { AdminTable } from "../../admin-table/AdminTable";
 import { AdminTableHeader } from "../../admin-table/AdminTableHeader";
-import { usePersistedColumnSizing } from "../../admin-table/usePersistedColumnSizing";
-import { usePersistedSort } from "../../admin-table/usePersistedSort";
+import { useAdminTable } from "../../admin-table/useAdminTable";
 import { fetchAuthEvents } from "../../emails/api";
 import type { AuthEventFilters, AuthEventItem } from "../../emails/types";
 import styles from "./AuthEvents.module.css";
@@ -60,14 +51,6 @@ export function AuthEvents() {
   const [filters, setFilters] = useState<AuthEventFilters>({
     limit: "100",
   });
-  const [sort, setSort] = usePersistedSort(
-    "reviewdesk:admin-table-sort:auth-events",
-    defaultSort,
-    sortKeys
-  );
-  const [columnSizing, setColumnSizing] = usePersistedColumnSizing(
-    "reviewdesk:admin-table-column-sizing:auth-events"
-  );
 
   const eventsQuery = useQuery({
     queryKey: ["auth-events", filters],
@@ -76,38 +59,13 @@ export function AuthEvents() {
   });
 
   const columns = useMemo(() => buildColumns(), []);
-  const sorting = useMemo<SortingState>(
-    () => [{ desc: sort.direction === "desc", id: sort.key }],
-    [sort]
-  );
-  // eslint-disable-next-line react-hooks/incompatible-library
-  const table = useReactTable({
-    columnResizeMode: "onChange",
+  const { table, rows } = useAdminTable({
     columns,
     data: eventsQuery.data ?? emptyAuthEvents,
-    enableColumnResizing: true,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    onColumnSizingChange: setColumnSizing,
-    onSortingChange: (updater) => {
-      const nextSorting =
-        typeof updater === "function" ? updater(sorting) : updater;
-      const nextSort = nextSorting[0];
-      if (!nextSort || !sortKeys.includes(nextSort.id as AuthEventSortKey)) {
-        setSort(defaultSort);
-        return;
-      }
-      setSort({
-        direction: nextSort.desc ? "desc" : "asc",
-        key: nextSort.id as AuthEventSortKey,
-      });
-    },
-    state: {
-      columnSizing,
-      sorting,
-    },
+    defaultSort,
+    sortKeys,
+    storageKey: "auth-events",
   });
-  const rows = table.getRowModel().rows;
   const visibleFilters = useMemo(
     () => ({
       email: filters.email ?? "",
@@ -202,72 +160,7 @@ export function AuthEvents() {
         ) : null}
 
         {eventsQuery.isSuccess && rows.length > 0 ? (
-          <ScrollArea type="auto">
-            <Table
-              className={styles.table}
-              highlightOnHover
-              horizontalSpacing="md"
-              style={{ width: table.getTotalSize() }}
-              verticalSpacing="sm"
-            >
-              <Table.Thead>
-                {table.getHeaderGroups().map((headerGroup) => (
-                  <Table.Tr key={headerGroup.id}>
-                    {headerGroup.headers.map((header) => (
-                      <Table.Th
-                        className={styles.resizableTh}
-                        key={header.id}
-                        style={{ width: header.getSize() }}
-                      >
-                        {header.isPlaceholder ? null : (
-                          <button
-                            className={styles.sortButton}
-                            type="button"
-                            onClick={header.column.getToggleSortingHandler()}
-                          >
-                            {flexRender(
-                              header.column.columnDef.header,
-                              header.getContext()
-                            )}
-                            <span className={styles.sortIndicator}>
-                              {formatSortIndicator(header.column.getIsSorted())}
-                            </span>
-                          </button>
-                        )}
-                        {header.column.getCanResize() ? (
-                          <button
-                            aria-label={`Resize ${header.column.columnDef.header} column`}
-                            className={styles.resizeHandle}
-                            type="button"
-                            onDoubleClick={() => header.column.resetSize()}
-                            onMouseDown={header.getResizeHandler()}
-                            onTouchStart={header.getResizeHandler()}
-                          />
-                        ) : null}
-                      </Table.Th>
-                    ))}
-                  </Table.Tr>
-                ))}
-              </Table.Thead>
-              <Table.Tbody>
-                {rows.map((row) => (
-                  <Table.Tr key={row.id}>
-                    {row.getVisibleCells().map((cell) => (
-                      <Table.Td
-                        key={cell.id}
-                        style={{ width: cell.column.getSize() }}
-                      >
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext()
-                        )}
-                      </Table.Td>
-                    ))}
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          </ScrollArea>
+          <AdminTable table={table} />
         ) : null}
       </section>
     </div>
@@ -352,15 +245,6 @@ function buildColumns(): ColumnDef<AuthEventItem>[] {
   ];
 }
 
-function formatSortIndicator(sortState: false | "asc" | "desc") {
-  if (sortState === "asc") {
-    return "↑";
-  }
-  if (sortState === "desc") {
-    return "↓";
-  }
-  return "";
-}
 
 function formatDateTime(value: string) {
   return new Intl.DateTimeFormat(undefined, {

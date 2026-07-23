@@ -3,30 +3,21 @@ import {
   Alert,
   Badge,
   Button,
+  Code,
   Group,
   Loader,
   Modal,
-  ScrollArea,
   Select,
   Stack,
-  Table,
   Text,
   TextInput,
-  Code,
 } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
-import {
-  flexRender,
-  getCoreRowModel,
-  getSortedRowModel,
-  useReactTable,
-  type ColumnDef,
-  type SortingState,
-} from "@tanstack/react-table";
+import type { ColumnDef } from "@tanstack/react-table";
 
+import { AdminTable } from "../../admin-table/AdminTable";
 import { AdminTableHeader } from "../../admin-table/AdminTableHeader";
-import { usePersistedColumnSizing } from "../../admin-table/usePersistedColumnSizing";
-import { usePersistedSort } from "../../admin-table/usePersistedSort";
+import { useAdminTable } from "../../admin-table/useAdminTable";
 import { ApiError, fetchAIAnalysisLogs } from "../../emails/api";
 import type { AIAnalysisLogFilters, AIAnalysisLogItem } from "../../emails/types";
 import styles from "./AIAnalysisLogs.module.css";
@@ -71,14 +62,6 @@ export function AIAnalysisLogs() {
   const [filters, setFilters] = useState<AIAnalysisLogFilters>({
     limit: "100",
   });
-  const [sort, setSort] = usePersistedSort(
-    "reviewdesk:admin-table-sort:ai-analysis-logs",
-    defaultSort,
-    sortKeys
-  );
-  const [columnSizing, setColumnSizing] = usePersistedColumnSizing(
-    "reviewdesk:admin-table-column-sizing:ai-analysis-logs"
-  );
   const [selectedErrorLog, setSelectedErrorLog] =
     useState<AIAnalysisLogItem | null>(null);
 
@@ -92,38 +75,13 @@ export function AIAnalysisLogs() {
     () => buildColumns({ onViewError: setSelectedErrorLog }),
     []
   );
-  const sorting = useMemo<SortingState>(
-    () => [{ desc: sort.direction === "desc", id: sort.key }],
-    [sort]
-  );
-  // eslint-disable-next-line react-hooks/incompatible-library
-  const table = useReactTable({
-    columnResizeMode: "onChange",
+  const { table, rows: logs } = useAdminTable({
     columns,
     data: logsQuery.data ?? emptyAIAnalysisLogs,
-    enableColumnResizing: true,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    onColumnSizingChange: setColumnSizing,
-    onSortingChange: (updater) => {
-      const nextSorting =
-        typeof updater === "function" ? updater(sorting) : updater;
-      const nextSort = nextSorting[0];
-      if (!nextSort || !sortKeys.includes(nextSort.id as AILogSortKey)) {
-        setSort(defaultSort);
-        return;
-      }
-      setSort({
-        direction: nextSort.desc ? "desc" : "asc",
-        key: nextSort.id as AILogSortKey,
-      });
-    },
-    state: {
-      columnSizing,
-      sorting,
-    },
+    defaultSort,
+    sortKeys,
+    storageKey: "ai-analysis-logs",
   });
-  const logs = table.getRowModel().rows;
   const summary = useMemo(
     () => buildCacheSummary(logsQuery.data ?? []),
     [logsQuery.data]
@@ -253,73 +211,8 @@ export function AIAnalysisLogs() {
           </Stack>
         ) : null}
 
-        {logsQuery.isSuccess && table.getRowModel().rows.length > 0 ? (
-          <ScrollArea type="auto">
-            <Table
-              className={styles.table}
-              highlightOnHover
-              horizontalSpacing="md"
-              style={{ width: table.getTotalSize() }}
-              verticalSpacing="sm"
-            >
-              <Table.Thead>
-                {table.getHeaderGroups().map((headerGroup) => (
-                  <Table.Tr key={headerGroup.id}>
-                    {headerGroup.headers.map((header) => (
-                      <Table.Th
-                        className={styles.resizableTh}
-                        key={header.id}
-                        style={{ width: header.getSize() }}
-                      >
-                        {header.isPlaceholder ? null : (
-                          <button
-                            className={styles.sortButton}
-                            type="button"
-                            onClick={header.column.getToggleSortingHandler()}
-                          >
-                            {flexRender(
-                              header.column.columnDef.header,
-                              header.getContext()
-                            )}
-                            <span className={styles.sortIndicator}>
-                              {formatSortIndicator(header.column.getIsSorted())}
-                            </span>
-                          </button>
-                        )}
-                        {header.column.getCanResize() ? (
-                          <button
-                            aria-label={`Resize ${header.column.columnDef.header} column`}
-                            className={styles.resizeHandle}
-                            type="button"
-                            onDoubleClick={() => header.column.resetSize()}
-                            onMouseDown={header.getResizeHandler()}
-                            onTouchStart={header.getResizeHandler()}
-                          />
-                        ) : null}
-                      </Table.Th>
-                    ))}
-                  </Table.Tr>
-                ))}
-              </Table.Thead>
-              <Table.Tbody>
-                {logs.map((row) => (
-                  <Table.Tr key={row.id}>
-                    {row.getVisibleCells().map((cell) => (
-                      <Table.Td
-                        key={cell.id}
-                        style={{ width: cell.column.getSize() }}
-                      >
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext()
-                        )}
-                      </Table.Td>
-                    ))}
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          </ScrollArea>
+        {logsQuery.isSuccess && logs.length > 0 ? (
+          <AdminTable table={table} />
         ) : null}
       </section>
 
@@ -489,15 +382,6 @@ function EmailCell({ log }: { log: AIAnalysisLogItem }) {
   );
 }
 
-function formatSortIndicator(sortState: false | "asc" | "desc") {
-  if (sortState === "asc") {
-    return "↑";
-  }
-  if (sortState === "desc") {
-    return "↓";
-  }
-  return "";
-}
 
 function emailSortValue(log: AIAnalysisLogItem) {
   return log.email_title ?? log.email_slug ?? log.email_id ?? "";
