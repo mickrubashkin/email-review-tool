@@ -1,8 +1,9 @@
-package main
+package auth
 
 import (
 	"bytes"
 	"context"
+
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -255,16 +256,16 @@ func TestIsAllowedRequestOriginFallsBackToCORSOrigin(t *testing.T) {
 }
 
 func TestIsRequestCanceledError(t *testing.T) {
-	if !isRequestCanceledError(context.Canceled) {
+	if !IsRequestCanceledError(context.Canceled) {
 		t.Fatal("expected context.Canceled to be treated as request cancellation")
 	}
-	if !isRequestCanceledError(context.DeadlineExceeded) {
+	if !IsRequestCanceledError(context.DeadlineExceeded) {
 		t.Fatal("expected context.DeadlineExceeded to be treated as request cancellation")
 	}
-	if !isRequestCanceledError(errors.Join(errors.New("wrapped"), context.Canceled)) {
+	if !IsRequestCanceledError(errors.Join(errors.New("wrapped"), context.Canceled)) {
 		t.Fatal("expected wrapped context.Canceled to be treated as request cancellation")
 	}
-	if isRequestCanceledError(errors.New("database unavailable")) {
+	if IsRequestCanceledError(errors.New("database unavailable")) {
 		t.Fatal("expected unrelated errors to be logged")
 	}
 }
@@ -274,7 +275,7 @@ func TestListAdminUsersRequiresSuperAdmin(t *testing.T) {
 	user := createTestUserWithRole(t, dbpool, "reviewer")
 
 	router := chi.NewRouter()
-	registerAuthRoutes(router, dbpool, &recordingEmailSender{})
+	RegisterAuthRoutes(router, dbpool, &recordingEmailSender{})
 
 	request := httptest.NewRequest(http.MethodGet, "/api/admin/users", nil)
 	request = withAuthUser(request, user)
@@ -291,7 +292,7 @@ func TestAdminCanListUsers(t *testing.T) {
 	user := createTestUserWithRole(t, dbpool, "admin")
 
 	router := chi.NewRouter()
-	registerAuthRoutes(router, dbpool, &recordingEmailSender{})
+	RegisterAuthRoutes(router, dbpool, &recordingEmailSender{})
 
 	request := httptest.NewRequest(http.MethodGet, "/api/admin/users", nil)
 	request = withAuthUser(request, user)
@@ -309,7 +310,7 @@ func TestSuperAdminCanListAndUpdateUsers(t *testing.T) {
 	reviewer := createTestUserWithRole(t, dbpool, "reviewer")
 
 	router := chi.NewRouter()
-	registerAuthRoutes(router, dbpool, &recordingEmailSender{})
+	RegisterAuthRoutes(router, dbpool, &recordingEmailSender{})
 
 	listRequest := httptest.NewRequest(http.MethodGet, "/api/admin/users", nil)
 	listRequest = withAuthUser(listRequest, superAdmin)
@@ -355,7 +356,7 @@ func TestAdminCanCreateReviewerUser(t *testing.T) {
 	admin := createTestUserWithRole(t, dbpool, "admin")
 
 	router := chi.NewRouter()
-	registerAuthRoutes(router, dbpool, &recordingEmailSender{})
+	RegisterAuthRoutes(router, dbpool, &recordingEmailSender{})
 
 	request := httptest.NewRequest(
 		http.MethodPost,
@@ -399,7 +400,7 @@ func TestSuperAdminCanCreateAdminUser(t *testing.T) {
 	superAdmin := createTestUserWithRole(t, dbpool, "super_admin")
 
 	router := chi.NewRouter()
-	registerAuthRoutes(router, dbpool, &recordingEmailSender{})
+	RegisterAuthRoutes(router, dbpool, &recordingEmailSender{})
 
 	request := httptest.NewRequest(
 		http.MethodPost,
@@ -420,7 +421,7 @@ func TestAdminCannotCreateAdminUser(t *testing.T) {
 	admin := createTestUserWithRole(t, dbpool, "admin")
 
 	router := chi.NewRouter()
-	registerAuthRoutes(router, dbpool, &recordingEmailSender{})
+	RegisterAuthRoutes(router, dbpool, &recordingEmailSender{})
 
 	request := httptest.NewRequest(
 		http.MethodPost,
@@ -442,7 +443,7 @@ func TestCreateAdminUserRejectsDuplicateEmail(t *testing.T) {
 	existing := createTestUserWithRole(t, dbpool, "reviewer")
 
 	router := chi.NewRouter()
-	registerAuthRoutes(router, dbpool, &recordingEmailSender{})
+	RegisterAuthRoutes(router, dbpool, &recordingEmailSender{})
 
 	request := httptest.NewRequest(
 		http.MethodPost,
@@ -463,7 +464,7 @@ func TestSuperAdminCannotDemoteSelf(t *testing.T) {
 	superAdmin := createTestUserWithRole(t, dbpool, "super_admin")
 
 	router := chi.NewRouter()
-	registerAuthRoutes(router, dbpool, &recordingEmailSender{})
+	RegisterAuthRoutes(router, dbpool, &recordingEmailSender{})
 
 	request := httptest.NewRequest(
 		http.MethodPatch,

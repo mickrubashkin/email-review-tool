@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/mickrubashkin/email-review-tool/apps/api/internal/core/auth"
 	"github.com/mickrubashkin/email-review-tool/apps/api/internal/emailedit"
 	"github.com/mickrubashkin/email-review-tool/apps/api/internal/emailreview"
 	"github.com/mickrubashkin/email-review-tool/apps/api/internal/emailtext"
@@ -39,7 +40,7 @@ func listEmailVersionsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
-		if !isAdminUser(user) {
+		if !auth.IsAdmin(user) {
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
 		}
@@ -112,7 +113,7 @@ func getEmailVersionHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
-		if !isAdminUser(user) {
+		if !auth.IsAdmin(user) {
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
 		}
@@ -137,7 +138,7 @@ func restoreEmailVersionHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
-		if !isAdminUser(user) {
+		if !auth.IsAdmin(user) {
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
 		}
@@ -187,7 +188,7 @@ func restoreEmailVersionHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			return
 		}
 		htmlChanged := originalHTML != currentOriginalHTML || templateHTML != currentTemplateHTML
-		if htmlChanged && !isSuperAdminUser(user) {
+		if htmlChanged && !auth.IsSuperAdmin(user) {
 			http.Error(w, "restoring HTML changes requires super admin", http.StatusForbidden)
 			return
 		}

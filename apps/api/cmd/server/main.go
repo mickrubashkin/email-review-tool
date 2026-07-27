@@ -9,7 +9,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
+	featureauth "github.com/mickrubashkin/email-review-tool/apps/api/internal/features/auth"
 	"github.com/mickrubashkin/email-review-tool/apps/api/internal/features/boards"
+	"github.com/mickrubashkin/email-review-tool/apps/api/internal/features/comments"
 )
 
 func main() {
@@ -36,9 +38,9 @@ func main() {
 	}
 
 	r := chi.NewRouter()
-	r.Use(sameOriginMutationMiddleware)
+	r.Use(featureauth.SameOriginMutationMiddleware)
 	r.Use(requestIDMiddleware)
-	r.Use(authMiddleware(dbpool))
+	r.Use(featureauth.Middleware(dbpool))
 	r.Use(operationalEventMiddleware(dbpool))
 	aiService, err := newAIAnalysisService()
 	if err != nil {
@@ -47,14 +49,15 @@ func main() {
 	}
 
 	registerHealthRoute(r, dbpool)
-	registerAuthRoutes(r, dbpool, newLoginCodeEmailSender())
+	featureauth.RegisterAuthRoutes(r, dbpool, newLoginCodeEmailSender())
 	registerOperationalRoutes(r, dbpool)
 	
 	boards.Logger = serverEventLogger{}
 	boards.RegisterBoardRoutes(r, dbpool)
 	
 	registerEmailRoutes(r, dbpool)
-	registerCommentRoutes(r, dbpool)
+	comments.Logger = commentEventLogger{}
+	comments.RegisterCommentRoutes(r, dbpool)
 	registerAIRoutes(r, dbpool, aiService)
 
 	port := os.Getenv("PORT")
@@ -104,3 +107,16 @@ func (s serverEventLogger) LogEvent(ctx context.Context, db boards.EmailEventExe
 	})
 }
 
+type commentEventLogger struct{}
+
+func (c commentEventLogger) LogEvent(ctx context.Context, db comments.EmailEventExecutor, actor comments.AuthUser, action string, emailID string, emailSlug string, emailTitle string, metadata map[string]any) error {
+	return insertEmailEvent(ctx, db, emailEvent{
+		ActorUserID: actor.ID,
+		ActorEmail:  actor.Email,
+		Action:      action,
+		EmailID:     &emailID,
+		EmailSlug:   &emailSlug,
+		EmailTitle:  &emailTitle,
+		Metadata:    metadata,
+	})
+}

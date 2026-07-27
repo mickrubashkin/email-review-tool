@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	featureauth "github.com/mickrubashkin/email-review-tool/apps/api/internal/features/auth"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -96,7 +97,7 @@ func operationalEventMiddleware(dbpool *pgxpool.Pool) func(http.Handler) http.Ha
 				Metadata: map[string]any{
 					"query":      r.URL.RawQuery,
 					"user_agent": r.UserAgent(),
-					"ip_address": requestIPAddress(r),
+					"ip_address": featureauth.RequestIPAddress(r),
 				},
 			})
 		})
@@ -105,7 +106,7 @@ func operationalEventMiddleware(dbpool *pgxpool.Pool) func(http.Handler) http.Ha
 
 func listOperationalEventsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !requireAdmin(w, r) {
+		if !featureauth.RequireAdmin(w, r) {
 			return
 		}
 
@@ -169,7 +170,7 @@ func insertOperationalEvent(ctx context.Context, dbpool *pgxpool.Pool, event ope
 
 func logOperationalEvent(ctx context.Context, dbpool *pgxpool.Pool, event operationalEvent) {
 	if err := insertOperationalEvent(ctx, dbpool, event); err != nil {
-		if isOperationalEventsTableMissing(err) || isRequestCanceledError(err) {
+		if isOperationalEventsTableMissing(err) || featureauth.IsRequestCanceledError(err) {
 			return
 		}
 		fmt.Fprintf(os.Stderr, "failed to insert operational event %s: %v\n", event.EventType, err)

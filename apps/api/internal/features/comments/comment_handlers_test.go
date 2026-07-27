@@ -1,4 +1,4 @@
-package main
+package comments
 
 import (
 	"bytes"
@@ -20,7 +20,7 @@ func TestCommentHandlersCreateListResolve(t *testing.T) {
 	emailID := createTestEmail(t, dbpool)
 
 	router := chi.NewRouter()
-	registerCommentRoutes(router, dbpool)
+	RegisterCommentRoutes(router, dbpool)
 
 	getRequest := httptest.NewRequest(http.MethodGet, "/api/emails/"+emailID+"/comments", nil)
 	getResponse := httptest.NewRecorder()
@@ -204,9 +204,9 @@ func TestCommentHandlersCreateListResolve(t *testing.T) {
 		WHERE email_id = $1
 			AND action = ANY($2);
 	`, emailID, []string{
-		emailEventCommentCreated,
-		emailEventCommentReplied,
-		emailEventCommentResolved,
+		"comment_created",
+		"comment_replied",
+		"comment_resolved",
 	}).Scan(&commentEventCount); err != nil {
 		t.Fatalf("failed to count comment events: %v", err)
 	}

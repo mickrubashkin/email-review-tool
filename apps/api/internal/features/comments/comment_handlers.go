@@ -1,4 +1,4 @@
-package main
+package comments
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/mickrubashkin/email-review-tool/apps/api/internal/core/auth"
+	coreauth "github.com/mickrubashkin/email-review-tool/apps/api/internal/core/auth"
 )
 
 type createEmailCommentRequest struct {
@@ -28,7 +28,7 @@ type createCommentMessageRequest struct {
 	Body string `json:"body"`
 }
 
-func registerCommentRoutes(r chi.Router, dbpool *pgxpool.Pool) {
+func RegisterCommentRoutes(r chi.Router, dbpool *pgxpool.Pool) {
 	r.Get("/api/emails/{id}/comments", listEmailCommentsHandler(dbpool))
 	r.Post("/api/emails/{id}/comments", createEmailCommentHandler(dbpool))
 	r.Post("/api/comments/{id}/messages", createCommentMessageHandler(dbpool))
@@ -116,7 +116,7 @@ func listEmailCommentsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 func createEmailCommentHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		emailID := chi.URLParam(r, "id")
-		user, ok := authUserFromContext(r)
+		user, ok := coreauth.FromRequest(r)
 		if !ok {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
@@ -234,22 +234,16 @@ func createEmailCommentHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			return
 		}
 
-		if err := insertEmailEvent(r.Context(), tx, emailEvent{
-			ActorUserID: user.ID,
-			ActorEmail:  user.Email,
-			Action:      emailEventCommentCreated,
-			EmailID:     &emailID,
-			EmailSlug:   &emailSlug,
-			EmailTitle:  &emailTitle,
-			Metadata: map[string]any{
+		if Logger != nil {
+			if err := Logger.LogEvent(r.Context(), tx, user, "comment_created", emailID, emailSlug, emailTitle, map[string]any{
 				"comment_id":    comment.ID,
 				"review_block":  comment.ReviewBlock,
 				"selected_text": comment.SelectedText,
 				"severity":      comment.Severity,
-			},
-		}); err != nil {
+			}); err != nil {
 			http.Error(w, "failed to record comment event", http.StatusInternalServerError)
 			return
+		}
 		}
 
 		if err := tx.Commit(r.Context()); err != nil {
@@ -269,7 +263,7 @@ func createEmailCommentHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 func createCommentMessageHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		commentID := chi.URLParam(r, "id")
-		user, ok := authUserFromContext(r)
+		user, ok := coreauth.FromRequest(r)
 		if !ok {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
@@ -340,22 +334,16 @@ func createCommentMessageHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			return
 		}
 
-		if err := insertEmailEvent(r.Context(), tx, emailEvent{
-			ActorUserID: user.ID,
-			ActorEmail:  user.Email,
-			Action:      emailEventCommentReplied,
-			EmailID:     &emailID,
-			EmailSlug:   &emailSlug,
-			EmailTitle:  &emailTitle,
-			Metadata: map[string]any{
+		if Logger != nil {
+			if err := Logger.LogEvent(r.Context(), tx, user, "comment_replied", emailID, emailSlug, emailTitle, map[string]any{
 				"comment_id":   commentID,
 				"message_id":   message.ID,
 				"review_block": reviewBlock,
 				"body":         message.Body,
-			},
-		}); err != nil {
+			}); err != nil {
 			http.Error(w, "failed to record comment event", http.StatusInternalServerError)
 			return
+		}
 		}
 		if err := tx.Commit(r.Context()); err != nil {
 			http.Error(w, "failed to create comment message", http.StatusInternalServerError)
@@ -373,7 +361,7 @@ func resolveCommentHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		commentID := chi.URLParam(r, "id")
 
-		user, ok := authUserFromContext(r)
+		user, ok := coreauth.FromRequest(r)
 		if !ok {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
@@ -449,21 +437,15 @@ func resolveCommentHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			return
 		}
 
-		if err := insertEmailEvent(r.Context(), tx, emailEvent{
-			ActorUserID: user.ID,
-			ActorEmail:  user.Email,
-			Action:      emailEventCommentResolved,
-			EmailID:     &comment.EmailID,
-			EmailSlug:   &emailSlug,
-			EmailTitle:  &emailTitle,
-			Metadata: map[string]any{
+		if Logger != nil {
+			if err := Logger.LogEvent(r.Context(), tx, user, "comment_resolved", comment.EmailID, emailSlug, emailTitle, map[string]any{
 				"comment_id":   comment.ID,
 				"review_block": comment.ReviewBlock,
 				"severity":     comment.Severity,
-			},
-		}); err != nil {
+			}); err != nil {
 			http.Error(w, "failed to record comment event", http.StatusInternalServerError)
 			return
+		}
 		}
 		if err := tx.Commit(r.Context()); err != nil {
 			http.Error(w, "failed to resolve comment", http.StatusInternalServerError)
@@ -548,6 +530,14 @@ func attachCommentMessages(ctx context.Context, dbpool *pgxpool.Pool, comments [
 	return rows.Err()
 }
 
-func authUserFromContext(r *http.Request) (AuthUser, bool) {
-	return auth.FromRequest(r)
+func loadEmailEventTarget(ctx context.Context, db EmailEventExecutor, emailID string) (slug string, title string, err error) {
+	err = db.QueryRow(ctx, `
+		SELECT slug, title
+		FROM emails
+		WHERE id = $1;
+	`, emailID).Scan(&slug, &title)
+	if err != nil {
+		return "", "", err
+	}
+	return slug, title, err
 }

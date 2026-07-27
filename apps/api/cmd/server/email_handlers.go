@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	featureauth "github.com/mickrubashkin/email-review-tool/apps/api/internal/features/auth"
+	auth "github.com/mickrubashkin/email-review-tool/apps/api/internal/core/auth"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -274,7 +276,7 @@ func createEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
-		if !isAdminUser(user) {
+		if !auth.IsAdmin(user) {
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
 		}
@@ -442,7 +444,7 @@ func inspectEmailHTMLHandler(_ *pgxpool.Pool) http.HandlerFunc {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
-		if !isAdminUser(user) {
+		if !auth.IsAdmin(user) {
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
 		}
@@ -548,7 +550,7 @@ func updateEmailEditableFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
-		if !isAdminUser(user) {
+		if !auth.IsAdmin(user) {
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
 		}
@@ -562,7 +564,7 @@ func updateEmailEditableFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			http.Error(w, "editable_fields is required", http.StatusBadRequest)
 			return
 		}
-		if request.OriginalHTML != nil && !isSuperAdminUser(user) {
+		if request.OriginalHTML != nil && !auth.IsSuperAdmin(user) {
 			http.Error(w, "original_html requires super admin", http.StatusForbidden)
 			return
 		}
@@ -835,7 +837,7 @@ func updateEmailPlanningFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
-		if !isAdminUser(user) {
+		if !auth.IsAdmin(user) {
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
 		}
@@ -964,7 +966,7 @@ func updateEmailReviewStatusHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
-		if !isAdminUser(user) {
+		if !auth.IsAdmin(user) {
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
 		}
@@ -1258,7 +1260,7 @@ func duplicateEmailAsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
-		if !isAdminUser(user) {
+		if !auth.IsAdmin(user) {
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
 		}
@@ -1464,7 +1466,7 @@ func duplicateEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
-		if !isAdminUser(user) {
+		if !auth.IsAdmin(user) {
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
 		}
@@ -1606,7 +1608,7 @@ func createEmailAdaptationHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
-		if !isAdminUser(user) {
+		if !auth.IsAdmin(user) {
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
 		}
@@ -1714,7 +1716,7 @@ func archiveEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
-		if !isAdminUser(user) {
+		if !auth.IsAdmin(user) {
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
 		}
@@ -1798,7 +1800,7 @@ func listEmailEventsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
-		if !isSuperAdminUser(user) {
+		if !auth.IsSuperAdmin(user) {
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
 		}
@@ -1807,7 +1809,7 @@ func listEmailEventsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			ActorEmail: strings.TrimSpace(r.URL.Query().Get("actor_email")),
 			Action:     strings.TrimSpace(r.URL.Query().Get("action")),
 			Email:      strings.TrimSpace(r.URL.Query().Get("email")),
-			Limit:      parseAuthEventsLimit(r.URL.Query().Get("limit")),
+			Limit:      featureauth.ParseLimit(r.URL.Query().Get("limit")),
 		}
 
 		events, err := listEmailEvents(r.Context(), dbpool, filters)

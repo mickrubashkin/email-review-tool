@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	featureauth "github.com/mickrubashkin/email-review-tool/apps/api/internal/features/auth"
 )
 
 func registerAIRoutes(r chi.Router, dbpool *pgxpool.Pool, aiService AIAnalysisService) {
@@ -48,7 +49,7 @@ func getCachedEmailAnalysisHandler(dbpool *pgxpool.Pool, aiService AIAnalysisSer
 
 func listAIAnalysisLogsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !requireAdmin(w, r) {
+		if !featureauth.RequireAdmin(w, r) {
 			return
 		}
 
@@ -93,7 +94,7 @@ func debugAIAnalysisHandler(dbpool *pgxpool.Pool, aiService AIAnalysisService) h
 			http.NotFound(w, r)
 			return
 		}
-		if !requireAdmin(w, r) {
+		if !featureauth.RequireAdmin(w, r) {
 			return
 		}
 

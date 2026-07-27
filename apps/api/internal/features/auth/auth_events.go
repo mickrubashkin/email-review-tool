@@ -1,4 +1,4 @@
-package main
+package auth
 
 import (
 	"context"
@@ -40,7 +40,7 @@ func insertAuthEvent(ctx context.Context, dbpool *pgxpool.Pool, r *http.Request,
 		event.Email,
 		event.EventType,
 		event.Success,
-		requestIPAddress(r),
+		RequestIPAddress(r),
 		r.UserAgent(),
 	)
 
@@ -122,7 +122,7 @@ func listAuthEvents(ctx context.Context, dbpool *pgxpool.Pool, filters AuthEvent
 	return events, nil
 }
 
-func requestIPAddress(r *http.Request) string {
+func RequestIPAddress(r *http.Request) string {
 	for _, headerName := range []string{"X-Forwarded-For", "X-Real-IP"} {
 		value := strings.TrimSpace(r.Header.Get(headerName))
 		if value == "" {

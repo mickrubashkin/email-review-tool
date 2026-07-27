@@ -160,27 +160,8 @@ type AIAnalysisLogItem struct {
 	CreatedAt    time.Time `json:"created_at"`
 }
 
+
 type AuthUser = auth.AuthUser
-
-type UserAdminItem struct {
-	ID         string     `json:"id"`
-	Email      string     `json:"email"`
-	Role       string     `json:"role"`
-	CreatedAt  time.Time  `json:"created_at"`
-	UpdatedAt  time.Time  `json:"updated_at"`
-	LastSeenAt *time.Time `json:"last_seen_at"`
-}
-
-type AuthEventItem struct {
-	ID        string    `json:"id"`
-	UserID    *string   `json:"user_id"`
-	Email     string    `json:"email"`
-	EventType string    `json:"event_type"`
-	Success   bool      `json:"success"`
-	IPAddress *string   `json:"ip_address"`
-	UserAgent *string   `json:"user_agent"`
-	CreatedAt time.Time `json:"created_at"`
-}
 
 type OperationalEventItem struct {
 	ID         string          `json:"id"`
@@ -221,31 +202,3 @@ type EmailActivityItem struct {
 	Changes    json.RawMessage `json:"changes"`
 }
 
-type EmailComment struct {
-	ID              string                `json:"id"`
-	EmailID         string                `json:"email_id"`
-	UserID          *string               `json:"user_id"`
-	AuthorEmail     *string               `json:"author_email"`
-	ReviewBlock     string                `json:"review_block"`
-	SelectedText    string                `json:"selected_text"`
-	StartOffset     int                   `json:"start_offset"`
-	EndOffset       int                   `json:"end_offset"`
-	Body            string                `json:"body"`
-	Status          string                `json:"status"`
-	Severity        string                `json:"severity"`
-	CreatedAt       time.Time             `json:"created_at"`
-	ResolvedAt      *time.Time            `json:"resolved_at"`
-	ResolvedBy      *string               `json:"resolved_by"`
-	ResolvedByEmail *string               `json:"resolved_by_email"`
-	Messages        []EmailCommentMessage `json:"messages"`
-}
-
-type EmailCommentMessage struct {
-	ID          string    `json:"id"`
-	CommentID   string    `json:"comment_id"`
-	UserID      *string   `json:"user_id"`
-	AuthorEmail *string   `json:"author_email"`
-	Body        string    `json:"body"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
-}

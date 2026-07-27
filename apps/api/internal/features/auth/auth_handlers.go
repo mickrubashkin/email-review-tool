@@ -1,4 +1,4 @@
-package main
+package auth
 
 import (
 	"context"
@@ -20,7 +20,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/mickrubashkin/email-review-tool/apps/api/internal/core/auth"
+	coreauth "github.com/mickrubashkin/email-review-tool/apps/api/internal/core/auth"
 )
 
 const sessionCookieName = "email_review_session"
@@ -37,7 +37,7 @@ type otpCodeRequest struct {
 	Code  string `json:"code"`
 }
 
-func registerAuthRoutes(r chi.Router, dbpool *pgxpool.Pool, emailSender EmailSender) {
+func RegisterAuthRoutes(r chi.Router, dbpool *pgxpool.Pool, emailSender EmailSender) {
 	r.Post("/api/auth/request-code", requestOTPCodeHandler(dbpool, emailSender))
 	r.Post("/api/auth/verify-code", verifyOTPCodeHandler(dbpool))
 	r.Post("/api/auth/dev-login", devLoginHandler(dbpool))
@@ -50,7 +50,7 @@ func registerAuthRoutes(r chi.Router, dbpool *pgxpool.Pool, emailSender EmailSen
 	r.Patch("/api/admin/users/{id}/role", updateAdminUserRoleHandler(dbpool))
 }
 
-func authMiddleware(dbpool *pgxpool.Pool) func(http.Handler) http.Handler {
+func Middleware(dbpool *pgxpool.Pool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if !strings.HasPrefix(r.URL.Path, "/api/") ||
@@ -67,12 +67,12 @@ func authMiddleware(dbpool *pgxpool.Pool) func(http.Handler) http.Handler {
 			}
 			touchUserLastSeen(r.Context(), dbpool, user)
 
-			next.ServeHTTP(w, r.WithContext(auth.WithUser(r.Context(), user)))
+			next.ServeHTTP(w, r.WithContext(coreauth.WithUser(r.Context(), user)))
 		})
 	}
 }
 
-func sameOriginMutationMiddleware(next http.Handler) http.Handler {
+func SameOriginMutationMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !isMutatingMethod(r.Method) {
 			next.ServeHTTP(w, r)
@@ -146,14 +146,14 @@ func touchUserLastSeen(ctx context.Context, dbpool *pgxpool.Pool, user AuthUser)
 			);
 	`, user.ID)
 	if err != nil {
-		if isRequestCanceledError(err) {
+		if IsRequestCanceledError(err) {
 			return
 		}
 		fmt.Fprintf(os.Stderr, "failed to update last_seen_at for user %s: %v\n", user.Email, err)
 	}
 }
 
-func isRequestCanceledError(err error) bool {
+func IsRequestCanceledError(err error) bool {
 	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
 }
 
@@ -383,7 +383,7 @@ func listAuthEventsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			Email:     strings.TrimSpace(r.URL.Query().Get("email")),
 			EventType: strings.TrimSpace(r.URL.Query().Get("event_type")),
 			Success:   strings.TrimSpace(r.URL.Query().Get("success")),
-			Limit:     parseAuthEventsLimit(r.URL.Query().Get("limit")),
+			Limit:     ParseLimit(r.URL.Query().Get("limit")),
 		}
 
 		events, err := listAuthEvents(r.Context(), dbpool, filters)
@@ -398,7 +398,7 @@ func listAuthEventsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 	}
 }
 
-func parseAuthEventsLimit(value string) int {
+func ParseLimit(value string) int {
 	limit, err := strconv.Atoi(strings.TrimSpace(value))
 	if err != nil || limit <= 0 {
 		return 100
@@ -507,7 +507,7 @@ type createUserRequest struct {
 
 func listAdminUsersHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		user, ok := authUserFromContext(r)
+		user, ok := coreauth.FromRequest(r)
 		if !ok {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
@@ -549,7 +549,7 @@ func listAdminUsersHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 
 func createAdminUserHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		user, ok := authUserFromContext(r)
+		user, ok := coreauth.FromRequest(r)
 		if !ok {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
@@ -618,7 +618,7 @@ func createAdminUserHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 
 func updateAdminUserRoleHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		user, ok := authUserFromContext(r)
+		user, ok := coreauth.FromRequest(r)
 		if !ok {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
@@ -671,15 +671,15 @@ func updateAdminUserRoleHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 }
 
 func isAdminUser(user AuthUser) bool {
-	return auth.IsAdmin(user)
+	return coreauth.IsAdmin(user)
 }
 
 func isSuperAdminUser(user AuthUser) bool {
-	return auth.IsSuperAdmin(user)
+	return coreauth.IsSuperAdmin(user)
 }
 
 func isValidUserRole(role string) bool {
-	return auth.IsValidRole(role)
+	return coreauth.IsValidRole(role)
 }
 
 func canCreateUserRole(actor AuthUser, role string) bool {
@@ -891,9 +891,9 @@ func writeAuthOK(w http.ResponseWriter) {
 	_ = json.NewEncoder(w).Encode(map[string]bool{"ok": true})
 }
 
-func requireAdmin(w http.ResponseWriter, r *http.Request) bool {
-	user, ok := auth.FromRequest(r)
-	if !ok || !auth.IsAdmin(user) {
+func RequireAdmin(w http.ResponseWriter, r *http.Request) bool {
+	user, ok := coreauth.FromRequest(r)
+	if !ok || !coreauth.IsAdmin(user) {
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return false
 	}

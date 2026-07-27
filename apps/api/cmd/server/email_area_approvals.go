@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	auth "github.com/mickrubashkin/email-review-tool/apps/api/internal/core/auth"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -127,7 +128,7 @@ func updateEmailAreaApprovalHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
-		if !isAdminUser(user) {
+		if !auth.IsAdmin(user) {
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
 		}
