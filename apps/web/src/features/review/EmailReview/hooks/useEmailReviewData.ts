@@ -1,9 +1,9 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo } from "react";
 
+import { fetchAdminUsers } from "../../../admin-users/api";
+import { fetchBoards } from "../../../boards/api";
 import {
-  fetchAdminUsers,
-  fetchBoards,
   fetchEmailActivity,
   fetchEmailComments,
   fetchEmailDetail,

@@ -10,7 +10,7 @@ import {
 } from "@mantine/core";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { demoLogin, devLogin, requestLoginCode, verifyLoginCode } from "../../emails/api";
+import { demoLogin, devLogin, requestLoginCode, verifyLoginCode } from "../api";
 import styles from "./Login.module.css";
 
 const allowedDomains = getAllowedDomains();

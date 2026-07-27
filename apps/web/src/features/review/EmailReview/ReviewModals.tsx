@@ -12,7 +12,7 @@ import {
 
 import { type FormEvent, useMemo, useState } from "react";
 
-import { ApiError } from "../../emails/api";
+import { ApiError } from "../../../shared/api";
 import { formatStageName } from "../../emails/stages";
 import type {
   Board,

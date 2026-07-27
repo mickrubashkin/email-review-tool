@@ -1,7 +1,7 @@
 import { type FormEvent, useState } from "react";
 import { Alert, Button, Group, Modal, Stack, Text, TextInput } from "@mantine/core";
 
-import { ApiError } from "../../emails/api";
+import { ApiError } from "../../../shared/api";
 import type { Board, CreateBoardPayload } from "../../emails/types";
 
 export function CreateBoardModal({

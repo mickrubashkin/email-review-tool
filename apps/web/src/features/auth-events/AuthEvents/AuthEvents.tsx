@@ -16,7 +16,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { AdminTable } from "../../admin-table/AdminTable";
 import { AdminTableHeader } from "../../admin-table/AdminTableHeader";
 import { useAdminTable } from "../../admin-table/useAdminTable";
-import { fetchAuthEvents } from "../../emails/api";
+import { fetchAuthEvents } from "../api";
 import type { AuthEventFilters, AuthEventItem } from "../../emails/types";
 import styles from "./AuthEvents.module.css";
 

@@ -9,7 +9,8 @@ import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 
-import { createEmail, fetchBoards, fetchEmails, inspectEmailHTML } from "../api";
+import { fetchBoards } from "../../boards/api";
+import { createEmail, fetchEmails, inspectEmailHTML } from "../api";
 import type { AuthUser, CreateEmailPayload } from "../types";
 import {
   buildEventGroupOptions,

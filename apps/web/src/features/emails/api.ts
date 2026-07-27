@@ -1,26 +1,12 @@
+import { fetchJson } from "../../shared/api";
 import type {
-  AIAnalysisLogFilters,
-  AIAnalysisLogItem,
-  AuthEventFilters,
-  AuthEventItem,
-  AuthUser,
-  Board,
-  BoardApprovalArea,
-  CreateBoardApprovalAreaPayload,
-  CreateAdminUserPayload,
-  CreateBoardPayload,
-  CreateBoardStagePayload,
   CreateCommentMessagePayload,
   EmailAnalysis,
   EmailDetail,
-  EmailEventFilters,
-  EmailEventItem,
   EmailHTMLInspection,
   EmailListItem,
   EmailVersionDetail,
   EmailVersionListItem,
-  OperationalEventFilters,
-  OperationalEventItem,
   CreateEmailPayload,
   CreateEmailCommentPayload,
   DuplicateEmailPayload,
@@ -28,13 +14,7 @@ import type {
   EmailAreaApproval,
   EmailComment,
   EmailCommentMessage,
-  UserAdminItem,
-  UserRole,
   RenderedEmail,
-  ReorderBoardApprovalAreasPayload,
-  ReorderBoardStagesPayload,
-  UpdateBoardStagePayload,
-  UpdateBoardApprovalAreaPayload,
   UpdateEmailAreaApprovalPayload,
   UpdateEmailPlanningFieldsPayload,
   UpdateEmailPlanningFieldsResponse,
@@ -44,278 +24,10 @@ import type {
   UpdateEditableFieldsPayload,
 } from "./types";
 
-export class ApiError extends Error {
-  status: number;
-
-  constructor(status: number, message: string) {
-    super(message);
-    this.name = "ApiError";
-    this.status = status;
-  }
-}
-
-async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, {
-    ...init,
-    credentials: "include",
-  });
-
-  if (!response.ok) {
-    const message = await response.text();
-    throw new ApiError(response.status, message || `Request failed: ${response.status}`);
-  }
-
-  if (response.status === 204) {
-    return undefined as T;
-  }
-
-  return response.json() as Promise<T>;
-}
-
-export function requestLoginCode(email: string): Promise<{ ok: boolean }> {
-  return fetchJson<{ ok: boolean }>("/api/auth/request-code", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ email }),
-  });
-}
-
-export function verifyLoginCode(
-  email: string,
-  code: string
-): Promise<{ ok: boolean }> {
-  return fetchJson<{ ok: boolean }>("/api/auth/verify-code", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ email, code }),
-  });
-}
-
-export function devLogin(email: string): Promise<{ ok: boolean }> {
-  return fetchJson<{ ok: boolean }>("/api/auth/dev-login", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ email }),
-  });
-}
-
-export function demoLogin(): Promise<{ ok: boolean }> {
-  return fetchJson<{ ok: boolean }>("/api/auth/demo-login", {
-    method: "POST",
-  });
-}
-
-export function fetchCurrentUser(): Promise<AuthUser> {
-  return fetchJson<AuthUser>("/api/auth/me");
-}
-
-export function fetchAuthEvents(
-  filters: AuthEventFilters
-): Promise<AuthEventItem[]> {
-  const params = new URLSearchParams();
-
-  Object.entries(filters).forEach(([key, value]) => {
-    const trimmedValue = value?.trim();
-    if (trimmedValue) {
-      params.set(key, trimmedValue);
-    }
-  });
-
-  const query = params.toString();
-  return fetchJson<AuthEventItem[]>(
-    `/api/auth/events${query ? `?${query}` : ""}`
-  );
-}
-
-export function fetchEmailEvents(
-  filters: EmailEventFilters
-): Promise<EmailEventItem[]> {
-  const params = new URLSearchParams();
-
-  Object.entries(filters).forEach(([key, value]) => {
-    const trimmedValue = value?.trim();
-    if (trimmedValue) {
-      params.set(key, trimmedValue);
-    }
-  });
-
-  const query = params.toString();
-  return fetchJson<EmailEventItem[]>(
-    `/api/admin/email-events${query ? `?${query}` : ""}`
-  );
-}
-
 export function fetchEmailActivity(emailId: string): Promise<EmailActivityItem[]> {
   return fetchJson<EmailActivityItem[]>(
     `/api/emails/${encodeURIComponent(emailId)}/activity`
   );
-}
-
-export function fetchOperationalEvents(
-  filters: OperationalEventFilters
-): Promise<OperationalEventItem[]> {
-  const params = new URLSearchParams();
-
-  Object.entries(filters).forEach(([key, value]) => {
-    const trimmedValue = value?.trim();
-    if (trimmedValue) {
-      params.set(key, trimmedValue);
-    }
-  });
-
-  const query = params.toString();
-  return fetchJson<OperationalEventItem[]>(
-    `/api/admin/operational-events${query ? `?${query}` : ""}`
-  );
-}
-
-export function logout(): Promise<{ ok: boolean }> {
-  return fetchJson<{ ok: boolean }>("/api/auth/logout",
-    {
-      method: "POST",
-    }
-  );
-}
-
-export function fetchBoards(): Promise<Board[]> {
-  return fetchJson<Board[]>("/api/boards");
-}
-
-export function createBoard(payload: CreateBoardPayload): Promise<Board> {
-  return fetchJson<Board>("/api/boards", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
-}
-
-export function fetchBoardApprovalAreas(
-  boardKey: string
-): Promise<BoardApprovalArea[]> {
-  return fetchJson<BoardApprovalArea[]>(
-    `/api/boards/${encodeURIComponent(boardKey)}/approval-areas`
-  );
-}
-
-export function createBoardApprovalArea(
-  boardKey: string,
-  payload: CreateBoardApprovalAreaPayload
-): Promise<BoardApprovalArea> {
-  return fetchJson<BoardApprovalArea>(
-    `/api/boards/${encodeURIComponent(boardKey)}/approval-areas`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    }
-  );
-}
-
-export function updateBoardApprovalArea(
-  boardKey: string,
-  areaKey: string,
-  payload: UpdateBoardApprovalAreaPayload
-): Promise<BoardApprovalArea> {
-  return fetchJson<BoardApprovalArea>(
-    `/api/boards/${encodeURIComponent(boardKey)}/approval-areas/${encodeURIComponent(areaKey)}`,
-    {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    }
-  );
-}
-
-export function deleteBoardApprovalArea(
-  boardKey: string,
-  areaKey: string
-): Promise<BoardApprovalArea> {
-  return fetchJson<BoardApprovalArea>(
-    `/api/boards/${encodeURIComponent(boardKey)}/approval-areas/${encodeURIComponent(areaKey)}`,
-    {
-      method: "DELETE",
-    }
-  );
-}
-
-export function reorderBoardApprovalAreas(
-  boardKey: string,
-  payload: ReorderBoardApprovalAreasPayload
-): Promise<BoardApprovalArea[]> {
-  return fetchJson<BoardApprovalArea[]>(
-    `/api/boards/${encodeURIComponent(boardKey)}/approval-areas`,
-    {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    }
-  );
-}
-
-export function createBoardStage(
-  boardKey: string,
-  payload: CreateBoardStagePayload
-): Promise<Board> {
-  return fetchJson<Board>(`/api/boards/${encodeURIComponent(boardKey)}/stages`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
-}
-
-export function updateBoardStage(
-  boardKey: string,
-  stage: string,
-  payload: UpdateBoardStagePayload
-): Promise<Board> {
-  return fetchJson<Board>(
-    `/api/boards/${encodeURIComponent(boardKey)}/stages/${encodeURIComponent(stage)}`,
-    {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    }
-  );
-}
-
-export function deleteBoardStage(boardKey: string, stage: string): Promise<Board> {
-  return fetchJson<Board>(
-    `/api/boards/${encodeURIComponent(boardKey)}/stages/${encodeURIComponent(stage)}`,
-    {
-      method: "DELETE",
-    }
-  );
-}
-
-export function reorderBoardStages(
-  boardKey: string,
-  payload: ReorderBoardStagesPayload
-): Promise<Board> {
-  return fetchJson<Board>(`/api/boards/${encodeURIComponent(boardKey)}/stages`, {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
 }
 
 export function fetchEmails(boardKey?: string): Promise<EmailListItem[]> {
@@ -475,56 +187,6 @@ export function archiveEmail(emailId: string): Promise<void> {
   return fetchJson<void>(`/api/emails/${encodeURIComponent(emailId)}/archive`, {
     method: "PATCH",
   });
-}
-
-export function fetchAdminUsers(): Promise<UserAdminItem[]> {
-  return fetchJson<UserAdminItem[]>("/api/admin/users");
-}
-
-export function createAdminUser(
-  payload: CreateAdminUserPayload
-): Promise<UserAdminItem> {
-  return fetchJson<UserAdminItem>("/api/admin/users", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
-}
-
-export function updateAdminUserRole(
-  userId: string,
-  role: UserRole
-): Promise<UserAdminItem> {
-  return fetchJson<UserAdminItem>(
-    `/api/admin/users/${encodeURIComponent(userId)}/role`,
-    {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ role }),
-    }
-  );
-}
-
-export function fetchAIAnalysisLogs(
-  filters: AIAnalysisLogFilters
-): Promise<AIAnalysisLogItem[]> {
-  const params = new URLSearchParams();
-
-  Object.entries(filters).forEach(([key, value]) => {
-    const trimmedValue = value?.trim();
-    if (trimmedValue) {
-      params.set(key, trimmedValue);
-    }
-  });
-
-  const query = params.toString();
-  return fetchJson<AIAnalysisLogItem[]>(
-    `/api/ai-analysis-logs${query ? `?${query}` : ""}`
-  );
 }
 
 export function analyzeEmail(emailId: string): Promise<EmailAnalysis> {

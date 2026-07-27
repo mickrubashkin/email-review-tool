@@ -4,10 +4,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+import { ApiError } from "../../../shared/api";
+import { createBoard, fetchBoards } from "../api";
 import {
-  ApiError,
-  createBoard,
-  fetchBoards,
   fetchEmails,
   updateEmailReviewStatus,
 } from "../../emails/api";

@@ -9,7 +9,7 @@ import { BoardHomeRedirect, EmailBoardRoute } from "./features/boards/BoardHome"
 import { Login } from "./features/auth/Login";
 import { EmailEvents } from "./features/email-events/EmailEvents";
 import { OperationalEvents } from "./features/ops-events/OperationalEvents";
-import { fetchCurrentUser, logout } from "./features/emails/api";
+import { fetchCurrentUser, logout } from "./features/auth/api";
 import { EmailCreate } from "./features/emails/EmailCreate";
 import type { AuthUser } from "./features/emails/types";
 import { EmailReview } from "./features/review/EmailReview";

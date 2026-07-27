@@ -26,7 +26,7 @@ import {
 import { AdminTableHeader } from "../../admin-table/AdminTableHeader";
 import { usePersistedColumnSizing } from "../../admin-table/usePersistedColumnSizing";
 import { usePersistedSort } from "../../admin-table/usePersistedSort";
-import { createAdminUser, fetchAdminUsers, updateAdminUserRole } from "../../emails/api";
+import { createAdminUser, fetchAdminUsers, updateAdminUserRole } from "../api";
 import type { UserAdminItem, UserRole } from "../../emails/types";
 import styles from "../../auth-events/AuthEvents/AuthEvents.module.css";
 

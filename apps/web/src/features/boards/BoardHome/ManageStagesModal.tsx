@@ -3,7 +3,8 @@ import { ActionIcon, Alert, Badge, Button, Group, Modal, SegmentedControl, Stack
 import { ArrowLeftIcon, ArrowRightIcon, PencilSimpleIcon, PlusIcon, TrashIcon } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
 
-import { ApiError, createBoardStage, deleteBoardStage, reorderBoardStages, updateBoardStage } from "../../emails/api";
+import { ApiError } from "../../../shared/api";
+import { createBoardStage, deleteBoardStage, reorderBoardStages, updateBoardStage } from "../api";
 import { formatStageName } from "../../emails/stages";
 import type { Board } from "../../emails/types";
 
@@ -112,7 +113,7 @@ export function ManageStagesModal({
             { label: "Approval areas", value: "approval_areas" },
           ]}
           value={activeSettingsTab}
-          onChange={setActiveSettingsTab}
+          onChange={(val) => setActiveSettingsTab(val)}
         />
 
         {activeSettingsTab === "stages" ? (

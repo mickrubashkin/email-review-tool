@@ -2,8 +2,8 @@ import { notifications } from "@mantine/notifications";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 
+import { ApiError } from "../../../../shared/api";
 import {
-  ApiError,
   archiveEmail,
   createCommentMessage,
   createEmailComment,

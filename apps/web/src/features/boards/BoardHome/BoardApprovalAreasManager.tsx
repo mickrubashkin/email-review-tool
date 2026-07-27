@@ -3,7 +3,7 @@ import { ActionIcon, Alert, Button, Group, Loader, Stack, TextInput, Tooltip } f
 import { ArrowLeftIcon, ArrowRightIcon, PencilSimpleIcon, PlusIcon, TrashIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { createBoardApprovalArea, deleteBoardApprovalArea, fetchBoardApprovalAreas, reorderBoardApprovalAreas, updateBoardApprovalArea } from "../../emails/api";
+import { createBoardApprovalArea, deleteBoardApprovalArea, fetchBoardApprovalAreas, reorderBoardApprovalAreas, updateBoardApprovalArea } from "../api";
 import type { Board, BoardApprovalArea } from "../../emails/types";
 
 import styles from "../../../App.module.css";

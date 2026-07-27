@@ -15,7 +15,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 
-import { fetchBoards } from "../../emails/api";
+import { fetchBoards } from "../api";
 import { EmailBoard } from "../../emails/EmailBoard";
 import type { AuthUser } from "../../emails/types";
 

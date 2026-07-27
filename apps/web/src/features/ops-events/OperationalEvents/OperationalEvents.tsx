@@ -16,7 +16,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { AdminTable } from "../../admin-table/AdminTable";
 import { AdminTableHeader } from "../../admin-table/AdminTableHeader";
 import { useAdminTable } from "../../admin-table/useAdminTable";
-import { fetchOperationalEvents } from "../../emails/api";
+import { fetchOperationalEvents } from "../api";
 import type {
   OperationalEventFilters,
   OperationalEventItem,

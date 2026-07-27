@@ -16,7 +16,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { AdminTable } from "../../admin-table/AdminTable";
 import { AdminTableHeader } from "../../admin-table/AdminTableHeader";
 import { useAdminTable } from "../../admin-table/useAdminTable";
-import { fetchEmailEvents } from "../../emails/api";
+import { fetchEmailEvents } from "../api";
 import {
   formatEmailUpdateChangedFields,
   formatEmailUpdateChangedReviewBlocks,
