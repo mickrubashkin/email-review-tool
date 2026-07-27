@@ -7,14 +7,6 @@ import (
 	"github.com/mickrubashkin/email-review-tool/apps/api/internal/core/auth"
 )
 
-type BoardItem struct {
-	ID        string    `json:"id"`
-	Key       string    `json:"key"`
-	Name      string    `json:"name"`
-	Stages    []string  `json:"stages"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-}
 
 type AuthUser = auth.AuthUser
 
