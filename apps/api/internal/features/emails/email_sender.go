@@ -1,4 +1,4 @@
-package main
+package emails
 
 import (
 	"bytes"
@@ -120,7 +120,7 @@ type resendEmailPayload struct {
 	Text    string   `json:"text"`
 }
 
-func newLoginCodeEmailSender() EmailSender {
+func NewLoginCodeEmailSender() EmailSender {
 	return MultiEmailSender{Senders: newLoginCodeEmailSendersFromEnv()}
 }
 

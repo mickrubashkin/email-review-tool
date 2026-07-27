@@ -1,4 +1,4 @@
-package main
+package emails
 
 import (
 	"bytes"
@@ -38,7 +38,7 @@ func TestListEmailsIncludesOpenCommentCount(t *testing.T) {
 	}
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	request := httptest.NewRequest(http.MethodGet, "/api/emails", nil)
 	response := httptest.NewRecorder()
@@ -85,7 +85,7 @@ func TestListEmailsExcludesArchivedEmails(t *testing.T) {
 	}
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	request := httptest.NewRequest(http.MethodGet, "/api/emails", nil)
 	response := httptest.NewRecorder()
@@ -128,7 +128,7 @@ func TestListEmailsFiltersByBoard(t *testing.T) {
 	}
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	request := httptest.NewRequest(http.MethodGet, "/api/emails?board="+firstBoard, nil)
 	response := httptest.NewRecorder()
@@ -158,7 +158,7 @@ func TestCreateEmail(t *testing.T) {
 	boardKey := createTestBoard(t, dbpool, "upload-board", []string{"uploaded"})
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	requestBody := []byte(`{
 		"sequence": "upload-board",
@@ -244,7 +244,7 @@ func TestCreateEmailRejectsUnknownBoard(t *testing.T) {
 	user := createTestUserWithRole(t, dbpool, "admin")
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	requestBody := []byte(`{
 		"sequence": "unknown-board",
@@ -270,7 +270,7 @@ func TestCreateEmailAllowsReusingArchivedSlug(t *testing.T) {
 	boardKey := createTestBoard(t, dbpool, "recreate-board", []string{"uploaded"})
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	requestBody := []byte(`{
 		"sequence": "recreate-board",
@@ -350,7 +350,7 @@ func TestGetEmailIncludesReviewStatus(t *testing.T) {
 	emailID := createTestEmail(t, dbpool)
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	request := httptest.NewRequest(http.MethodGet, "/api/emails/"+emailID, nil)
 	response := httptest.NewRecorder()
@@ -376,7 +376,7 @@ func TestUpdateEmailReviewStatus(t *testing.T) {
 	approveRequiredTestAreas(t, dbpool, emailID, user)
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	request := httptest.NewRequest(
 		http.MethodPatch,
@@ -453,7 +453,7 @@ func TestUpdateEmailReviewStatusAllowsProductionApproval(t *testing.T) {
 	approveRequiredTestAreas(t, dbpool, emailID, user)
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	request := httptest.NewRequest(
 		http.MethodPatch,
@@ -537,7 +537,7 @@ func TestUpdateEmailReviewStatusMarksReapprovalAfterStaleEdit(t *testing.T) {
 	}
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	request := httptest.NewRequest(
 		http.MethodPatch,
@@ -582,7 +582,7 @@ func TestListEmailAreaApprovalsReturnsDefaultPendingAreas(t *testing.T) {
 	emailID := createBoardTestEmail(t, dbpool, boardKey, "review")
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	request := httptest.NewRequest(
 		http.MethodGet,
@@ -619,7 +619,7 @@ func TestUpdateEmailAreaApprovalApprovesArea(t *testing.T) {
 	user := createTestUserWithRole(t, dbpool, "admin")
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	request := httptest.NewRequest(
 		http.MethodPatch,
@@ -699,7 +699,7 @@ func TestUpdateEmailAreaApprovalRequestsChanges(t *testing.T) {
 	user := createTestUserWithRole(t, dbpool, "admin")
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	request := httptest.NewRequest(
 		http.MethodPatch,
@@ -733,7 +733,7 @@ func TestUpdateEmailAreaApprovalRejectsInvalidAreaAndStatus(t *testing.T) {
 	user := createTestUserWithRole(t, dbpool, "admin")
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	invalidAreaRequest := httptest.NewRequest(
 		http.MethodPatch,
@@ -776,7 +776,7 @@ func TestUpdateEmailAreaApprovalRejectsArchivedEmail(t *testing.T) {
 	}
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	request := httptest.NewRequest(
 		http.MethodPatch,
@@ -800,7 +800,7 @@ func TestUpdateEmailAreaApprovalRejectsReviewer(t *testing.T) {
 	user := createTestUserWithRole(t, dbpool, "reviewer")
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	request := httptest.NewRequest(
 		http.MethodPatch,
@@ -822,7 +822,7 @@ func TestUpdateEmailPlanningFields(t *testing.T) {
 	user := createTestUserWithRole(t, dbpool, "admin")
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	request := httptest.NewRequest(
 		http.MethodPatch,
@@ -906,7 +906,7 @@ func TestUpdateEmailPlanningFieldsRejectsInvalidAdaptationLabel(t *testing.T) {
 	user := createTestUserWithRole(t, dbpool, "admin")
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	request := httptest.NewRequest(
 		http.MethodPatch,
@@ -928,7 +928,7 @@ func TestUpdateEmailPlanningFieldsRejectsInvalidDueDate(t *testing.T) {
 	user := createTestUserWithRole(t, dbpool, "admin")
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	request := httptest.NewRequest(
 		http.MethodPatch,
@@ -950,7 +950,7 @@ func TestUpdateEmailPlanningFieldsRejectsReviewer(t *testing.T) {
 	user := createTestUserWithRole(t, dbpool, "reviewer")
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	request := httptest.NewRequest(
 		http.MethodPatch,
@@ -972,7 +972,7 @@ func TestUpdateEmailReviewStatusRejectsReviewer(t *testing.T) {
 	user := createTestUserWithRole(t, dbpool, "reviewer")
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	request := httptest.NewRequest(
 		http.MethodPatch,
@@ -994,7 +994,7 @@ func TestUpdateEmailReviewStatusRejectsInvalidStatus(t *testing.T) {
 	user := createTestUserWithRole(t, dbpool, "admin")
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	request := httptest.NewRequest(
 		http.MethodPatch,
@@ -1032,7 +1032,7 @@ func TestUpdateEmailReviewStatusRejectsApprovalWithOpenBlockingComment(t *testin
 	}
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	request := httptest.NewRequest(
 		http.MethodPatch,
@@ -1099,7 +1099,7 @@ func TestUpdateEmailReviewStatusAllowsApprovalWithResolvedBlockingComment(t *tes
 	}
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	request := httptest.NewRequest(
 		http.MethodPatch,
@@ -1132,7 +1132,7 @@ func TestUpdateEmailReviewStatusRejectsApprovalWithPendingRequiredArea(t *testin
 	user := createTestUserWithRole(t, dbpool, "admin")
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	request := httptest.NewRequest(
 		http.MethodPatch,
@@ -1161,7 +1161,7 @@ func TestUpdateEmailReviewStatusRejectsProductionApprovalWithPendingRequiredArea
 	user := createTestUserWithRole(t, dbpool, "admin")
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	request := httptest.NewRequest(
 		http.MethodPatch,
@@ -1190,7 +1190,7 @@ func TestUpdateEmailReviewStatusAllowsApprovalWhenRequiredAreasApproved(t *testi
 	approveRequiredTestAreas(t, dbpool, emailID, user)
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	request := httptest.NewRequest(
 		http.MethodPatch,
@@ -1220,7 +1220,7 @@ func TestUpdateEmailReviewStatusRejectsArchivedEmail(t *testing.T) {
 	}
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	request := httptest.NewRequest(
 		http.MethodPatch,
@@ -1241,7 +1241,7 @@ func TestInspectEmailHTML(t *testing.T) {
 	user := createTestUserWithRole(t, dbpool, "admin")
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	requestBody := []byte(`{
 		"original_html": "<html><body><p data-edit-text=\"intro_text\">Hello upload content that is long enough for review</p><a href=\"https://example.com\" data-edit-attr-href=\"cta_url\">Start now</a></body></html>"
@@ -1300,7 +1300,7 @@ func TestUpdateEmailEditableFields(t *testing.T) {
 	`)
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	requestBody := []byte(`{
 		"title": "Updated Email",
@@ -1409,7 +1409,7 @@ func TestUpdateEmailEditableFieldsCreatesVersionSnapshot(t *testing.T) {
 	insertTestEmailVersion(t, dbpool, emailID, "system", "initial")
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	request := httptest.NewRequest(
 		http.MethodPatch,
@@ -1482,7 +1482,7 @@ func TestUpdateEmailEditableFieldsNoopDoesNotCreateVersion(t *testing.T) {
 	insertTestEmailVersion(t, dbpool, emailID, "system", "initial")
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	request := httptest.NewRequest(
 		http.MethodPatch,
@@ -1542,7 +1542,7 @@ func TestRestoreEmailVersionCreatesNewLatestVersion(t *testing.T) {
 	insertTestEmailVersion(t, dbpool, emailID, user.Email, "manual")
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	request := httptest.NewRequest(
 		http.MethodPost,
@@ -1603,7 +1603,7 @@ func TestRestoreEmailVersionRejectsReviewer(t *testing.T) {
 	versionID := insertTestEmailVersion(t, dbpool, emailID, "system", "initial")
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	request := httptest.NewRequest(
 		http.MethodPost,
@@ -1649,7 +1649,7 @@ func TestUpdateEmailEditableFieldsRecordsChangedReviewBlocks(t *testing.T) {
 	}
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	request := httptest.NewRequest(
 		http.MethodPatch,
@@ -1726,7 +1726,7 @@ func TestUpdateEmailEditableFieldsMarksApprovedEmailChangesRequested(t *testing.
 	}
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	request := httptest.NewRequest(
 		http.MethodPatch,
@@ -1780,7 +1780,7 @@ func TestUpdateEmailEditableFieldsPreservesNonApprovedReviewStatus(t *testing.T)
 	}
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	request := httptest.NewRequest(
 		http.MethodPatch,
@@ -1834,7 +1834,7 @@ func TestUpdateEmailEditableFieldsRecordsStaleApprovalEvent(t *testing.T) {
 	}
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	request := httptest.NewRequest(
 		http.MethodPatch,
@@ -1888,7 +1888,7 @@ func TestUpdateEmailEditableFieldsMarksAreaApprovalStale(t *testing.T) {
 	`)
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	approveRequest := httptest.NewRequest(
 		http.MethodPatch,
@@ -1989,7 +1989,7 @@ func TestUpdateEmailEditableFieldsKeepsOpenCommentsOpen(t *testing.T) {
 	}
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	request := httptest.NewRequest(
 		http.MethodPatch,
@@ -2077,7 +2077,7 @@ func TestUpdateEmailEditableFieldsResetsChangedTextCommentAnchors(t *testing.T) 
 	}
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	requestBody := []byte(`{
 		"subject": "New subject",
@@ -2114,7 +2114,7 @@ func TestUpdateEmailEditableFieldsRejectsNullFields(t *testing.T) {
 	user := createTestUserWithRole(t, dbpool, "admin")
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	request := httptest.NewRequest(
 		http.MethodPatch,
@@ -2143,7 +2143,7 @@ func TestUpdateEmailEditableFieldsRejectsUnsafeURL(t *testing.T) {
 	`)
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	requestBody := []byte(`{
 		"editable_fields": {
@@ -2175,7 +2175,7 @@ func TestUpdateEmailEditableFieldsNotFound(t *testing.T) {
 	user := createTestUserWithRole(t, dbpool, "admin")
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	request := httptest.NewRequest(
 		http.MethodPatch,
@@ -2197,7 +2197,7 @@ func TestUpdateEmailEditableFieldsRejectsReviewer(t *testing.T) {
 	user := createTestUserWithRole(t, dbpool, "reviewer")
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	request := httptest.NewRequest(
 		http.MethodPatch,
@@ -2219,7 +2219,7 @@ func TestUpdateEmailOriginalHTMLRequiresSuperAdmin(t *testing.T) {
 	user := createTestUserWithRole(t, dbpool, "admin")
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	request := httptest.NewRequest(
 		http.MethodPatch,
@@ -2251,7 +2251,7 @@ func TestUpdateEmailOriginalHTMLAsSuperAdmin(t *testing.T) {
 	`)
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	request := httptest.NewRequest(
 		http.MethodPatch,
@@ -2305,7 +2305,7 @@ func TestUpdateEmailOriginalHTMLAsSuperAdminUsesExtractedTextForSoftWrappedSourc
 	user := createTestUserWithRole(t, dbpool, "super_admin")
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	request := httptest.NewRequest(
 		http.MethodPatch,
@@ -2370,7 +2370,7 @@ func TestUpdateEmailEditableFieldsRejectsArchivedEmail(t *testing.T) {
 	}
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	request := httptest.NewRequest(
 		http.MethodPatch,
@@ -2403,7 +2403,7 @@ func TestGetRenderedEmail(t *testing.T) {
 	}
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	request := httptest.NewRequest(http.MethodGet, "/api/emails/"+emailID+"/rendered", nil)
 	response := httptest.NewRecorder()
@@ -2442,7 +2442,7 @@ func TestGetRenderedEmailRejectsArchivedEmail(t *testing.T) {
 	}
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	request := httptest.NewRequest(http.MethodGet, "/api/emails/"+emailID+"/rendered", nil)
 	response := httptest.NewRecorder()
@@ -2476,7 +2476,7 @@ func TestDuplicateEmail(t *testing.T) {
 	}
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	requestBody := []byte(`{
 		"language": "ES",
@@ -2582,7 +2582,7 @@ func TestDuplicateEmailAsCreatesLanguageVersionAndAdaptation(t *testing.T) {
 	setTestEmailForDuplicate(t, dbpool, emailID)
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	requestBody := []byte(`{
 		"language": "ES",
@@ -2670,7 +2670,7 @@ func TestDuplicateEmailAsCanTargetBoardStageAndNewEvent(t *testing.T) {
 	createTestBoard(t, dbpool, "target-board", []string{"qualified"})
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	requestBody := []byte(`{
 		"sequence": "target-board",
@@ -2725,7 +2725,7 @@ func TestDuplicateEmailConflict(t *testing.T) {
 	conflictingID := createTestEmailWithSlug(t, dbpool, "comment-test-email-es")
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	request := httptest.NewRequest(
 		http.MethodPost,
@@ -2757,7 +2757,7 @@ func TestDuplicateEmailNotFound(t *testing.T) {
 	user := createTestUserWithRole(t, dbpool, "admin")
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	request := httptest.NewRequest(
 		http.MethodPost,
@@ -2779,7 +2779,7 @@ func TestDuplicateEmailRejectsMissingLanguage(t *testing.T) {
 	user := createTestUserWithRole(t, dbpool, "admin")
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	request := httptest.NewRequest(
 		http.MethodPost,
@@ -2801,7 +2801,7 @@ func TestDuplicateEmailAllowsCustomVersion(t *testing.T) {
 	user := createTestUserWithRole(t, dbpool, "admin")
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	request := httptest.NewRequest(
 		http.MethodPost,
@@ -2848,7 +2848,7 @@ func TestDuplicateEmailPreservesAdaptation(t *testing.T) {
 	}
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	request := httptest.NewRequest(
 		http.MethodPost,
@@ -2887,7 +2887,7 @@ func TestDuplicateEmailRejectsReviewer(t *testing.T) {
 	user := createTestUserWithRole(t, dbpool, "reviewer")
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	request := httptest.NewRequest(
 		http.MethodPost,
@@ -2910,7 +2910,7 @@ func TestCreateEmailAdaptation(t *testing.T) {
 	setTestEmailForDuplicate(t, dbpool, emailID)
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	request := httptest.NewRequest(
 		http.MethodPost,
@@ -2967,7 +2967,7 @@ func TestCreateEmailAdaptationConflict(t *testing.T) {
 	})
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 	for index := 0; index < 2; index++ {
 		request := httptest.NewRequest(
 			http.MethodPost,
@@ -2992,7 +2992,7 @@ func TestArchiveEmail(t *testing.T) {
 	user := createTestUserWithRole(t, dbpool, "admin")
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	request := httptest.NewRequest(
 		http.MethodPatch,
@@ -3073,7 +3073,7 @@ func TestListEmailEventsRequiresSuperAdmin(t *testing.T) {
 	}
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	adminRequest := httptest.NewRequest(http.MethodGet, "/api/admin/email-events", nil)
 	adminRequest = withAuthUser(adminRequest, admin)
@@ -3116,7 +3116,7 @@ func TestArchiveEmailRejectsReviewer(t *testing.T) {
 	user := createTestUserWithRole(t, dbpool, "reviewer")
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	request := httptest.NewRequest(
 		http.MethodPatch,

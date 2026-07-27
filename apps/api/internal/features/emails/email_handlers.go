@@ -1,9 +1,7 @@
-package main
+package emails
 
 import (
 	"context"
-	featureauth "github.com/mickrubashkin/email-review-tool/apps/api/internal/features/auth"
-	auth "github.com/mickrubashkin/email-review-tool/apps/api/internal/core/auth"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -17,6 +15,9 @@ import (
 	"time"
 	"unicode/utf16"
 
+	auth "github.com/mickrubashkin/email-review-tool/apps/api/internal/core/auth"
+	featureauth "github.com/mickrubashkin/email-review-tool/apps/api/internal/features/auth"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -28,7 +29,7 @@ import (
 	xhtml "golang.org/x/net/html"
 )
 
-func registerEmailRoutes(r chi.Router, dbpool *pgxpool.Pool) {
+func RegisterEmailRoutes(r chi.Router, dbpool *pgxpool.Pool) {
 	r.Get("/api/emails", listEmailsHandler(dbpool))
 	r.Post("/api/emails", createEmailHandler(dbpool))
 	r.Post("/api/emails/inspect-html", inspectEmailHTMLHandler(dbpool))
@@ -271,7 +272,7 @@ type editableFieldInspection struct {
 
 func createEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		user, ok := authUserFromContext(r)
+		user, ok := auth.FromRequest(r)
 		if !ok {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
@@ -391,7 +392,7 @@ func createEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			http.Error(w, "failed to create email", http.StatusInternalServerError)
 			return
 		}
-		if err := insertEmailEvent(r.Context(), tx, emailEvent{
+		if err := InsertEmailEvent(r.Context(), tx, EmailEventParam{
 			ActorUserID: user.ID,
 			ActorEmail:  user.Email,
 			Action:      emailEventCreated,
@@ -439,7 +440,7 @@ func createEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 
 func inspectEmailHTMLHandler(_ *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		user, ok := authUserFromContext(r)
+		user, ok := auth.FromRequest(r)
 		if !ok {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
@@ -545,7 +546,7 @@ func getRenderedEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 func updateEmailEditableFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := chi.URLParam(r, "id")
-		user, ok := authUserFromContext(r)
+		user, ok := auth.FromRequest(r)
 		if !ok {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
@@ -770,7 +771,7 @@ func updateEmailEditableFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 		if len(changedReviewBlocks) > 0 {
 			updateEventMetadata["changed_review_blocks"] = changedReviewBlocks
 		}
-		if err := insertEmailEvent(r.Context(), tx, emailEvent{
+		if err := InsertEmailEvent(r.Context(), tx, EmailEventParam{
 			ActorUserID: user.ID,
 			ActorEmail:  user.Email,
 			Action:      emailEventUpdated,
@@ -798,7 +799,7 @@ func updateEmailEditableFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			}
 		}
 		if approvalBecameStale {
-			if err := insertEmailEvent(r.Context(), tx, emailEvent{
+			if err := InsertEmailEvent(r.Context(), tx, EmailEventParam{
 				ActorUserID: user.ID,
 				ActorEmail:  user.Email,
 				Action:      emailEventReviewStatusUpdated,
@@ -832,7 +833,7 @@ func updateEmailEditableFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 func updateEmailPlanningFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := chi.URLParam(r, "id")
-		user, ok := authUserFromContext(r)
+		user, ok := auth.FromRequest(r)
 		if !ok {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
@@ -926,7 +927,7 @@ func updateEmailPlanningFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 				return
 			}
 
-			if err := insertEmailEvent(r.Context(), tx, emailEvent{
+			if err := InsertEmailEvent(r.Context(), tx, EmailEventParam{
 				ActorUserID: user.ID,
 				ActorEmail:  user.Email,
 				Action:      emailEventPlanningUpdated,
@@ -961,7 +962,7 @@ func updateEmailPlanningFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 func updateEmailReviewStatusHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := chi.URLParam(r, "id")
-		user, ok := authUserFromContext(r)
+		user, ok := auth.FromRequest(r)
 		if !ok {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
@@ -1073,7 +1074,7 @@ func updateEmailReviewStatusHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 				return
 			}
 
-			if err := insertEmailEvent(r.Context(), tx, emailEvent{
+			if err := InsertEmailEvent(r.Context(), tx, EmailEventParam{
 				ActorUserID: user.ID,
 				ActorEmail:  user.Email,
 				Action:      emailEventReviewStatusUpdated,
@@ -1255,7 +1256,7 @@ type duplicateEmailAsRequest struct {
 func duplicateEmailAsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := chi.URLParam(r, "id")
-		user, ok := authUserFromContext(r)
+		user, ok := auth.FromRequest(r)
 		if !ok {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
@@ -1423,7 +1424,7 @@ func duplicateEmailAsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			http.Error(w, "failed to duplicate email", http.StatusInternalServerError)
 			return
 		}
-		if err := insertEmailEvent(r.Context(), tx, emailEvent{
+		if err := InsertEmailEvent(r.Context(), tx, EmailEventParam{
 			ActorUserID: user.ID,
 			ActorEmail:  user.Email,
 			Action:      emailEventDuplicated,
@@ -1461,7 +1462,7 @@ func duplicateEmailAsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 func duplicateEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := chi.URLParam(r, "id")
-		user, ok := authUserFromContext(r)
+		user, ok := auth.FromRequest(r)
 		if !ok {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
@@ -1570,7 +1571,7 @@ func duplicateEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			http.Error(w, "failed to duplicate email", http.StatusInternalServerError)
 			return
 		}
-		if err := insertEmailEvent(r.Context(), tx, emailEvent{
+		if err := InsertEmailEvent(r.Context(), tx, EmailEventParam{
 			ActorUserID: user.ID,
 			ActorEmail:  user.Email,
 			Action:      emailEventDuplicated,
@@ -1603,7 +1604,7 @@ func duplicateEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 func createEmailAdaptationHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := chi.URLParam(r, "id")
-		user, ok := authUserFromContext(r)
+		user, ok := auth.FromRequest(r)
 		if !ok {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
@@ -1680,7 +1681,7 @@ func createEmailAdaptationHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			http.Error(w, "failed to create adaptation", http.StatusInternalServerError)
 			return
 		}
-		if err := insertEmailEvent(r.Context(), tx, emailEvent{
+		if err := InsertEmailEvent(r.Context(), tx, EmailEventParam{
 			ActorUserID: user.ID,
 			ActorEmail:  user.Email,
 			Action:      emailEventAdaptationCreated,
@@ -1711,7 +1712,7 @@ func createEmailAdaptationHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 func archiveEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := chi.URLParam(r, "id")
-		user, ok := authUserFromContext(r)
+		user, ok := auth.FromRequest(r)
 		if !ok {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
@@ -1765,7 +1766,7 @@ func archiveEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			http.Error(w, "email not found", http.StatusNotFound)
 			return
 		}
-		if err := insertEmailEvent(r.Context(), tx, emailEvent{
+		if err := InsertEmailEvent(r.Context(), tx, EmailEventParam{
 			ActorUserID: user.ID,
 			ActorEmail:  user.Email,
 			Action:      emailEventArchived,
@@ -1795,7 +1796,7 @@ func archiveEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 
 func listEmailEventsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		user, ok := authUserFromContext(r)
+		user, ok := auth.FromRequest(r)
 		if !ok {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return

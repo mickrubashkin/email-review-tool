@@ -1,4 +1,4 @@
-package main
+package emails
 
 import (
 	"context"
@@ -35,7 +35,7 @@ type emailVersionSnapshot struct {
 func listEmailVersionsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := chi.URLParam(r, "id")
-		user, ok := authUserFromContext(r)
+		user, ok := auth.FromRequest(r)
 		if !ok {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
@@ -108,7 +108,7 @@ func getEmailVersionHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := chi.URLParam(r, "id")
 		versionID := chi.URLParam(r, "versionId")
-		user, ok := authUserFromContext(r)
+		user, ok := auth.FromRequest(r)
 		if !ok {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
@@ -133,7 +133,7 @@ func restoreEmailVersionHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := chi.URLParam(r, "id")
 		versionID := chi.URLParam(r, "versionId")
-		user, ok := authUserFromContext(r)
+		user, ok := auth.FromRequest(r)
 		if !ok {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
@@ -261,7 +261,7 @@ func restoreEmailVersionHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 				http.Error(w, "failed to record email version", http.StatusInternalServerError)
 				return
 			}
-			if err := insertEmailEvent(r.Context(), tx, emailEvent{
+			if err := InsertEmailEvent(r.Context(), tx, EmailEventParam{
 				ActorUserID: user.ID,
 				ActorEmail:  user.Email,
 				Action:      emailEventUpdated,
@@ -366,7 +366,7 @@ func restoreEmailVersionHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 		if len(changedReviewBlocks) > 0 {
 			metadata["changed_review_blocks"] = changedReviewBlocks
 		}
-		if err := insertEmailEvent(r.Context(), tx, emailEvent{
+		if err := InsertEmailEvent(r.Context(), tx, EmailEventParam{
 			ActorUserID: user.ID,
 			ActorEmail:  user.Email,
 			Action:      emailEventUpdated,
@@ -392,7 +392,7 @@ func restoreEmailVersionHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			}
 		}
 		if approvalBecameStale {
-			if err := insertEmailEvent(r.Context(), tx, emailEvent{
+			if err := InsertEmailEvent(r.Context(), tx, EmailEventParam{
 				ActorUserID: user.ID,
 				ActorEmail:  user.Email,
 				Action:      emailEventReviewStatusUpdated,

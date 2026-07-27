@@ -13,6 +13,7 @@ import (
 	featureauth "github.com/mickrubashkin/email-review-tool/apps/api/internal/features/auth"
 	"github.com/mickrubashkin/email-review-tool/apps/api/internal/features/boards"
 	"github.com/mickrubashkin/email-review-tool/apps/api/internal/features/comments"
+	"github.com/mickrubashkin/email-review-tool/apps/api/internal/features/emails"
 )
 
 func main() {
@@ -50,13 +51,13 @@ func main() {
 	}
 
 	registerHealthRoute(r, dbpool)
-	featureauth.RegisterAuthRoutes(r, dbpool, newLoginCodeEmailSender())
+	featureauth.RegisterAuthRoutes(r, dbpool, emails.NewLoginCodeEmailSender())
 	registerOperationalRoutes(r, dbpool)
 	
 	boards.Logger = serverEventLogger{}
 	boards.RegisterBoardRoutes(r, dbpool)
 	
-	registerEmailRoutes(r, dbpool)
+	emails.RegisterEmailRoutes(r, dbpool)
 	comments.Logger = commentEventLogger{}
 	comments.RegisterCommentRoutes(r, dbpool)
 	ai.RegisterAIRoutes(r, dbpool, aiService)
@@ -99,7 +100,7 @@ func (s serverEventLogger) LogEvent(ctx context.Context, db boards.EmailEventExe
 	if _, ok := metadata["board_name"]; !ok {
 		metadata["board_name"] = board.Name
 	}
-	return insertEmailEvent(ctx, db, emailEvent{
+	return emails.InsertEmailEvent(ctx, db, emails.EmailEventParam{
 		ActorUserID: actor.ID,
 		ActorEmail:  actor.Email,
 		Action:      action,
@@ -111,7 +112,7 @@ func (s serverEventLogger) LogEvent(ctx context.Context, db boards.EmailEventExe
 type commentEventLogger struct{}
 
 func (c commentEventLogger) LogEvent(ctx context.Context, db comments.EmailEventExecutor, actor comments.AuthUser, action string, emailID string, emailSlug string, emailTitle string, metadata map[string]any) error {
-	return insertEmailEvent(ctx, db, emailEvent{
+	return emails.InsertEmailEvent(ctx, db, emails.EmailEventParam{
 		ActorUserID: actor.ID,
 		ActorEmail:  actor.Email,
 		Action:      action,

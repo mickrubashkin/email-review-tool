@@ -1,4 +1,4 @@
-package main
+package emails
 
 import (
 	"context"
@@ -111,7 +111,7 @@ func TestEmailActivityIncludesReviewAndAnalysisEvents(t *testing.T) {
 	})
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	request := httptest.NewRequest(http.MethodGet, "/api/emails/"+emailID+"/activity", nil)
 	response := httptest.NewRecorder()
@@ -152,7 +152,7 @@ func TestEmailActivityReturnsNotFoundForMissingEmail(t *testing.T) {
 	dbpool := testDBPool(t)
 
 	router := chi.NewRouter()
-	registerEmailRoutes(router, dbpool)
+	RegisterEmailRoutes(router, dbpool)
 
 	request := httptest.NewRequest(http.MethodGet, "/api/emails/00000000-0000-0000-0000-000000000000/activity", nil)
 	response := httptest.NewRecorder()

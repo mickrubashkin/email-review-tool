@@ -1,8 +1,7 @@
-package main
+package emails
 
 import (
 	"context"
-	auth "github.com/mickrubashkin/email-review-tool/apps/api/internal/core/auth"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -10,6 +9,8 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	auth "github.com/mickrubashkin/email-review-tool/apps/api/internal/core/auth"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
@@ -123,7 +124,7 @@ func updateEmailAreaApprovalHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := chi.URLParam(r, "id")
 		area := strings.TrimSpace(chi.URLParam(r, "area"))
-		user, ok := authUserFromContext(r)
+		user, ok := auth.FromRequest(r)
 		if !ok {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
@@ -294,7 +295,7 @@ func updateEmailAreaApprovalHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 		if previousStatusValue == "stale" && nextStatus == "approved" {
 			eventMetadata["reason"] = "reapproved_after_stale_edit"
 		}
-		if err := insertEmailEvent(r.Context(), tx, emailEvent{
+		if err := InsertEmailEvent(r.Context(), tx, EmailEventParam{
 			ActorUserID: user.ID,
 			ActorEmail:  user.Email,
 			Action:      emailEventAreaApprovalUpdated,
@@ -429,7 +430,7 @@ func markStaleAreaApprovalsAfterContentChange(
 			return err
 		}
 
-		if err := insertEmailEvent(ctx, db, emailEvent{
+		if err := InsertEmailEvent(ctx, db, EmailEventParam{
 			ActorUserID: actor.ID,
 			ActorEmail:  actor.Email,
 			Action:      emailEventAreaApprovalUpdated,

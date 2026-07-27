@@ -1,4 +1,4 @@
-package main
+package emails
 
 import (
 	"context"
@@ -41,7 +41,7 @@ type emailEventFilters struct {
 	Limit      int
 }
 
-type emailEvent struct {
+type EmailEventParam struct {
 	ActorUserID string
 	ActorEmail  string
 	Action      string
@@ -58,7 +58,7 @@ type emailEventExecutor interface {
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
 }
 
-func insertEmailEvent(ctx context.Context, db emailEventExecutor, event emailEvent) error {
+func InsertEmailEvent(ctx context.Context, db emailEventExecutor, event EmailEventParam) error {
 	metadataJSON, err := json.Marshal(emptyMapIfNil(event.Metadata))
 	if err != nil {
 		return err
