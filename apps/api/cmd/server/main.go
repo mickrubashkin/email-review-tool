@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
+	"github.com/mickrubashkin/email-review-tool/apps/api/internal/features/ai"
 	featureauth "github.com/mickrubashkin/email-review-tool/apps/api/internal/features/auth"
 	"github.com/mickrubashkin/email-review-tool/apps/api/internal/features/boards"
 	"github.com/mickrubashkin/email-review-tool/apps/api/internal/features/comments"
@@ -42,7 +43,7 @@ func main() {
 	r.Use(requestIDMiddleware)
 	r.Use(featureauth.Middleware(dbpool))
 	r.Use(operationalEventMiddleware(dbpool))
-	aiService, err := newAIAnalysisService()
+	aiService, err := ai.NewAIAnalysisService()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to create AI analysis service: %v\n", err)
 		os.Exit(1)
@@ -58,7 +59,7 @@ func main() {
 	registerEmailRoutes(r, dbpool)
 	comments.Logger = commentEventLogger{}
 	comments.RegisterCommentRoutes(r, dbpool)
-	registerAIRoutes(r, dbpool, aiService)
+	ai.RegisterAIRoutes(r, dbpool, aiService)
 
 	port := os.Getenv("PORT")
 	if port == "" {

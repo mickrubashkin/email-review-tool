@@ -1,8 +1,10 @@
-package main
+package ai
 
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/mickrubashkin/email-review-tool/apps/api/internal/emailtext"
 )
 
 func TestBuildEmailAnalysisInputOmitsFooterLinksAndFooterPrimaryCTA(t *testing.T) {
@@ -10,7 +12,7 @@ func TestBuildEmailAnalysisInputOmitsFooterLinksAndFooterPrimaryCTA(t *testing.T
 		PrimaryCTA: "Privacy policy",
 		BodyText:   "Body copy. Alaio. All rights reserved. Privacy policy",
 		Links:      []string{"Privacy policy", "Read docs"},
-		LinkGroups: LinkGroups{
+		LinkGroups: emailtext.LinkGroups{
 			Primary: []string{"Privacy policy"},
 			Support: []string{"Contact support"},
 			Footer:  []string{"Unsubscribe"},

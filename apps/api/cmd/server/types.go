@@ -100,66 +100,6 @@ type BoardItem struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-type EmailAnalysis struct {
-	Summary         string                `json:"summary"`
-	Score           int                   `json:"score"`
-	Verdict         string                `json:"verdict"`
-	Checks          EmailAnalysisChecks   `json:"checks"`
-	Recommendations []EmailRecommendation `json:"recommendations"`
-}
-
-type EmailAnalysisChecks struct {
-	Subject        string `json:"subject"`
-	Preheader      string `json:"preheader"`
-	Focus          string `json:"focus"`
-	CTA            string `json:"cta"`
-	StageAlignment string `json:"stage_alignment"`
-	Readability    string `json:"readability"`
-}
-
-type EmailRecommendation struct {
-	Priority string `json:"priority"`
-	Title    string `json:"title"`
-	Details  string `json:"details"`
-}
-
-type AIAnalysisResult struct {
-	Analysis EmailAnalysis
-	Metrics  AIAnalysisMetrics
-}
-
-type AIAnalysisMetrics struct {
-	Model        string
-	Status       string
-	LatencyMS    int
-	InputTokens  *int
-	OutputTokens *int
-	TotalTokens  *int
-	CachedTokens *int
-	ErrorMessage *string
-}
-
-type AIAnalysisLogItem struct {
-	ID           string    `json:"id"`
-	EmailID      *string   `json:"email_id"`
-	EmailTitle   *string   `json:"email_title"`
-	EmailSlug    *string   `json:"email_slug"`
-	Language     *string   `json:"language"`
-	Variant      *string   `json:"variant"`
-	UserID       *string   `json:"user_id"`
-	UserEmail    *string   `json:"user_email"`
-	Model        string    `json:"model"`
-	Status       string    `json:"status"`
-	CacheStatus  string    `json:"cache_status"`
-	LatencyMS    int       `json:"latency_ms"`
-	InputTokens  *int      `json:"input_tokens"`
-	OutputTokens *int      `json:"output_tokens"`
-	TotalTokens  *int      `json:"total_tokens"`
-	CachedTokens *int      `json:"cached_tokens"`
-	ErrorMessage *string   `json:"error_message"`
-	CreatedAt    time.Time `json:"created_at"`
-}
-
 
 type AuthUser = auth.AuthUser
 

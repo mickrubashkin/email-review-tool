@@ -1,4 +1,4 @@
-package main
+package ai
 
 import (
 	"net/http"
@@ -6,11 +6,16 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/mickrubashkin/email-review-tool/apps/api/internal/core/auth"
 )
+
+func withAuthUser(r *http.Request, user AuthUser) *http.Request {
+	return r.WithContext(auth.WithUser(r.Context(), user))
+}
 
 func TestAIAnalysisLogsRequireAdmin(t *testing.T) {
 	router := chi.NewRouter()
-	registerAIRoutes(router, nil, AIAnalysisService{})
+	RegisterAIRoutes(router, nil, AIAnalysisService{})
 
 	request := httptest.NewRequest(http.MethodGet, "/api/ai-analysis-logs", nil)
 	request = withAuthUser(request, AuthUser{
@@ -31,7 +36,7 @@ func TestAIAnalysisDebugRequiresAdminWhenEnabled(t *testing.T) {
 	t.Setenv("AI_DEBUG_ENABLED", "true")
 
 	router := chi.NewRouter()
-	registerAIRoutes(router, nil, AIAnalysisService{})
+	RegisterAIRoutes(router, nil, AIAnalysisService{})
 
 	request := httptest.NewRequest(http.MethodGet, "/api/emails/email-id/ai-analysis-debug", nil)
 	request = withAuthUser(request, AuthUser{

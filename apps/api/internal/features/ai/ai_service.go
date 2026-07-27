@@ -1,4 +1,4 @@
-package main
+package ai
 
 import (
 	"context"
@@ -18,7 +18,12 @@ type AIAnalysisService struct {
 	Client           *http.Client
 }
 
-func newAIAnalysisService() (AIAnalysisService, error) {
+func NewAIAnalysisService() (AIAnalysisService, error) {
+	apiKey := os.Getenv("OPENAI_API_KEY")
+	if apiKey == "" {
+		fmt.Fprintln(os.Stderr, "OPENAI_API_KEY is not set, AI analysis will be disabled")
+	}
+
 	reviewRules, err := loadAIContextFile("email_review_rules.md")
 	if err != nil {
 		return AIAnalysisService{}, err

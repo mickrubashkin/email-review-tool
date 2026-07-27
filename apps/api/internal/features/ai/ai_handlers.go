@@ -1,4 +1,4 @@
-package main
+package ai
 
 import (
 	"encoding/json"
@@ -10,10 +10,11 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/mickrubashkin/email-review-tool/apps/api/internal/core/auth"
 	featureauth "github.com/mickrubashkin/email-review-tool/apps/api/internal/features/auth"
 )
 
-func registerAIRoutes(r chi.Router, dbpool *pgxpool.Pool, aiService AIAnalysisService) {
+func RegisterAIRoutes(r chi.Router, dbpool *pgxpool.Pool, aiService AIAnalysisService) {
 	r.Get("/api/ai-analysis-logs", listAIAnalysisLogsHandler(dbpool))
 	r.Get("/api/emails/{id}/ai-analysis", getCachedEmailAnalysisHandler(dbpool, aiService))
 	r.Post("/api/emails/{id}/ai-analysis", analyzeEmailHandler(dbpool, aiService))
@@ -209,7 +210,7 @@ func analyzeEmailStreamHandler(dbpool *pgxpool.Pool, aiService AIAnalysisService
 
 		forceRefresh := r.URL.Query().Get("refresh") == "true"
 		if forceRefresh {
-			user, ok := authUserFromContext(r)
+			user, ok := auth.FromRequest(r)
 			if !ok {
 				http.Error(w, "authentication required", http.StatusUnauthorized)
 				return
@@ -277,7 +278,7 @@ func cachedAnalysisOrLogError(r *http.Request, dbpool *pgxpool.Pool, email Email
 
 func logAIAnalysisResult(r *http.Request, dbpool *pgxpool.Pool, emailID string, metrics AIAnalysisMetrics, analysisErr error, forceRefresh bool) {
 	var user *AuthUser
-	if authUser, ok := authUserFromContext(r); ok {
+	if authUser, ok := auth.FromRequest(r); ok {
 		user = &authUser
 	}
 
@@ -302,20 +303,11 @@ func cacheAIAnalysisResult(r *http.Request, dbpool *pgxpool.Pool, emailID string
 }
 
 func logAIOperationalError(r *http.Request, dbpool *pgxpool.Pool, eventType string, message string, emailID string, err error) {
-	userID, userEmail := operationalEventUser(r)
-	requestID := requestIDFromContext(r.Context())
-	logOperationalEvent(r.Context(), dbpool, operationalEvent{
-		Level:     "error",
-		EventType: eventType,
-		Message:   message,
-		UserID:    userID,
-		UserEmail: userEmail,
-		RequestID: stringPointerIfNotEmpty(requestID),
-		Metadata: map[string]any{
-			"email_id": emailID,
-			"error":    err.Error(),
-		},
-	})
+	if SystemLogger != nil {
+		SystemLogger.LogError(r.Context(), r, dbpool, eventType, message, emailID, err)
+	} else {
+		fmt.Fprintf(os.Stderr, "AI Ops Error: %s - %s - emailID: %s - err: %v\n", eventType, message, emailID, err)
+	}
 }
 
 func writeAIStreamResult(w http.ResponseWriter, flusher http.Flusher, analysis EmailAnalysis) {
