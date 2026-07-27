@@ -11,11 +11,12 @@ import (
 	"os"
 	"strings"
 	"time"
+	"github.com/mickrubashkin/email-review-tool/apps/api/internal/core/auth"
 
 	"github.com/go-chi/chi/v5"
-	featureauth "github.com/mickrubashkin/email-review-tool/apps/api/internal/features/auth"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+	featureauth "github.com/mickrubashkin/email-review-tool/apps/api/internal/features/auth"
 )
 
 type operationalEventContextKey string
@@ -288,7 +289,7 @@ func requestIDFromContext(ctx context.Context) string {
 }
 
 func operationalEventUser(r *http.Request) (*string, *string) {
-	user, ok := authUserFromContext(r)
+	user, ok := auth.FromRequest(r)
 	if !ok {
 		return nil, nil
 	}
