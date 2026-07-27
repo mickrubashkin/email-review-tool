@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/mickrubashkin/email-review-tool/apps/api/internal/core/auth"
 	"github.com/mickrubashkin/email-review-tool/apps/api/internal/emailtext"
 )
 
@@ -159,11 +160,7 @@ type AIAnalysisLogItem struct {
 	CreatedAt    time.Time `json:"created_at"`
 }
 
-type AuthUser struct {
-	ID    string `json:"-"`
-	Email string `json:"email"`
-	Role  string `json:"role"`
-}
+type AuthUser = auth.AuthUser
 
 type UserAdminItem struct {
 	ID         string     `json:"id"`

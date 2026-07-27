@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/mickrubashkin/email-review-tool/apps/api/internal/core/auth"
 )
 
 func TestListEmailsIncludesOpenCommentCount(t *testing.T) {
@@ -3358,7 +3359,7 @@ func insertTestEmailVersion(t *testing.T, dbpool *pgxpool.Pool, emailID string, 
 }
 
 func withAuthUser(request *http.Request, user AuthUser) *http.Request {
-	return request.WithContext(context.WithValue(request.Context(), authUserContextKey, user))
+	return request.WithContext(auth.WithUser(request.Context(), user))
 }
 
 func approveRequiredTestAreas(t *testing.T, dbpool *pgxpool.Pool, emailID string, user AuthUser) {

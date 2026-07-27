@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"github.com/mickrubashkin/email-review-tool/apps/api/internal/features/boards"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -16,7 +17,7 @@ func TestListBoards(t *testing.T) {
 	dbpool := testDBPool(t)
 
 	router := chi.NewRouter()
-	registerBoardRoutes(router, dbpool)
+	boards.RegisterBoardRoutes(router, dbpool)
 
 	request := httptest.NewRequest(http.MethodGet, "/api/boards", nil)
 	response := httptest.NewRecorder()
@@ -26,7 +27,7 @@ func TestListBoards(t *testing.T) {
 		t.Fatalf("expected GET status 200, got %d: %s", response.Code, response.Body.String())
 	}
 
-	var boards []BoardItem
+	var boards []boards.BoardItem
 	if err := json.NewDecoder(response.Body).Decode(&boards); err != nil {
 		t.Fatalf("failed to decode boards: %v", err)
 	}
@@ -42,7 +43,7 @@ func TestCreateBoardCopiesStages(t *testing.T) {
 	createTestBoardApprovalArea(t, dbpool, sourceKey, "partnerships", "Partnerships", true, 10)
 
 	router := chi.NewRouter()
-	registerBoardRoutes(router, dbpool)
+	boards.RegisterBoardRoutes(router, dbpool)
 
 	request := httptest.NewRequest(
 		http.MethodPost,
@@ -57,7 +58,7 @@ func TestCreateBoardCopiesStages(t *testing.T) {
 		t.Fatalf("expected POST status 201, got %d: %s", response.Code, response.Body.String())
 	}
 
-	var created BoardItem
+	var created boards.BoardItem
 	if err := json.NewDecoder(response.Body).Decode(&created); err != nil {
 		t.Fatalf("failed to decode created board: %v", err)
 	}
@@ -79,7 +80,7 @@ func TestCreateBoardCopiesStages(t *testing.T) {
 		t.Fatalf("expected copied approval areas, got %#v", areas)
 	}
 
-	event := loadBoardEvent(t, dbpool, created.Key, boardEventCreated)
+	event := loadBoardEvent(t, dbpool, created.Key, "board_created")
 	if event.ActorEmail != user.Email {
 		t.Fatalf("expected board event actor %s, got %s", user.Email, event.ActorEmail)
 	}
@@ -94,7 +95,7 @@ func TestManageBoardApprovalAreas(t *testing.T) {
 	boardKey := createTestBoard(t, dbpool, "approval-area-board", []string{"review"})
 
 	router := chi.NewRouter()
-	registerBoardRoutes(router, dbpool)
+	boards.RegisterBoardRoutes(router, dbpool)
 
 	createRequest := httptest.NewRequest(
 		http.MethodPost,
@@ -108,7 +109,7 @@ func TestManageBoardApprovalAreas(t *testing.T) {
 	if createResponse.Code != http.StatusCreated {
 		t.Fatalf("expected approval area create status 201, got %d: %s", createResponse.Code, createResponse.Body.String())
 	}
-	var created boardApprovalAreaItem
+	var created boards.BoardApprovalAreaItem
 	if err := json.NewDecoder(createResponse.Body).Decode(&created); err != nil {
 		t.Fatalf("failed to decode created approval area: %v", err)
 	}
@@ -128,7 +129,7 @@ func TestManageBoardApprovalAreas(t *testing.T) {
 	if updateResponse.Code != http.StatusOK {
 		t.Fatalf("expected approval area update status 200, got %d: %s", updateResponse.Code, updateResponse.Body.String())
 	}
-	var updated boardApprovalAreaItem
+	var updated boards.BoardApprovalAreaItem
 	if err := json.NewDecoder(updateResponse.Body).Decode(&updated); err != nil {
 		t.Fatalf("failed to decode updated approval area: %v", err)
 	}
@@ -136,7 +137,7 @@ func TestManageBoardApprovalAreas(t *testing.T) {
 		t.Fatalf("unexpected updated approval area: %#v", updated)
 	}
 
-	event := loadBoardEvent(t, dbpool, boardKey, boardEventApprovalAreaUpdated)
+	event := loadBoardEvent(t, dbpool, boardKey, "board_approval_area_updated")
 	if event.ActorEmail != user.Email {
 		t.Fatalf("expected approval area event actor %s, got %s", user.Email, event.ActorEmail)
 	}
@@ -152,7 +153,7 @@ func TestArchiveBoardApprovalArea(t *testing.T) {
 	createTestBoardApprovalArea(t, dbpool, boardKey, "sales", "Sales", true, 10)
 
 	router := chi.NewRouter()
-	registerBoardRoutes(router, dbpool)
+	boards.RegisterBoardRoutes(router, dbpool)
 
 	request := httptest.NewRequest(http.MethodDelete, "/api/boards/"+boardKey+"/approval-areas/sales", nil)
 	request = withAuthUser(request, user)
@@ -162,7 +163,7 @@ func TestArchiveBoardApprovalArea(t *testing.T) {
 	if response.Code != http.StatusOK {
 		t.Fatalf("expected approval area delete status 200, got %d: %s", response.Code, response.Body.String())
 	}
-	var archived boardApprovalAreaItem
+	var archived boards.BoardApprovalAreaItem
 	if err := json.NewDecoder(response.Body).Decode(&archived); err != nil {
 		t.Fatalf("failed to decode archived approval area: %v", err)
 	}
@@ -187,7 +188,7 @@ func TestReorderBoardApprovalAreas(t *testing.T) {
 	createTestBoardApprovalArea(t, dbpool, boardKey, "sales", "Sales", true, 20)
 
 	router := chi.NewRouter()
-	registerBoardRoutes(router, dbpool)
+	boards.RegisterBoardRoutes(router, dbpool)
 
 	request := httptest.NewRequest(
 		http.MethodPatch,
@@ -201,7 +202,7 @@ func TestReorderBoardApprovalAreas(t *testing.T) {
 	if response.Code != http.StatusOK {
 		t.Fatalf("expected approval area reorder status 200, got %d: %s", response.Code, response.Body.String())
 	}
-	var areas []boardApprovalAreaItem
+	var areas []boards.BoardApprovalAreaItem
 	if err := json.NewDecoder(response.Body).Decode(&areas); err != nil {
 		t.Fatalf("failed to decode reordered approval areas: %v", err)
 	}
@@ -216,7 +217,7 @@ func TestCreateBoardApprovalAreaRejectsReviewer(t *testing.T) {
 	boardKey := createTestBoard(t, dbpool, "approval-area-reviewer-board", []string{"review"})
 
 	router := chi.NewRouter()
-	registerBoardRoutes(router, dbpool)
+	boards.RegisterBoardRoutes(router, dbpool)
 
 	request := httptest.NewRequest(
 		http.MethodPost,
@@ -238,7 +239,7 @@ func TestCreateBoardConflict(t *testing.T) {
 	createTestBoard(t, dbpool, "duplicate-board", []string{"registered"})
 
 	router := chi.NewRouter()
-	registerBoardRoutes(router, dbpool)
+	boards.RegisterBoardRoutes(router, dbpool)
 
 	request := httptest.NewRequest(
 		http.MethodPost,
@@ -260,7 +261,7 @@ func TestCreateBoardRejectsReviewer(t *testing.T) {
 	sourceKey := createTestBoard(t, dbpool, "reviewer-source-board", []string{"registered"})
 
 	router := chi.NewRouter()
-	registerBoardRoutes(router, dbpool)
+	boards.RegisterBoardRoutes(router, dbpool)
 
 	request := httptest.NewRequest(
 		http.MethodPost,
@@ -282,7 +283,7 @@ func TestCreateBoardStage(t *testing.T) {
 	boardKey := createTestBoard(t, dbpool, "stage-create-board", []string{"registered"})
 
 	router := chi.NewRouter()
-	registerBoardRoutes(router, dbpool)
+	boards.RegisterBoardRoutes(router, dbpool)
 
 	request := httptest.NewRequest(
 		http.MethodPost,
@@ -297,7 +298,7 @@ func TestCreateBoardStage(t *testing.T) {
 		t.Fatalf("expected stage create status 200, got %d: %s", response.Code, response.Body.String())
 	}
 
-	var board BoardItem
+	var board boards.BoardItem
 	if err := json.NewDecoder(response.Body).Decode(&board); err != nil {
 		t.Fatalf("failed to decode board: %v", err)
 	}
@@ -305,7 +306,7 @@ func TestCreateBoardStage(t *testing.T) {
 		t.Fatalf("expected appended stage, got %#v", board.Stages)
 	}
 
-	event := loadBoardEvent(t, dbpool, boardKey, boardEventStageCreated)
+	event := loadBoardEvent(t, dbpool, boardKey, "board_stage_created")
 	if event.ActorEmail != user.Email {
 		t.Fatalf("expected stage create event actor %s, got %s", user.Email, event.ActorEmail)
 	}
@@ -321,7 +322,7 @@ func TestRenameBoardStageUpdatesEmails(t *testing.T) {
 	emailID := createBoardTestEmail(t, dbpool, boardKey, "registered")
 
 	router := chi.NewRouter()
-	registerBoardRoutes(router, dbpool)
+	boards.RegisterBoardRoutes(router, dbpool)
 
 	request := httptest.NewRequest(
 		http.MethodPatch,
@@ -344,7 +345,7 @@ func TestRenameBoardStageUpdatesEmails(t *testing.T) {
 		t.Fatalf("expected email stage signup, got %s", stage)
 	}
 
-	event := loadBoardEvent(t, dbpool, boardKey, boardEventStageRenamed)
+	event := loadBoardEvent(t, dbpool, boardKey, "board_stage_renamed")
 	stageChange, ok := event.Changes["stage"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected stage change event, got %#v", event.Changes)
@@ -363,7 +364,7 @@ func TestDeleteBoardStageWritesEvent(t *testing.T) {
 	boardKey := createTestBoard(t, dbpool, "stage-delete-board", []string{"registered", "empty-stage"})
 
 	router := chi.NewRouter()
-	registerBoardRoutes(router, dbpool)
+	boards.RegisterBoardRoutes(router, dbpool)
 
 	request := httptest.NewRequest(http.MethodDelete, "/api/boards/"+boardKey+"/stages/empty-stage", nil)
 	request = withAuthUser(request, user)
@@ -374,7 +375,7 @@ func TestDeleteBoardStageWritesEvent(t *testing.T) {
 		t.Fatalf("expected delete status 200, got %d: %s", response.Code, response.Body.String())
 	}
 
-	event := loadBoardEvent(t, dbpool, boardKey, boardEventStageDeleted)
+	event := loadBoardEvent(t, dbpool, boardKey, "board_stage_deleted")
 	if event.ActorEmail != user.Email {
 		t.Fatalf("expected stage delete event actor %s, got %s", user.Email, event.ActorEmail)
 	}
@@ -390,7 +391,7 @@ func TestDeleteBoardStageRejectsNonEmptyStage(t *testing.T) {
 	createBoardTestEmail(t, dbpool, boardKey, "registered")
 
 	router := chi.NewRouter()
-	registerBoardRoutes(router, dbpool)
+	boards.RegisterBoardRoutes(router, dbpool)
 
 	request := httptest.NewRequest(http.MethodDelete, "/api/boards/"+boardKey+"/stages/registered", nil)
 	request = withAuthUser(request, user)
@@ -408,7 +409,7 @@ func TestReorderBoardStages(t *testing.T) {
 	boardKey := createTestBoard(t, dbpool, "stage-reorder-board", []string{"registered", "qualified", "approved"})
 
 	router := chi.NewRouter()
-	registerBoardRoutes(router, dbpool)
+	boards.RegisterBoardRoutes(router, dbpool)
 
 	request := httptest.NewRequest(
 		http.MethodPatch,
@@ -423,7 +424,7 @@ func TestReorderBoardStages(t *testing.T) {
 		t.Fatalf("expected reorder status 200, got %d: %s", response.Code, response.Body.String())
 	}
 
-	var board BoardItem
+	var board boards.BoardItem
 	if err := json.NewDecoder(response.Body).Decode(&board); err != nil {
 		t.Fatalf("failed to decode board: %v", err)
 	}
@@ -431,7 +432,7 @@ func TestReorderBoardStages(t *testing.T) {
 		t.Fatalf("unexpected stage order: %#v", board.Stages)
 	}
 
-	event := loadBoardEvent(t, dbpool, boardKey, boardEventStagesReordered)
+	event := loadBoardEvent(t, dbpool, boardKey, "board_stages_reordered")
 	stagesChange, ok := event.Changes["stages"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected stages change event, got %#v", event.Changes)
@@ -581,4 +582,21 @@ func loadBoardEvent(t *testing.T, dbpool *pgxpool.Pool, boardKey string, action 
 	}
 
 	return event
+}
+
+func listBoardApprovalAreas(ctx context.Context, dbpool *pgxpool.Pool, boardKey string, includeArchived bool) ([]struct{Key string; Name string}, error) {
+    rows, err := dbpool.Query(ctx, "SELECT key, name FROM board_approval_areas WHERE board_key = $1 AND (archived_at IS NULL OR $2)", boardKey, includeArchived)
+    if err != nil {
+        return nil, err
+    }
+    defer rows.Close()
+    var areas []struct{Key string; Name string}
+    for rows.Next() {
+        var a struct{Key string; Name string}
+        if err := rows.Scan(&a.Key, &a.Name); err != nil {
+            return nil, err
+        }
+        areas = append(areas, a)
+    }
+    return areas, nil
 }

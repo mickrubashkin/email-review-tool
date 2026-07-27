@@ -13,6 +13,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/mickrubashkin/email-review-tool/apps/api/internal/features/boards"
 )
 
 type emailAreaApprovalItem struct {
@@ -130,11 +131,11 @@ func updateEmailAreaApprovalHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
 		}
-		if normalizeApprovalAreaKey(area) == "" {
+		areaKey := boards.NormalizeApprovalAreaKey(area)
+		if areaKey == "" {
 			http.Error(w, "invalid approval area", http.StatusBadRequest)
 			return
 		}
-		area = normalizeApprovalAreaKey(area)
 
 		var request updateEmailAreaApprovalRequest
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {

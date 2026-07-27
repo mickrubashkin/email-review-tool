@@ -1,4 +1,4 @@
-package main
+package boards
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/mickrubashkin/email-review-tool/apps/api/internal/core/auth"
 )
 
 type createBoardRequest struct {
@@ -42,7 +43,7 @@ var (
 	errInvalidStageOrder = errors.New("invalid stage order")
 )
 
-func registerBoardRoutes(r chi.Router, dbpool *pgxpool.Pool) {
+func RegisterBoardRoutes(r chi.Router, dbpool *pgxpool.Pool) {
 	r.Get("/api/boards", listBoardsHandler(dbpool))
 	r.Post("/api/boards", createBoardHandler(dbpool))
 	r.Get("/api/boards/{boardKey}/approval-areas", listBoardApprovalAreasHandler(dbpool))
@@ -169,16 +170,15 @@ func requireAdmin(w http.ResponseWriter, r *http.Request) bool {
 }
 
 func requireAdminUser(w http.ResponseWriter, r *http.Request) (AuthUser, bool) {
-	user, ok := authUserFromContext(r)
+	user, ok := auth.FromRequest(r)
 	if !ok {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return AuthUser{}, false
 	}
-	if !isAdminUser(user) {
+	if !auth.IsAdmin(user) {
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return AuthUser{}, false
 	}
-
 	return user, true
 }
 
@@ -359,6 +359,12 @@ func listBoards(ctx context.Context, dbpool *pgxpool.Pool) ([]BoardItem, error) 
 	}
 
 	return boards, nil
+}
+
+func Exists(ctx context.Context, dbpool *pgxpool.Pool, boardKey string) (bool, error) {
+	var exists bool
+	err := dbpool.QueryRow(ctx, `SELECT exists(SELECT 1 FROM boards WHERE key = $1)`, boardKey).Scan(&exists)
+	return exists, err
 }
 
 func addBoardStage(ctx context.Context, dbpool *pgxpool.Pool, boardKey string, stage string, actor AuthUser) (BoardItem, error) {
@@ -602,24 +608,11 @@ func getBoardForUpdate(ctx context.Context, tx pgx.Tx, boardKey string) (BoardIt
 	return board, nil
 }
 
-func insertBoardEvent(ctx context.Context, db emailEventExecutor, actor AuthUser, action string, board BoardItem, metadata map[string]any, changes map[string]any) error {
-	if metadata == nil {
-		metadata = map[string]any{}
+func insertBoardEvent(ctx context.Context, db EmailEventExecutor, actor AuthUser, action string, board BoardItem, metadata map[string]any, changes map[string]any) error {
+	if Logger == nil {
+		return nil
 	}
-	if _, ok := metadata["board_key"]; !ok {
-		metadata["board_key"] = board.Key
-	}
-	if _, ok := metadata["board_name"]; !ok {
-		metadata["board_name"] = board.Name
-	}
-
-	return insertEmailEvent(ctx, db, emailEvent{
-		ActorUserID: actor.ID,
-		ActorEmail:  actor.Email,
-		Action:      action,
-		Metadata:    metadata,
-		Changes:     changes,
-	})
+	return Logger.LogEvent(ctx, db, actor, action, board, metadata, changes)
 }
 
 func updateBoardStages(ctx context.Context, tx pgx.Tx, boardKey string, stages []string) (BoardItem, error) {

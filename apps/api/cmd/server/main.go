@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
+	"github.com/mickrubashkin/email-review-tool/apps/api/internal/features/boards"
 )
 
 func main() {
@@ -48,7 +49,10 @@ func main() {
 	registerHealthRoute(r, dbpool)
 	registerAuthRoutes(r, dbpool, newLoginCodeEmailSender())
 	registerOperationalRoutes(r, dbpool)
-	registerBoardRoutes(r, dbpool)
+	
+	boards.Logger = serverEventLogger{}
+	boards.RegisterBoardRoutes(r, dbpool)
+	
 	registerEmailRoutes(r, dbpool)
 	registerCommentRoutes(r, dbpool)
 	registerAIRoutes(r, dbpool, aiService)
@@ -78,3 +82,25 @@ func main() {
 		os.Exit(1)
 	}
 }
+
+type serverEventLogger struct{}
+
+func (s serverEventLogger) LogEvent(ctx context.Context, db boards.EmailEventExecutor, actor boards.AuthUser, action string, board boards.BoardItem, metadata map[string]any, changes map[string]any) error {
+	if metadata == nil {
+		metadata = map[string]any{}
+	}
+	if _, ok := metadata["board_key"]; !ok {
+		metadata["board_key"] = board.Key
+	}
+	if _, ok := metadata["board_name"]; !ok {
+		metadata["board_name"] = board.Name
+	}
+	return insertEmailEvent(ctx, db, emailEvent{
+		ActorUserID: actor.ID,
+		ActorEmail:  actor.Email,
+		Action:      action,
+		Metadata:    metadata,
+		Changes:     changes,
+	})
+}
+

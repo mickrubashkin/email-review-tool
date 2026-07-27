@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/mickrubashkin/email-review-tool/apps/api/internal/core/auth"
 )
 
 func TestCommentHandlersCreateListResolve(t *testing.T) {
@@ -49,7 +50,7 @@ func TestCommentHandlersCreateListResolve(t *testing.T) {
 		bytes.NewReader(createBody),
 	)
 	createRequest = createRequest.WithContext(
-		context.WithValue(createRequest.Context(), authUserContextKey, user),
+		auth.WithUser(createRequest.Context(), user),
 	)
 	createResponse := httptest.NewRecorder()
 	router.ServeHTTP(createResponse, createRequest)
@@ -90,7 +91,7 @@ func TestCommentHandlersCreateListResolve(t *testing.T) {
 		bytes.NewReader([]byte(`{"body":"Agreed, let's tighten it."}`)),
 	)
 	replyRequest = replyRequest.WithContext(
-		context.WithValue(replyRequest.Context(), authUserContextKey, user),
+		auth.WithUser(replyRequest.Context(), user),
 	)
 	replyResponse := httptest.NewRecorder()
 	router.ServeHTTP(replyResponse, replyRequest)
@@ -153,7 +154,7 @@ func TestCommentHandlersCreateListResolve(t *testing.T) {
 		bytes.NewReader([]byte(`{"body":"   "}`)),
 	)
 	emptyReplyRequest = emptyReplyRequest.WithContext(
-		context.WithValue(emptyReplyRequest.Context(), authUserContextKey, user),
+		auth.WithUser(emptyReplyRequest.Context(), user),
 	)
 	emptyReplyResponse := httptest.NewRecorder()
 	router.ServeHTTP(emptyReplyResponse, emptyReplyRequest)
@@ -167,7 +168,7 @@ func TestCommentHandlersCreateListResolve(t *testing.T) {
 		nil,
 	)
 	resolveRequest = resolveRequest.WithContext(
-		context.WithValue(resolveRequest.Context(), authUserContextKey, user),
+		auth.WithUser(resolveRequest.Context(), user),
 	)
 	resolveResponse := httptest.NewRecorder()
 	router.ServeHTTP(resolveResponse, resolveRequest)
@@ -219,7 +220,7 @@ func TestCommentHandlersCreateListResolve(t *testing.T) {
 		bytes.NewReader([]byte(`{"body":"Reopening by reply?"}`)),
 	)
 	resolvedReplyRequest = resolvedReplyRequest.WithContext(
-		context.WithValue(resolvedReplyRequest.Context(), authUserContextKey, user),
+		auth.WithUser(resolvedReplyRequest.Context(), user),
 	)
 	resolvedReplyResponse := httptest.NewRecorder()
 	router.ServeHTTP(resolvedReplyResponse, resolvedReplyRequest)

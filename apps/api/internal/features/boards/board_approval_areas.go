@@ -1,4 +1,4 @@
-package main
+package boards
 
 import (
 	"context"
@@ -8,21 +8,12 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type boardApprovalAreaItem struct {
-	ID         string     `json:"id"`
-	Key        string     `json:"key"`
-	Name       string     `json:"name"`
-	Required   bool       `json:"required"`
-	SortOrder  int        `json:"sort_order"`
-	ArchivedAt *time.Time `json:"archived_at"`
-}
 
 type createBoardApprovalAreaRequest struct {
 	Name     string  `json:"name"`
@@ -71,7 +62,7 @@ func createBoardApprovalAreaHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 		if request.Key != nil {
 			keySource = *request.Key
 		}
-		key := normalizeApprovalAreaKey(keySource)
+		key := NormalizeApprovalAreaKey(keySource)
 		if name == "" || key == "" {
 			http.Error(w, "name is required", http.StatusBadRequest)
 			return
@@ -149,7 +140,7 @@ func reorderBoardApprovalAreasHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 		}
 		areaKeys := make([]string, 0, len(request.Areas))
 		for _, area := range request.Areas {
-			areaKey := normalizeApprovalAreaKey(area)
+			areaKey := NormalizeApprovalAreaKey(area)
 			if areaKey == "" {
 				http.Error(w, "areas must not contain empty values", http.StatusBadRequest)
 				return
@@ -168,7 +159,7 @@ func reorderBoardApprovalAreasHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 	}
 }
 
-func listBoardApprovalAreas(ctx context.Context, db pgxExecutor, boardKey string, includeArchived bool) ([]boardApprovalAreaItem, error) {
+func listBoardApprovalAreas(ctx context.Context, db pgxExecutor, boardKey string, includeArchived bool) ([]BoardApprovalAreaItem, error) {
 	archivedFilter := "AND board_approval_areas.archived_at IS NULL"
 	if includeArchived {
 		archivedFilter = ""
@@ -193,9 +184,9 @@ func listBoardApprovalAreas(ctx context.Context, db pgxExecutor, boardKey string
 	}
 	defer rows.Close()
 
-	areas := []boardApprovalAreaItem{}
+	areas := []BoardApprovalAreaItem{}
 	for rows.Next() {
-		var area boardApprovalAreaItem
+		var area BoardApprovalAreaItem
 		if err := rows.Scan(&area.ID, &area.Key, &area.Name, &area.Required, &area.SortOrder, &area.ArchivedAt); err != nil {
 			return nil, err
 		}
@@ -216,16 +207,16 @@ func listBoardApprovalAreas(ctx context.Context, db pgxExecutor, boardKey string
 	return areas, nil
 }
 
-func createBoardApprovalArea(ctx context.Context, dbpool *pgxpool.Pool, boardKey string, areaKey string, name string, required bool, actor AuthUser) (boardApprovalAreaItem, error) {
+func createBoardApprovalArea(ctx context.Context, dbpool *pgxpool.Pool, boardKey string, areaKey string, name string, required bool, actor AuthUser) (BoardApprovalAreaItem, error) {
 	tx, err := dbpool.Begin(ctx)
 	if err != nil {
-		return boardApprovalAreaItem{}, err
+		return BoardApprovalAreaItem{}, err
 	}
 	defer tx.Rollback(ctx)
 
 	board, err := getBoardForUpdate(ctx, tx, boardKey)
 	if err != nil {
-		return boardApprovalAreaItem{}, err
+		return BoardApprovalAreaItem{}, err
 	}
 
 	var approvalAreaID string
@@ -235,15 +226,15 @@ func createBoardApprovalArea(ctx context.Context, dbpool *pgxpool.Pool, boardKey
 		ON CONFLICT (key) DO UPDATE SET updated_at = now()
 		RETURNING id;
 	`, areaKey, name).Scan(&approvalAreaID); err != nil {
-		return boardApprovalAreaItem{}, err
+		return BoardApprovalAreaItem{}, err
 	}
 
 	nextSortOrder, err := nextBoardApprovalAreaSortOrder(ctx, tx, board.ID)
 	if err != nil {
-		return boardApprovalAreaItem{}, err
+		return BoardApprovalAreaItem{}, err
 	}
 
-	var area boardApprovalAreaItem
+	var area BoardApprovalAreaItem
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO board_approval_areas (
 			board_id,
@@ -272,7 +263,7 @@ func createBoardApprovalArea(ctx context.Context, dbpool *pgxpool.Pool, boardKey
 		&area.SortOrder,
 		&area.ArchivedAt,
 	); err != nil {
-		return boardApprovalAreaItem{}, err
+		return BoardApprovalAreaItem{}, err
 	}
 
 	if err := insertBoardEvent(ctx, tx, actor, boardEventApprovalAreaCreated, board, map[string]any{
@@ -285,40 +276,40 @@ func createBoardApprovalArea(ctx context.Context, dbpool *pgxpool.Pool, boardKey
 			"after":  area,
 		},
 	}); err != nil {
-		return boardApprovalAreaItem{}, err
+		return BoardApprovalAreaItem{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
-		return boardApprovalAreaItem{}, err
+		return BoardApprovalAreaItem{}, err
 	}
 
 	return area, nil
 }
 
-func updateBoardApprovalArea(ctx context.Context, dbpool *pgxpool.Pool, boardKey string, areaKey string, request updateBoardApprovalAreaRequest, actor AuthUser) (boardApprovalAreaItem, error) {
-	areaKey = normalizeApprovalAreaKey(areaKey)
+func updateBoardApprovalArea(ctx context.Context, dbpool *pgxpool.Pool, boardKey string, areaKey string, request updateBoardApprovalAreaRequest, actor AuthUser) (BoardApprovalAreaItem, error) {
+	areaKey = NormalizeApprovalAreaKey(areaKey)
 	if areaKey == "" {
-		return boardApprovalAreaItem{}, errApprovalAreaNotFound
+		return BoardApprovalAreaItem{}, errApprovalAreaNotFound
 	}
 	tx, err := dbpool.Begin(ctx)
 	if err != nil {
-		return boardApprovalAreaItem{}, err
+		return BoardApprovalAreaItem{}, err
 	}
 	defer tx.Rollback(ctx)
 
 	board, err := getBoardForUpdate(ctx, tx, boardKey)
 	if err != nil {
-		return boardApprovalAreaItem{}, err
+		return BoardApprovalAreaItem{}, err
 	}
 	current, err := getBoardApprovalAreaForUpdate(ctx, tx, board.ID, areaKey)
 	if err != nil {
-		return boardApprovalAreaItem{}, err
+		return BoardApprovalAreaItem{}, err
 	}
 
 	name := current.Name
 	if request.Name != nil {
 		name = strings.TrimSpace(*request.Name)
 		if name == "" {
-			return boardApprovalAreaItem{}, errInvalidApprovalArea
+			return BoardApprovalAreaItem{}, errInvalidApprovalArea
 		}
 	}
 	required := current.Required
@@ -334,7 +325,7 @@ func updateBoardApprovalArea(ctx context.Context, dbpool *pgxpool.Pool, boardKey
 		}
 	}
 
-	var updated boardApprovalAreaItem
+	var updated BoardApprovalAreaItem
 	if err := tx.QueryRow(ctx, `
 		UPDATE board_approval_areas
 		SET name = $3,
@@ -354,7 +345,7 @@ func updateBoardApprovalArea(ctx context.Context, dbpool *pgxpool.Pool, boardKey
 		&updated.SortOrder,
 		&updated.ArchivedAt,
 	); err != nil {
-		return boardApprovalAreaItem{}, err
+		return BoardApprovalAreaItem{}, err
 	}
 
 	eventAction := boardEventApprovalAreaUpdated
@@ -379,23 +370,23 @@ func updateBoardApprovalArea(ctx context.Context, dbpool *pgxpool.Pool, boardKey
 			"after":  updated.ArchivedAt != nil,
 		},
 	}); err != nil {
-		return boardApprovalAreaItem{}, err
+		return BoardApprovalAreaItem{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
-		return boardApprovalAreaItem{}, err
+		return BoardApprovalAreaItem{}, err
 	}
 
 	return updated, nil
 }
 
-func archiveBoardApprovalArea(ctx context.Context, dbpool *pgxpool.Pool, boardKey string, areaKey string, actor AuthUser) (boardApprovalAreaItem, error) {
+func archiveBoardApprovalArea(ctx context.Context, dbpool *pgxpool.Pool, boardKey string, areaKey string, actor AuthUser) (BoardApprovalAreaItem, error) {
 	archived := true
 	return updateBoardApprovalArea(ctx, dbpool, boardKey, areaKey, updateBoardApprovalAreaRequest{
 		Archived: &archived,
 	}, actor)
 }
 
-func reorderBoardApprovalAreas(ctx context.Context, dbpool *pgxpool.Pool, boardKey string, areaKeys []string, actor AuthUser) ([]boardApprovalAreaItem, error) {
+func reorderBoardApprovalAreas(ctx context.Context, dbpool *pgxpool.Pool, boardKey string, areaKeys []string, actor AuthUser) ([]BoardApprovalAreaItem, error) {
 	tx, err := dbpool.Begin(ctx)
 	if err != nil {
 		return nil, err
@@ -485,8 +476,8 @@ func nextBoardApprovalAreaSortOrder(ctx context.Context, db pgxExecutor, boardID
 	return sortOrder, err
 }
 
-func getBoardApprovalAreaForUpdate(ctx context.Context, tx pgx.Tx, boardID string, areaKey string) (boardApprovalAreaItem, error) {
-	var area boardApprovalAreaItem
+func getBoardApprovalAreaForUpdate(ctx context.Context, tx pgx.Tx, boardID string, areaKey string) (BoardApprovalAreaItem, error) {
+	var area BoardApprovalAreaItem
 	err := tx.QueryRow(ctx, `
 		SELECT
 			board_approval_areas.id,
@@ -509,16 +500,16 @@ func getBoardApprovalAreaForUpdate(ctx context.Context, tx pgx.Tx, boardID strin
 		&area.ArchivedAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return boardApprovalAreaItem{}, errApprovalAreaNotFound
+		return BoardApprovalAreaItem{}, errApprovalAreaNotFound
 	}
 	if err != nil {
-		return boardApprovalAreaItem{}, err
+		return BoardApprovalAreaItem{}, err
 	}
 
 	return area, nil
 }
 
-func sameApprovalAreaSet(current []boardApprovalAreaItem, next []string) bool {
+func sameApprovalAreaSet(current []BoardApprovalAreaItem, next []string) bool {
 	if len(current) != len(next) {
 		return false
 	}
@@ -535,7 +526,7 @@ func sameApprovalAreaSet(current []boardApprovalAreaItem, next []string) bool {
 	return true
 }
 
-func normalizeApprovalAreaKey(value string) string {
+func NormalizeApprovalAreaKey(value string) string {
 	return normalizeAdaptationKey(value)
 }
 

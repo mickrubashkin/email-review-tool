@@ -12,6 +12,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/mickrubashkin/email-review-tool/apps/api/internal/core/auth"
 )
 
 type createEmailCommentRequest struct {
@@ -548,6 +549,5 @@ func attachCommentMessages(ctx context.Context, dbpool *pgxpool.Pool, comments [
 }
 
 func authUserFromContext(r *http.Request) (AuthUser, bool) {
-	user, ok := r.Context().Value(authUserContextKey).(AuthUser)
-	return user, ok
+	return auth.FromRequest(r)
 }

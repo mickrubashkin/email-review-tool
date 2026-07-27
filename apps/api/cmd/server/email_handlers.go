@@ -22,6 +22,7 @@ import (
 	"github.com/mickrubashkin/email-review-tool/apps/api/internal/emailedit"
 	"github.com/mickrubashkin/email-review-tool/apps/api/internal/emailreview"
 	"github.com/mickrubashkin/email-review-tool/apps/api/internal/emailtext"
+	"github.com/mickrubashkin/email-review-tool/apps/api/internal/features/boards"
 	xhtml "golang.org/x/net/html"
 )
 
@@ -309,7 +310,7 @@ func createEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			http.Error(w, "title, stage, and original_html are required", http.StatusBadRequest)
 			return
 		}
-		exists, err := boardExists(r.Context(), dbpool, sequence)
+		exists, err := boards.Exists(r.Context(), dbpool, sequence)
 		if err != nil {
 			http.Error(w, "failed to validate board", http.StatusInternalServerError)
 			return
@@ -1282,7 +1283,7 @@ func duplicateEmailAsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			http.Error(w, "board is required", http.StatusBadRequest)
 			return
 		}
-		exists, err := boardExists(r.Context(), dbpool, sequence)
+		exists, err := boards.Exists(r.Context(), dbpool, sequence)
 		if err != nil {
 			http.Error(w, "failed to validate board", http.StatusInternalServerError)
 			return

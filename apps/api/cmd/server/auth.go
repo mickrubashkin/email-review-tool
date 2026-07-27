@@ -20,14 +20,13 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/mickrubashkin/email-review-tool/apps/api/internal/core/auth"
 )
 
 const sessionCookieName = "email_review_session"
 const demoLoginEmail = "demo-reviewer@example.com"
 
-type authContextKey string
-
-const authUserContextKey authContextKey = "auth_user"
+// Context key moved to core/auth
 
 type authRequest struct {
 	Email string `json:"email"`
@@ -68,7 +67,7 @@ func authMiddleware(dbpool *pgxpool.Pool) func(http.Handler) http.Handler {
 			}
 			touchUserLastSeen(r.Context(), dbpool, user)
 
-			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), authUserContextKey, user)))
+			next.ServeHTTP(w, r.WithContext(auth.WithUser(r.Context(), user)))
 		})
 	}
 }
@@ -672,15 +671,15 @@ func updateAdminUserRoleHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 }
 
 func isAdminUser(user AuthUser) bool {
-	return user.Role == "admin" || user.Role == "super_admin"
+	return auth.IsAdmin(user)
 }
 
 func isSuperAdminUser(user AuthUser) bool {
-	return user.Role == "super_admin"
+	return auth.IsSuperAdmin(user)
 }
 
 func isValidUserRole(role string) bool {
-	return role == "super_admin" || role == "admin" || role == "reviewer"
+	return auth.IsValidRole(role)
 }
 
 func canCreateUserRole(actor AuthUser, role string) bool {
@@ -890,4 +889,13 @@ func demoLoginEnabled() bool {
 func writeAuthOK(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]bool{"ok": true})
+}
+
+func requireAdmin(w http.ResponseWriter, r *http.Request) bool {
+	user, ok := auth.FromRequest(r)
+	if !ok || !auth.IsAdmin(user) {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return false
+	}
+	return true
 }
