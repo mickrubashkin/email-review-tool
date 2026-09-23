@@ -5,7 +5,7 @@ COPY . .
 WORKDIR /repo/apps/api
 
 RUN go mod download
-RUN GOBIN=/out go install github.com/pressly/goose/v3/cmd/goose@latest
+RUN mkdir -p /out && CGO_ENABLED=0 GOOS=linux GOBIN=/out go install github.com/pressly/goose/v3/cmd/goose@v3.24.1
 
 RUN CGO_ENABLED=0 GOOS=linux go build -o /out/server ./cmd/server
 RUN CGO_ENABLED=0 GOOS=linux go build -o /out/seed ./cmd/seed
