@@ -1,7 +1,7 @@
 @baseUrl = http://localhost:8080
 @emailId = 4b94413a-52a5-4dcf-b89b-a71078225531
 @commentId = c6756b12-a013-4f50-a35a-28a2822d5102
-@session = l2MCkiqUHnNdwSzwrWHbZQ6aNBnkk1MDef0_y04Zc_k
+@session = your_session_cookie_token_here
 
 ### Health
 GET {{baseUrl}}/health

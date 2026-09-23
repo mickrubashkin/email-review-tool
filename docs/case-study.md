@@ -41,17 +41,8 @@ The intended demo story is:
 - Direct SQL keeps the backend explicit and easy to inspect, while a future `sqlc` migration can add type safety around the highest-risk query paths.
 - The app uses frontend polling for comments instead of WebSocket/SSE because the current workflow does not need a full realtime collaboration layer.
 - ReviewDesk avoids becoming a full email builder; template-backed edits preserve source HTML and keep implementation handoff predictable.
-- The portfolio finish prioritizes reproducible checks, demo data, and documentation before broader product expansion.
+- Engineering priorities focus on reproducible checks, demo datasets, and clear documentation before broader feature expansion.
 
 ## Result
 
 ReviewDesk demonstrates a complete product-engineering slice: authenticated workflow software, PostgreSQL-backed domain state, review anchoring, approval gates, version-aware editing, AI-assisted analysis, and production handoff. The public demo uses disposable synthetic data so the workflow can be shown without exposing production content.
-
-## Assets To Capture
-
-- Board overview with stages and email variants.
-- Review screen with anchored comments.
-- Editable fields or version history after a content change.
-- Approval matrix with stale or pending areas.
-- Production handoff package.
-- AI analysis or AI logs, if configured for the demo.

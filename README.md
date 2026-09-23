@@ -1,6 +1,6 @@
 # ReviewDesk
 
-Portfolio-grade product engineering project for reviewing HTML email journeys.
+A collaborative review and approval workspace for HTML email sequences and lifecycle journeys.
 
 ReviewDesk is a focused review and approval layer for HTML email sequences before they are implemented in CRM, ESP, messaging, or other publishing systems. It keeps comments attached to reviewed content, makes approvals auditable, and helps teams hand off final approved assets without turning the product into a full email builder.
 
@@ -21,8 +21,6 @@ ReviewDesk is a focused review and approval layer for HTML email sequences befor
 4. Edit template-backed copy or planning metadata as an admin.
 5. Show approvals becoming stale after content changes, then re-approve required areas.
 6. Inspect the production handoff package.
-
-Demo screenshots/video are planned after the seeded demo path is finalized.
 
 ## Stack
 

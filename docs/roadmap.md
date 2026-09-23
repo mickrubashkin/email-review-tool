@@ -1,29 +1,29 @@
 # ReviewDesk Roadmap
 
-ReviewDesk is now being finished as a portfolio-ready product-engineering case study, not expanded as an open-ended product backlog.
+ReviewDesk focuses on an explicit review and approval workflow for staged HTML email sequences rather than open-ended authoring.
 
-## Finish Line
+## Milestones
 
-- [x] Demo data: disposable synthetic `demo-onboarding` board with 60 emails, comments, approvals, stale states, and handoff examples.
-- [ ] Demo recording path: board -> review -> comment -> edit -> stale approval -> re-approval -> handoff.
-- [x] Basic checks: top-level `make lint`, `make test-api`, `make test-web`, and GitHub Actions.
-- [ ] Demo polish: destructive-action confirmations and centralized session-expired recovery.
-- [ ] Engineering showcase: complete one focused backend improvement, preferably AI architecture maturity or a small `sqlc` migration.
-- [ ] Portfolio packaging: screenshots, short demo video, and final case-study polish.
+- [x] Disposable synthetic demo dataset (`demo-onboarding` board with emails, comments, approval gates, stale states, and handoff packages).
+- [x] Continuous integration checks: top-level `make lint`, `make test-api`, `make test-web`, and GitHub Actions.
+- [ ] Safety controls: confirmation before deleting board stages or archiving approval areas.
+- [ ] Centralized authentication lifecycle handling (session-expired recovery and reconnects).
+- [ ] AI architecture enhancements: structured AI logs, prompt versioning, and evaluation fixtures.
+- [ ] Type-safe query migration: introduce `sqlc` for high-integrity workflows (approval gates and area approvals).
 
-## Keep In Scope
+## In Scope
 
 - Review context attached to HTML email content.
 - Explicit approvals and stale approval behavior after edits.
 - Production handoff for approved assets.
 - AI-assisted review of email effectiveness inside the journey.
-- Small, defensible engineering improvements.
+- Bounded, high-impact backend engineering improvements.
 
 ## Out Of Scope
 
-- Full email builder.
-- Workspaces or billing.
-- CRM/ESP publishing integrations.
+- Full email builder / WYSIWYG canvas.
+- Multi-tenant workspaces and billing.
+- Direct CRM/ESP publishing integrations.
 - MJML authoring.
 - Broad permission-model redesign.
 - Full visual redesign.
