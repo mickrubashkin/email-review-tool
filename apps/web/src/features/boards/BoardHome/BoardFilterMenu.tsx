@@ -1,6 +1,7 @@
 import {
   ActionIcon,
   Badge,
+  Button,
   Menu,
   SegmentedControl,
   Select,
@@ -9,19 +10,25 @@ import {
 import {
   MagnifyingGlassIcon,
   SlidersHorizontalIcon,
+  UserIcon,
   XIcon,
 } from "@phosphor-icons/react";
 
 import { emailReviewStatusOptions } from "../../emails/reviewStatus";
+import type { AuthUser } from "../../emails/types";
 
 import type { BoardFilterOptions, BoardFilters } from "./BoardHome.types";
+import { FilteredExportItems } from "./FilteredExportItems";
+import type { FilteredExport } from "./useFilteredExport";
 import styles from "../../../App.module.css";
 
 export function BoardFilterMenu({
   activeBoardFilterCount,
   boardFilterOptions,
   boardFilters,
+  filteredExport,
   hasBoardFilters,
+  isAdmin,
   openCommentEmailCount,
   onBoardFilterChange,
   onResetBoardFilters,
@@ -29,7 +36,9 @@ export function BoardFilterMenu({
   activeBoardFilterCount: number;
   boardFilterOptions: BoardFilterOptions;
   boardFilters: BoardFilters;
+  filteredExport: FilteredExport;
   hasBoardFilters: boolean;
+  isAdmin: boolean;
   openCommentEmailCount: number;
   onBoardFilterChange: (key: keyof BoardFilters, value: string | null) => void;
   onResetBoardFilters: () => void;
@@ -82,8 +91,66 @@ export function BoardFilterMenu({
             </Menu.Item>
           </>
         ) : null}
+
+        {isAdmin ? (
+          <>
+            <Menu.Divider />
+            <FilteredExportItems filteredExport={filteredExport} />
+          </>
+        ) : null}
       </Menu.Dropdown>
     </Menu>
+  );
+}
+
+function myEmailsFilterKey(currentUser: AuthUser) {
+  return currentUser.role === "reviewer" ? "reviewer" : "owner";
+}
+
+function findMyFilterValue(
+  currentUser: AuthUser,
+  boardFilterOptions: BoardFilterOptions
+) {
+  const options =
+    myEmailsFilterKey(currentUser) === "reviewer"
+      ? boardFilterOptions.reviewers
+      : boardFilterOptions.owners;
+  const myEmail = currentUser.email.trim().toLowerCase();
+
+  return (
+    options.find((option) => option.value.toLowerCase() === myEmail)?.value ??
+    currentUser.email
+  );
+}
+
+export function MyEmailsToggle({
+  boardFilterOptions,
+  boardFilters,
+  currentUser,
+  fullWidth = false,
+  onBoardFilterChange,
+}: {
+  boardFilterOptions: BoardFilterOptions;
+  boardFilters: BoardFilters;
+  currentUser: AuthUser;
+  fullWidth?: boolean;
+  onBoardFilterChange: (key: keyof BoardFilters, value: string | null) => void;
+}) {
+  const key = myEmailsFilterKey(currentUser);
+  const myValue = findMyFilterValue(currentUser, boardFilterOptions);
+  const active = boardFilters[key].toLowerCase() === myValue.toLowerCase();
+
+  return (
+    <Button
+      aria-pressed={active}
+      fullWidth={fullWidth}
+      leftSection={<UserIcon aria-hidden="true" size={16} />}
+      size={fullWidth ? "xs" : "sm"}
+      variant={active ? "filled" : "white"}
+      onClick={() => onBoardFilterChange(key, active ? null : myValue)}
+    >
+      My emails
+    </Button>
   );
 }
 
