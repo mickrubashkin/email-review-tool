@@ -38,3 +38,31 @@ export function saveBoardAIConfig(
 export function resetBoardAIConfig(boardKey: string): Promise<void> {
   return fetchJson<void>(configURL(boardKey), { method: "DELETE" });
 }
+
+export type BoardAIExportPayload = {
+  email_ids: string[];
+  include_board: boolean;
+  include_ai_setup: boolean;
+  email_sections: string[];
+  open_comments_only: boolean;
+};
+
+export type BoardAIExportResult = {
+  markdown: string;
+  email_count: number;
+  file_name: string;
+};
+
+export function exportBoardForAI(
+  boardKey: string,
+  payload: BoardAIExportPayload
+): Promise<BoardAIExportResult> {
+  return fetchJson<BoardAIExportResult>(
+    `/api/boards/${encodeURIComponent(boardKey)}/ai-export`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }
+  );
+}

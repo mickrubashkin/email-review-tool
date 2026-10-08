@@ -35,6 +35,7 @@ import {
 } from "./BoardHome.storage";
 import { BoardHeader } from "./BoardHeader";
 import { CreateBoardModal } from "./CreateBoardModal";
+import { BoardAIExportModal } from "./BoardAIExportModal";
 import { useFilteredExport } from "./useFilteredExport";
 import { ManageStagesModal } from "./ManageStagesModal";
 import { useBoardHomeData } from "./useBoardHomeData";
@@ -158,6 +159,7 @@ function EmailBoardApp({
   >;
 }) {
   const navigate = useNavigate();
+  const [aiExportOpened, setAiExportOpened] = useState(false);
   const {
     activeBoard,
     activeBoardFilterCount,
@@ -254,6 +256,7 @@ function EmailBoardApp({
           onBoardFilterChange={updateBoardFilter}
           onBoardSearchQueryChange={onBoardSearchQueryChange}
           onCreateBoard={() => setCreateBoardModalOpened(true)}
+          onExportForAI={() => setAiExportOpened(true)}
           onHandoffFiltersChange={setHandoffFilters}
           onLogout={onLogout}
           onManageStages={() => setManageStagesModalOpened(true)}
@@ -301,6 +304,14 @@ function EmailBoardApp({
       </AppShell.Main>
 
       {isAdmin ? filteredExport.dialog : null}
+
+      {aiExportOpened && activeBoard && emailsQuery.data ? (
+        <BoardAIExportModal
+          board={activeBoard}
+          emails={emailsQuery.data}
+          onClose={() => setAiExportOpened(false)}
+        />
+      ) : null}
 
       {createBoardModalOpened && activeBoard ? (
         <CreateBoardModal

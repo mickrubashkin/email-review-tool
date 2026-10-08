@@ -20,10 +20,12 @@ import styles from "../../../App.module.css";
 export function SettingsMenu({
   currentUser,
   onCreateBoard,
+  onExportForAI,
   onManageStages,
 }: {
   currentUser: AuthUser;
   onCreateBoard: () => void;
+  onExportForAI: () => void;
   onManageStages: () => void;
 }) {
   return (
@@ -49,6 +51,9 @@ export function SettingsMenu({
         >
           Board settings
         </Menu.Item>
+        {currentUser.role === "super_admin" ? (
+          <Menu.Item onClick={onExportForAI}>Export for AI</Menu.Item>
+        ) : null}
         <Menu.Divider />
         <OperationsMenuItems currentUser={currentUser} includeDividers />
       </Menu.Dropdown>

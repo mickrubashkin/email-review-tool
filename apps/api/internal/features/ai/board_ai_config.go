@@ -66,6 +66,7 @@ func registerBoardAIConfigRoutes(r chi.Router, dbpool *pgxpool.Pool, aiService A
 	r.Get("/api/boards/{boardKey}/ai-config", getBoardAIConfigHandler(dbpool, aiService))
 	r.Put("/api/boards/{boardKey}/ai-config", putBoardAIConfigHandler(dbpool))
 	r.Delete("/api/boards/{boardKey}/ai-config", deleteBoardAIConfigHandler(dbpool))
+	r.Post("/api/boards/{boardKey}/ai-export", exportBoardForAIHandler(dbpool, aiService))
 }
 
 func requireSuperAdmin(w http.ResponseWriter, r *http.Request) (AuthUser, bool) {

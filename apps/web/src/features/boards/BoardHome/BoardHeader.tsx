@@ -68,6 +68,7 @@ type BoardHeaderProps = {
   onBoardFilterChange: (key: keyof BoardFilters, value: string | null) => void;
   onBoardSearchQueryChange: (query: string) => void;
   onCreateBoard: () => void;
+  onExportForAI: () => void;
   onHandoffFiltersChange: Dispatch<SetStateAction<HandoffFilters>>;
   onLogout: () => void;
   onManageStages: () => void;
@@ -102,6 +103,7 @@ export function BoardHeader({
   onBoardFilterChange,
   onBoardSearchQueryChange,
   onCreateBoard,
+  onExportForAI,
   onHandoffFiltersChange,
   onLogout,
   onManageStages,
@@ -149,6 +151,7 @@ export function BoardHeader({
           onBoardFilterChange={onBoardFilterChange}
           onBoardSearchQueryChange={onBoardSearchQueryChange}
           onCreateBoard={onCreateBoard}
+          onExportForAI={onExportForAI}
           onHandoffFiltersChange={onHandoffFiltersChange}
           onLogout={onLogout}
           onManageStages={onManageStages}
@@ -198,6 +201,7 @@ export function BoardHeader({
               <SettingsMenu
                 currentUser={currentUser}
                 onCreateBoard={onCreateBoard}
+                onExportForAI={onExportForAI}
                 onManageStages={onManageStages}
               />
             ) : null}
@@ -247,6 +251,7 @@ function CompactHeaderMenu({
   onBoardFilterChange,
   onBoardSearchQueryChange,
   onCreateBoard,
+  onExportForAI,
   onHandoffFiltersChange,
   onLogout,
   onManageStages,
@@ -363,6 +368,9 @@ function CompactHeaderMenu({
                 >
                   Board settings
                 </Menu.Item>
+                {currentUser.role === "super_admin" ? (
+                  <Menu.Item onClick={onExportForAI}>Export for AI</Menu.Item>
+                ) : null}
                 <Menu.Divider />
                 <OperationsMenuItems currentUser={currentUser} />
               </>
