@@ -41,5 +41,6 @@ ReviewDesk is an internal tool for reviewing HTML email sequences. Go backend (C
 ## Code conventions
 - Handlers are thin; business logic stays in helpers/services.
 - Direct SQL queries, no ORM.
-- Keep changes focused, avoid adding new dependencies unless strictly necessary.
+- Keep changes focused.
+- Dependencies: prefer a good, well-maintained existing library over a hand-written solution. Priority is maximum functionality with minimum pain, not a minimal dependency list. Still prefer what the stack already uses (Mantine, TanStack, Chi, pgx) when it covers the need.
 - Approval gates: an email cannot be approved while there are open blocking comments or pending required area approvals.

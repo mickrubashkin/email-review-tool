@@ -15,6 +15,19 @@ import (
 
 var templateMarkerPattern = regexp.MustCompile(`\{\{\s*([a-zA-Z0-9_:-]+)\s*\}\}`)
 
+// bitrixExpressionPattern matches Bitrix24 template expressions such as
+// {{=date('Y')}}, which must reach the CRM robot byte-for-byte.
+var bitrixExpressionPattern = regexp.MustCompile(`\{\{=[^{}]*\}\}`)
+
+// invisibleCharEntities keeps characters that email HTML relies on (e.g. the
+// preheader filler) as entities: the Bitrix24 editor drops them when pasted raw.
+var invisibleCharEntities = strings.NewReplacer(
+	"\u200c", "&zwnj;",
+	"\u200b", "&#8203;",
+	"\u00a0", "&nbsp;",
+	"\u00ad", "&shy;",
+)
+
 type RenderMetadata struct {
 	Preheader string
 }
@@ -39,7 +52,16 @@ func RenderEditableHTMLWithMetadata(templateHTML string, fields EditableFields, 
 		return "", err
 	}
 
-	return replaceTemplateMarkers(out.String(), fields)
+	rendered, err := replaceTemplateMarkers(out.String(), fields)
+	if err != nil {
+		return "", err
+	}
+	return emailSafeOutput(rendered), nil
+}
+
+func emailSafeOutput(rendered string) string {
+	rendered = invisibleCharEntities.Replace(rendered)
+	return bitrixExpressionPattern.ReplaceAllStringFunc(rendered, html.UnescapeString)
 }
 
 func renderMetadataTargets(node *xhtml.Node, metadata RenderMetadata) {
