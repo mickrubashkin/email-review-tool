@@ -101,6 +101,9 @@ export function OperationsMenuItems({
           <Menu.Item component={Link} to="/admin/email-events">
             Email events
           </Menu.Item>
+          <Menu.Item component={Link} to="/admin/ai-config">
+            AI rules
+          </Menu.Item>
         </>
       ) : null}
       {currentUser.role === "admin" || currentUser.role === "super_admin" ? (

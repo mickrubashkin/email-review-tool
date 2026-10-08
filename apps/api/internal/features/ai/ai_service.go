@@ -13,6 +13,7 @@ type AIAnalysisService struct {
 	APIKey           string
 	Model            string
 	ResponseLanguage string
+	Instruction      string
 	ReviewRules      string
 	SequenceContext  string
 	Client           *http.Client

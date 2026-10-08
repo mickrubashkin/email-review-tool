@@ -15,6 +15,7 @@ import (
 )
 
 func RegisterAIRoutes(r chi.Router, dbpool *pgxpool.Pool, aiService AIAnalysisService) {
+	registerBoardAIConfigRoutes(r, dbpool, aiService)
 	r.Get("/api/ai-analysis-logs", listAIAnalysisLogsHandler(dbpool))
 	r.Get("/api/emails/{id}/ai-analysis", getCachedEmailAnalysisHandler(dbpool, aiService))
 	r.Post("/api/emails/{id}/ai-analysis", analyzeEmailHandler(dbpool, aiService))
@@ -36,6 +37,7 @@ func getCachedEmailAnalysisHandler(dbpool *pgxpool.Pool, aiService AIAnalysisSer
 			http.Error(w, "email not found", http.StatusNotFound)
 			return
 		}
+		aiService = aiService.withBoardConfig(r.Context(), dbpool, email.Sequence)
 
 		cachedAnalysis, ok := cachedAnalysisOrLogError(r, dbpool, email, aiService)
 		if !ok {
@@ -106,6 +108,7 @@ func debugAIAnalysisHandler(dbpool *pgxpool.Pool, aiService AIAnalysisService) h
 			http.Error(w, "email not found", http.StatusNotFound)
 			return
 		}
+		aiService = aiService.withBoardConfig(r.Context(), dbpool, email.Sequence)
 
 		debugPayload, err := buildAIAnalysisDebugPayload(aiService, email)
 		if err != nil {
@@ -160,6 +163,7 @@ func analyzeEmailHandler(dbpool *pgxpool.Pool, aiService AIAnalysisService) http
 			http.Error(w, "email not found", http.StatusNotFound)
 			return
 		}
+		aiService = aiService.withBoardConfig(r.Context(), dbpool, email.Sequence)
 
 		if cachedAnalysis, ok := cachedAnalysisOrLogError(r, dbpool, email, aiService); ok {
 			w.Header().Set("Content-Type", "application/json")
@@ -202,6 +206,7 @@ func analyzeEmailStreamHandler(dbpool *pgxpool.Pool, aiService AIAnalysisService
 			http.Error(w, "email not found", http.StatusNotFound)
 			return
 		}
+		aiService = aiService.withBoardConfig(r.Context(), dbpool, email.Sequence)
 
 		w.Header().Set("Content-Type", "text/event-stream; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-cache")

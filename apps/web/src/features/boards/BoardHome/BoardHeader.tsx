@@ -35,6 +35,7 @@ import {
   SettingsMenu,
   UserMenuLabel,
 } from "./BoardUserMenus";
+import { AppVersionInfo } from "./AppVersionInfo";
 import { FilteredExportItems } from "./FilteredExportItems";
 import type { FilteredExport } from "./useFilteredExport";
 import { HandoffMenuContent } from "./HandoffMenu";
@@ -192,6 +193,7 @@ export function BoardHeader({
           </Group>
 
           <Group className={styles.headerActions} gap="xs" wrap="nowrap">
+            {currentUser.role === "super_admin" ? <AppVersionInfo onDark /> : null}
             {isAdmin ? (
               <SettingsMenu
                 currentUser={currentUser}
@@ -343,6 +345,11 @@ function CompactHeaderMenu({
             />
             <Menu.Divider />
             <UserMenuLabel currentUser={currentUser} />
+            {currentUser.role === "super_admin" ? (
+              <Menu.Label>
+                <AppVersionInfo />
+              </Menu.Label>
+            ) : null}
             {isAdmin ? (
               <>
                 <Menu.Divider />

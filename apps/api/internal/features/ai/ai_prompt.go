@@ -12,6 +12,14 @@ import (
 
 const aiAnalysisSchemaVersion = "email-analysis-schema-v4"
 
+// Appended only when set so prompts without a board config keep their hash.
+func instructionHashPart(instruction string) string {
+	if instruction == "" {
+		return ""
+	}
+	return "\x00" + instruction
+}
+
 func (service AIAnalysisService) PromptHash() string {
 	hash := sha256.Sum256([]byte(strings.Join([]string{
 		service.Model,
@@ -19,7 +27,7 @@ func (service AIAnalysisService) PromptHash() string {
 		service.ReviewRules,
 		service.SequenceContext,
 		aiAnalysisSchemaVersion,
-	}, "\x00")))
+	}, "\x00") + instructionHashPart(service.Instruction)))
 
 	return hex.EncodeToString(hash[:])
 }
@@ -43,11 +51,17 @@ func (service AIAnalysisService) buildOpenAIAnalysisRequestBody(email EmailDetai
 	}
 }
 
-func (service AIAnalysisService) analysisInstructions() string {
-	return fmt.Sprintf(strings.TrimSpace(`
-You are an email copy reviewer for partner onboarding sequences.
+const defaultAIInstructionHead = `You are an email copy reviewer for partner onboarding sequences.
 Use the provided review rules and onboarding sequence context.
-Review only email text and metadata.
+Review only email text and metadata.`
+
+func (service AIAnalysisService) analysisInstructions() string {
+	head := defaultAIInstructionHead
+	if strings.TrimSpace(service.Instruction) != "" {
+		head = strings.TrimSpace(service.Instruction)
+	}
+
+	return head + "\n" + fmt.Sprintf(strings.TrimSpace(`
 The email text may be in any language. Do not use the email language for your response unless it is also the requested response language.
 All human-readable output fields MUST be written in %s:
 - summary
