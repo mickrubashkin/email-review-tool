@@ -57,3 +57,6 @@ TODO.md
 misc/
 personal-notes/
 *lighthouse-report*
+
+# Local material for analysis (real emails, exports) — never commit
+inbox/

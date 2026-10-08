@@ -156,3 +156,27 @@ func assertContains(t *testing.T, value string, substring string) {
 		t.Fatalf("expected rendered HTML to contain %q:\n%s", substring, value)
 	}
 }
+
+func TestRenderKeepsBitrixExpressionsAndInvisibleEntities(t *testing.T) {
+	template := `<!doctype html><html><body>` +
+		`<div style="display:none">&zwnj;&nbsp;&zwnj;&nbsp;</div>` +
+		`<td data-edit-text="footer_copyright">© {{=date('Y')}} Alaio.</td></body></html>`
+	fields, err := ExtractEditableFields(template)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := RenderEditableHTML(template, fields)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, want := range []string{"{{=date('Y')}}", "&zwnj;&nbsp;&zwnj;&nbsp;"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("rendered HTML lost %q:\n%s", want, out)
+		}
+	}
+	if strings.ContainsAny(out, "\u200c\u00a0") {
+		t.Errorf("rendered HTML contains raw invisible characters:\n%q", out)
+	}
+}
