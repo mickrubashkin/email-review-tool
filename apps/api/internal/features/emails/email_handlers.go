@@ -33,6 +33,7 @@ func RegisterEmailRoutes(r chi.Router, dbpool *pgxpool.Pool) {
 	r.Get("/api/emails", listEmailsHandler(dbpool))
 	r.Post("/api/emails", createEmailHandler(dbpool))
 	r.Post("/api/emails/inspect-html", inspectEmailHTMLHandler(dbpool))
+	r.Post("/api/emails/export", exportEmailsHandler(dbpool))
 	r.Get("/api/emails/{id}", getEmailHandler(dbpool))
 	r.Get("/api/emails/{id}/activity", listEmailActivityHandler(dbpool))
 	r.Get("/api/emails/{id}/area-approvals", listEmailAreaApprovalsHandler(dbpool))

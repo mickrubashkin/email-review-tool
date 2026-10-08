@@ -149,6 +149,15 @@ export function useBoardHomeData({
     () => filterColumnsByBoardFilters(searchedColumns, boardFilters),
     [boardFilters, searchedColumns]
   );
+  const filteredEmailIds = useMemo(
+    () =>
+      visibleColumns.flatMap((column) =>
+        column.emailGroups.flatMap((group) =>
+          group.versions.map((email) => email.id)
+        )
+      ),
+    [visibleColumns]
+  );
   const handoffEmails = useMemo(
     () => filterEmailsByHandoffFilters(emailsQuery.data ?? [], handoffFilters),
     [emailsQuery.data, handoffFilters]
@@ -235,6 +244,7 @@ export function useBoardHomeData({
     createBoardModalOpened,
     createBoardMutation,
     emailsQuery,
+    filteredEmailIds,
     filterEmptyHint,
     filterEmptyState,
     handoffFilters,

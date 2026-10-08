@@ -35,6 +35,7 @@ import {
 } from "./BoardHome.storage";
 import { BoardHeader } from "./BoardHeader";
 import { CreateBoardModal } from "./CreateBoardModal";
+import { useFilteredExport } from "./useFilteredExport";
 import { ManageStagesModal } from "./ManageStagesModal";
 import { useBoardHomeData } from "./useBoardHomeData";
 import styles from "../../../App.module.css";
@@ -169,6 +170,7 @@ function EmailBoardApp({
     createBoardModalOpened,
     createBoardMutation,
     emailsQuery,
+    filteredEmailIds,
     filterEmptyHint,
     filterEmptyState,
     handleReviewStatusChange,
@@ -198,6 +200,8 @@ function EmailBoardApp({
     currentUser,
     onBoardFiltersChange,
   });
+
+  const filteredExport = useFilteredExport(filteredEmailIds);
 
   if (boardsQuery.isSuccess && !activeBoard && preferredBoard) {
     return <Navigate replace to={`/boards/${encodeURIComponent(preferredBoard.key)}`} />;
@@ -235,6 +239,7 @@ function EmailBoardApp({
           boardsLoading={boardsQuery.isLoading}
           canExportSequenceHandoff={canExportSequenceHandoff}
           currentUser={currentUser}
+          filteredExport={filteredExport}
           handoffFilters={handoffFilters}
           hasBoardFilters={hasBoardFilters}
           headerSubtitle={headerSubtitle}
@@ -294,6 +299,8 @@ function EmailBoardApp({
           ) : null}
         </Box>
       </AppShell.Main>
+
+      {isAdmin ? filteredExport.dialog : null}
 
       {createBoardModalOpened && activeBoard ? (
         <CreateBoardModal

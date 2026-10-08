@@ -21,6 +21,7 @@ import {
   BoardFilterControls,
   BoardFilterMenu,
   BoardSearchInput,
+  MyEmailsToggle,
 } from "./BoardFilterMenu";
 import {
   type BoardFilterOptions,
@@ -34,6 +35,8 @@ import {
   SettingsMenu,
   UserMenuLabel,
 } from "./BoardUserMenus";
+import { FilteredExportItems } from "./FilteredExportItems";
+import type { FilteredExport } from "./useFilteredExport";
 import { HandoffMenuContent } from "./HandoffMenu";
 import styles from "../../../App.module.css";
 
@@ -49,6 +52,7 @@ type BoardHeaderProps = {
   boardsLoading: boolean;
   canExportSequenceHandoff: boolean;
   currentUser: AuthUser;
+  filteredExport: FilteredExport;
   handoffFilters: HandoffFilters;
   hasBoardFilters: boolean;
   headerSubtitle: string;
@@ -82,6 +86,7 @@ export function BoardHeader({
   boardsLoading,
   canExportSequenceHandoff,
   currentUser,
+  filteredExport,
   handoffFilters,
   hasBoardFilters,
   headerSubtitle,
@@ -130,6 +135,7 @@ export function BoardHeader({
           boardsLoading={boardsLoading}
           canExportSequenceHandoff={canExportSequenceHandoff}
           currentUser={currentUser}
+          filteredExport={filteredExport}
           handoffFilters={handoffFilters}
           hasBoardFilters={hasBoardFilters}
           isAdmin={isAdmin}
@@ -161,11 +167,19 @@ export function BoardHeader({
               value={activeBoard?.key ?? null}
               onChange={onBoardChange}
             />
+            <MyEmailsToggle
+              boardFilterOptions={boardFilterOptions}
+              boardFilters={boardFilters}
+              currentUser={currentUser}
+              onBoardFilterChange={onBoardFilterChange}
+            />
             <BoardFilterMenu
               activeBoardFilterCount={activeBoardFilterCount}
               boardFilterOptions={boardFilterOptions}
               boardFilters={boardFilters}
+              filteredExport={filteredExport}
               hasBoardFilters={hasBoardFilters}
+              isAdmin={isAdmin}
               openCommentEmailCount={openCommentEmailCount}
               onBoardFilterChange={onBoardFilterChange}
               onResetBoardFilters={onResetBoardFilters}
@@ -218,6 +232,7 @@ function CompactHeaderMenu({
   boardsLoading,
   canExportSequenceHandoff,
   currentUser,
+  filteredExport,
   handoffFilters,
   hasBoardFilters,
   isAdmin,
@@ -288,6 +303,15 @@ function CompactHeaderMenu({
               />
             </div>
             <Menu.Label>Filters</Menu.Label>
+            <div className={styles.boardFilterMenuControl}>
+              <MyEmailsToggle
+                boardFilterOptions={boardFilterOptions}
+                boardFilters={boardFilters}
+                currentUser={currentUser}
+                fullWidth
+                onBoardFilterChange={onBoardFilterChange}
+              />
+            </div>
             <BoardFilterControls
               boardFilterOptions={boardFilterOptions}
               boardFilters={boardFilters}
@@ -298,6 +322,12 @@ function CompactHeaderMenu({
               <Menu.Item color="red" onClick={onResetBoardFilters}>
                 Clear filters
               </Menu.Item>
+            ) : null}
+            {isAdmin ? (
+              <>
+                <Menu.Divider />
+                <FilteredExportItems filteredExport={filteredExport} />
+              </>
             ) : null}
             <Menu.Divider />
             <HandoffMenuContent

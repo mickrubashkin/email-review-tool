@@ -1,4 +1,4 @@
-import { fetchJson } from "../../shared/api";
+import { ApiError, fetchJson } from "../../shared/api";
 import type {
   CreateCommentMessagePayload,
   EmailAnalysis,
@@ -33,6 +33,37 @@ export function fetchEmailActivity(emailId: string): Promise<EmailActivityItem[]
 export function fetchEmails(boardKey?: string): Promise<EmailListItem[]> {
   const query = boardKey ? `?board=${encodeURIComponent(boardKey)}` : "";
   return fetchJson<EmailListItem[]>(`/api/emails${query}`);
+}
+
+export async function downloadEmailsExport(
+  ids: string[],
+  format: "html" | "md",
+  markdownOptions?: { sections: string[]; openCommentsOnly: boolean }
+): Promise<{ blob: Blob; fileName: string }> {
+  const response = await fetch("/api/emails/export", {
+    body: JSON.stringify({
+      format,
+      ids,
+      ...(markdownOptions && {
+        open_comments_only: markdownOptions.openCommentsOnly,
+        sections: markdownOptions.sections,
+      }),
+    }),
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    method: "POST",
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new ApiError(response.status, message || `Request failed: ${response.status}`);
+  }
+
+  const disposition = response.headers.get("Content-Disposition") ?? "";
+  const fileName =
+    /filename="?([^";]+)"?/.exec(disposition)?.[1] ?? `emails-${format}.zip`;
+
+  return { blob: await response.blob(), fileName };
 }
 
 export function fetchEmailDetail(emailId: string): Promise<EmailDetail> {
