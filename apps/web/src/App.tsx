@@ -2,6 +2,7 @@ import { Loader, Stack, Text } from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
 
+import { AIConfig } from "./features/ai-config/AIConfig";
 import { AIAnalysisLogs } from "./features/ai-logs/AIAnalysisLogs";
 import { AdminUsers } from "./features/admin-users/AdminUsers";
 import { AuthEvents } from "./features/auth-events/AuthEvents";
@@ -50,6 +51,10 @@ function AuthenticatedApp() {
   return (
     <Routes>
       <Route path="/ai-logs" element={<AIAnalysisLogs />} />
+      <Route
+        path="/admin/ai-config"
+        element={<AIConfig currentUserRole={currentUserQuery.data.role} />}
+      />
       <Route path="/auth-events" element={<AuthEvents />} />
       <Route
         path="/admin/users"
