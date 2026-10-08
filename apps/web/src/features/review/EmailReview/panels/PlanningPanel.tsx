@@ -57,6 +57,7 @@ export function PlanningPanel({
     email?.implementation_notes ?? ""
   );
   const [sendTiming, setSendTiming] = useState(email?.send_timing ?? "");
+  const [sendCondition, setSendCondition] = useState(email?.send_condition ?? "");
   const [adaptationLabel, setAdaptationLabel] = useState(
     email?.adaptation_label ?? "Default"
   );
@@ -75,6 +76,7 @@ export function PlanningPanel({
     due_date: nullableTrimmed(dueDate),
     implementation_notes: nullableTrimmed(implementationNotes),
     send_timing: nullableTrimmed(sendTiming),
+    send_condition: nullableTrimmed(sendCondition),
     adaptation_label: adaptationLabel.trim() || "Default",
   };
   const isDirty =
@@ -83,6 +85,7 @@ export function PlanningPanel({
     payload.due_date !== (email.due_date ?? null) ||
     payload.implementation_notes !== (email.implementation_notes ?? null) ||
     payload.send_timing !== (email.send_timing ?? null) ||
+    payload.send_condition !== (email.send_condition ?? null) ||
     payload.adaptation_label !== email.adaptation_label;
   const ownerOptions = assigneeOptions(adminUsers, ownerEmail, [
     "admin",
@@ -154,6 +157,13 @@ export function PlanningPanel({
             onChange={(event) => setAdaptationLabel(event.currentTarget.value)}
           />
         </Group>
+        <TextInput
+          disabled={!canManage || isSaving}
+          label="Send condition"
+          placeholder="If documents are not uploaded"
+          value={sendCondition}
+          onChange={(event) => setSendCondition(event.currentTarget.value)}
+        />
         <Textarea
           autosize
           disabled={!canManage || isSaving}

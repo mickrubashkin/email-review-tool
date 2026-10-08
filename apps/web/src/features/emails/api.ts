@@ -9,6 +9,8 @@ import type {
   EmailVersionListItem,
   CreateEmailPayload,
   CreateEmailCommentPayload,
+  CreateSlotPayload,
+  CreateSlotResponse,
   DuplicateEmailPayload,
   EmailActivityItem,
   EmailAreaApproval,
@@ -72,6 +74,16 @@ export function fetchEmailDetail(emailId: string): Promise<EmailDetail> {
 
 export function createEmail(payload: CreateEmailPayload): Promise<EmailDetail> {
   return fetchJson<EmailDetail>("/api/emails", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function createSlot(payload: CreateSlotPayload): Promise<CreateSlotResponse> {
+  return fetchJson<CreateSlotResponse>("/api/slots", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

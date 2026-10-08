@@ -615,6 +615,7 @@ function formatPlanningChangedFields(changes: Record<string, unknown>) {
     owner_email: "Owner",
     reviewer_email: "Reviewer",
     send_timing: "Send timing",
+    send_condition: "Send condition",
   };
   return Object.keys(changes)
     .map((field) => labels[field] ?? field)

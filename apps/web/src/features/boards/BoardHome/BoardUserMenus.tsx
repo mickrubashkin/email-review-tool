@@ -7,6 +7,7 @@ import {
   KanbanIcon,
   SignOutIcon,
   SlidersHorizontalIcon,
+  StackIcon,
   UserCircleIcon,
 } from "@phosphor-icons/react";
 import { Link } from "react-router-dom";
@@ -69,6 +70,13 @@ export function CreateActions({ onCreateBoard }: { onCreateBoard: () => void }) 
         onClick={onCreateBoard}
       >
         New board
+      </Menu.Item>
+      <Menu.Item
+        component={Link}
+        leftSection={<StackIcon aria-hidden="true" size={16} />}
+        to="/slots/new"
+      >
+        New slot (all languages)
       </Menu.Item>
       <Menu.Item
         component={Link}
