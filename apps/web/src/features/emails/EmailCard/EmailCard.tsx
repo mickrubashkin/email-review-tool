@@ -227,6 +227,7 @@ export function EmailCard({
         <Group className={styles.emailCardFooter} justify="space-between" wrap="nowrap">
           <Text size="xs" lineClamp={1}>
             {selectedEmail.send_timing ?? "No timing"}
+            {selectedEmail.send_condition ? ` · ${selectedEmail.send_condition}` : ""}
           </Text>
         </Group>
       </Stack>

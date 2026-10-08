@@ -34,6 +34,7 @@ func RegisterEmailRoutes(r chi.Router, dbpool *pgxpool.Pool) {
 	r.Post("/api/emails", createEmailHandler(dbpool))
 	r.Post("/api/emails/inspect-html", inspectEmailHTMLHandler(dbpool))
 	r.Post("/api/emails/export", exportEmailsHandler(dbpool))
+	r.Post("/api/slots", createSlotHandler(dbpool))
 	r.Get("/api/emails/{id}", getEmailHandler(dbpool))
 	r.Get("/api/emails/{id}/activity", listEmailActivityHandler(dbpool))
 	r.Get("/api/emails/{id}/area-approvals", listEmailAreaApprovalsHandler(dbpool))
@@ -70,6 +71,7 @@ func listEmailsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 				subject,
 				preheader,
 				send_timing,
+				send_condition,
 				stage,
 				sort_order,
 				language,
@@ -117,6 +119,7 @@ func listEmailsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 				&email.Subject,
 				&email.Preheader,
 				&email.SendTiming,
+				&email.SendCondition,
 				&email.Stage,
 				&email.SortOrder,
 				&email.Language,
@@ -165,6 +168,7 @@ func getEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 				subject,
 				preheader,
 				send_timing,
+				send_condition,
 				stage,
 				sort_order,
 				language,
@@ -205,6 +209,7 @@ func getEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			&email.Subject,
 			&email.Preheader,
 			&email.SendTiming,
+			&email.SendCondition,
 			&email.Stage,
 			&email.SortOrder,
 			&email.Language,
@@ -244,6 +249,7 @@ type createEmailRequest struct {
 	Subject         *string `json:"subject"`
 	Preheader       *string `json:"preheader"`
 	SendTiming      *string `json:"send_timing"`
+	SendCondition   *string `json:"send_condition"`
 	Stage           string  `json:"stage"`
 	SortOrder       int     `json:"sort_order"`
 	Language        string  `json:"language"`
@@ -263,6 +269,7 @@ type emailHTMLInspection struct {
 	EditableFields           []editableFieldInspection `json:"editable_fields"`
 	Warnings                 []string                  `json:"warnings"`
 	ReviewHTML               string                    `json:"review_html"`
+	Detection                importDetection           `json:"detection"`
 }
 
 type editableFieldInspection struct {
@@ -289,75 +296,6 @@ func createEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			return
 		}
 
-		sequence := strings.TrimSpace(stringFromPointer(request.Sequence))
-		if sequence == "" {
-			sequence = "onboarding"
-		}
-		title := strings.TrimSpace(request.Title)
-		stage := strings.TrimSpace(request.Stage)
-		language := strings.ToLower(strings.TrimSpace(request.Language))
-		if language == "" {
-			language = "en"
-		}
-		variant := strings.ToLower(strings.TrimSpace(request.Variant))
-		if variant == "" {
-			variant = "v1"
-		}
-		adaptationKey, adaptationLabel, err := normalizeEmailAdaptation(request.AdaptationLabel)
-		if err != nil {
-			http.Error(w, "adaptation label must contain letters, numbers, spaces, hyphens, or underscores", http.StatusBadRequest)
-			return
-		}
-		originalHTML := strings.TrimSpace(request.OriginalHTML)
-
-		if title == "" || stage == "" || originalHTML == "" {
-			http.Error(w, "title, stage, and original_html are required", http.StatusBadRequest)
-			return
-		}
-		exists, err := boards.Exists(r.Context(), dbpool, sequence)
-		if err != nil {
-			http.Error(w, "failed to validate board", http.StatusInternalServerError)
-			return
-		}
-		if !exists {
-			http.Error(w, "board not found", http.StatusBadRequest)
-			return
-		}
-
-		subject := trimmedOptionalString(request.Subject)
-		preheader := trimmedOptionalString(request.Preheader)
-		sendTiming := trimmedOptionalString(request.SendTiming)
-		reviewHTML, err := emailreview.AddReviewBlocks(originalHTML)
-		if err != nil {
-			http.Error(w, "invalid email HTML", http.StatusBadRequest)
-			return
-		}
-		editableFields, err := emailedit.ExtractEditableFields(originalHTML)
-		if err != nil {
-			http.Error(w, "invalid editable fields in HTML", http.StatusBadRequest)
-			return
-		}
-		editableFieldsJSON, err := editableFields.JSON()
-		if err != nil {
-			http.Error(w, "invalid editable fields in HTML", http.StatusBadRequest)
-			return
-		}
-		contentParts := emailtext.ExtractContentParts(
-			originalHTML,
-			stringFromPointer(subject),
-			stringFromPointer(preheader),
-			"",
-		)
-		contentPartsJSON, err := json.Marshal(contentParts)
-		if err != nil {
-			http.Error(w, "failed to create email", http.StatusInternalServerError)
-			return
-		}
-		slug := emailSlugWithAdaptation(
-			newEmailSlug(sequence, stage, title, language, variant),
-			adaptationKey,
-		)
-
 		tx, err := dbpool.Begin(r.Context())
 		if err != nil {
 			http.Error(w, "failed to create email", http.StatusInternalServerError)
@@ -365,67 +303,22 @@ func createEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 		}
 		defer tx.Rollback(r.Context())
 
-		created, err := insertDuplicatedEmail(r, tx, duplicateEmailInsert{
-			Slug:            slug,
-			Sequence:        sequence,
-			Title:           title,
-			Subject:         subject,
-			Preheader:       preheader,
-			SendTiming:      sendTiming,
-			Stage:           stage,
+		created, err := createEmailTx(r, dbpool, tx, user, newEmailParams{
+			Sequence:        stringFromPointer(request.Sequence),
+			Title:           request.Title,
+			Subject:         request.Subject,
+			Preheader:       request.Preheader,
+			SendTiming:      request.SendTiming,
+			SendCondition:   request.SendCondition,
+			Stage:           request.Stage,
 			SortOrder:       request.SortOrder,
-			Language:        language,
-			Variant:         variant,
-			AdaptationKey:   adaptationKey,
-			AdaptationLabel: adaptationLabel,
-			ContentParts:    contentPartsJSON,
-			OriginalHTML:    originalHTML,
-			ReviewHTML:      &reviewHTML,
-			TemplateHTML:    originalHTML,
-			EditableFields:  editableFieldsJSON,
+			Language:        request.Language,
+			Variant:         request.Variant,
+			AdaptationLabel: request.AdaptationLabel,
+			OriginalHTML:    request.OriginalHTML,
 		})
 		if err != nil {
-			if isEmailCreationConflict(err) {
-				http.Error(w, "email already exists", http.StatusConflict)
-				return
-			}
-			fmt.Fprintf(os.Stderr, "failed to create email: %v\n", err)
-			http.Error(w, "failed to create email", http.StatusInternalServerError)
-			return
-		}
-		if err := InsertEmailEvent(r.Context(), tx, EmailEventParam{
-			ActorUserID: user.ID,
-			ActorEmail:  user.Email,
-			Action:      emailEventCreated,
-			EmailID:     &created.ID,
-			EmailSlug:   &created.Slug,
-			EmailTitle:  &created.Title,
-			Metadata: map[string]any{
-				"slug":       created.Slug,
-				"sequence":   created.Sequence,
-				"stage":      created.Stage,
-				"language":   created.Language,
-				"variant":    created.Variant,
-				"adaptation": created.AdaptationKey,
-				"sort_order": created.SortOrder,
-			},
-		}); err != nil {
-			http.Error(w, "failed to record email event", http.StatusInternalServerError)
-			return
-		}
-		if err := insertEmailVersion(r.Context(), tx, emailVersionSnapshot{
-			EmailID:            created.ID,
-			CreatedByUserID:    user.ID,
-			CreatedByEmail:     user.Email,
-			Source:             "initial",
-			Title:              created.Title,
-			Subject:            created.Subject,
-			Preheader:          created.Preheader,
-			OriginalHTML:       created.OriginalHTML,
-			TemplateHTML:       created.TemplateHTML,
-			EditableFieldsJSON: editableFieldsJSON,
-		}); err != nil {
-			http.Error(w, "failed to record email version", http.StatusInternalServerError)
+			writeCreateEmailError(w, err)
 			return
 		}
 		if err := tx.Commit(r.Context()); err != nil {
@@ -437,6 +330,169 @@ func createEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 		w.WriteHeader(http.StatusCreated)
 		_ = json.NewEncoder(w).Encode(created)
 	}
+}
+
+type newEmailParams struct {
+	Sequence        string
+	Title           string
+	Subject         *string
+	Preheader       *string
+	SendTiming      *string
+	SendCondition   *string
+	Stage           string
+	SortOrder       int
+	Language        string
+	Variant         string
+	AdaptationLabel *string
+	OriginalHTML    string
+}
+
+// createEmailInputError is a validation problem the caller should see as 400.
+type createEmailInputError string
+
+func (e createEmailInputError) Error() string { return string(e) }
+
+var errCreateEmailConflict = errors.New("email already exists")
+
+func writeCreateEmailError(w http.ResponseWriter, err error) {
+	var inputErr createEmailInputError
+	switch {
+	case errors.As(err, &inputErr):
+		http.Error(w, inputErr.Error(), http.StatusBadRequest)
+	case errors.Is(err, errCreateEmailConflict):
+		http.Error(w, err.Error(), http.StatusConflict)
+	default:
+		fmt.Fprintf(os.Stderr, "failed to create email: %v\n", err)
+		http.Error(w, "failed to create email", http.StatusInternalServerError)
+	}
+}
+
+// createEmailTx validates and inserts one email with its creation event and
+// initial version. The caller owns the transaction.
+func createEmailTx(r *http.Request, dbpool *pgxpool.Pool, tx pgx.Tx, user AuthUser, params newEmailParams) (EmailDetail, error) {
+	sequence := strings.TrimSpace(params.Sequence)
+	if sequence == "" {
+		sequence = "onboarding"
+	}
+	title := strings.TrimSpace(params.Title)
+	stage := strings.TrimSpace(params.Stage)
+	language := strings.ToLower(strings.TrimSpace(params.Language))
+	if language == "" {
+		language = "en"
+	}
+	variant := strings.ToLower(strings.TrimSpace(params.Variant))
+	if variant == "" {
+		variant = "v1"
+	}
+	adaptationKey, adaptationLabel, err := normalizeEmailAdaptation(params.AdaptationLabel)
+	if err != nil {
+		return EmailDetail{}, createEmailInputError("adaptation label must contain letters, numbers, spaces, hyphens, or underscores")
+	}
+	originalHTML := strings.TrimSpace(params.OriginalHTML)
+
+	if title == "" || stage == "" || originalHTML == "" {
+		return EmailDetail{}, createEmailInputError("title, stage, and original_html are required")
+	}
+	exists, err := boards.Exists(r.Context(), dbpool, sequence)
+	if err != nil {
+		return EmailDetail{}, fmt.Errorf("validate board: %w", err)
+	}
+	if !exists {
+		return EmailDetail{}, createEmailInputError("board not found")
+	}
+
+	subject := trimmedOptionalString(params.Subject)
+	preheader := trimmedOptionalString(params.Preheader)
+	sendTiming := trimmedOptionalString(params.SendTiming)
+	sendCondition := trimmedOptionalString(params.SendCondition)
+	reviewHTML, err := emailreview.AddReviewBlocks(originalHTML)
+	if err != nil {
+		return EmailDetail{}, createEmailInputError("invalid email HTML")
+	}
+	editableFields, err := emailedit.ExtractEditableFields(originalHTML)
+	if err != nil {
+		return EmailDetail{}, createEmailInputError("invalid editable fields in HTML")
+	}
+	editableFieldsJSON, err := editableFields.JSON()
+	if err != nil {
+		return EmailDetail{}, createEmailInputError("invalid editable fields in HTML")
+	}
+	contentParts := emailtext.ExtractContentParts(
+		originalHTML,
+		stringFromPointer(subject),
+		stringFromPointer(preheader),
+		"",
+	)
+	contentPartsJSON, err := json.Marshal(contentParts)
+	if err != nil {
+		return EmailDetail{}, err
+	}
+	slug := emailSlugWithAdaptation(
+		newEmailSlug(sequence, stage, title, language, variant),
+		adaptationKey,
+	)
+
+	created, err := insertDuplicatedEmail(r, tx, duplicateEmailInsert{
+		Slug:            slug,
+		Sequence:        sequence,
+		Title:           title,
+		Subject:         subject,
+		Preheader:       preheader,
+		SendTiming:      sendTiming,
+		SendCondition:   sendCondition,
+		Stage:           stage,
+		SortOrder:       params.SortOrder,
+		Language:        language,
+		Variant:         variant,
+		AdaptationKey:   adaptationKey,
+		AdaptationLabel: adaptationLabel,
+		ContentParts:    contentPartsJSON,
+		OriginalHTML:    originalHTML,
+		ReviewHTML:      &reviewHTML,
+		TemplateHTML:    originalHTML,
+		EditableFields:  editableFieldsJSON,
+	})
+	if err != nil {
+		if isEmailCreationConflict(err) {
+			return EmailDetail{}, errCreateEmailConflict
+		}
+		return EmailDetail{}, err
+	}
+	if err := InsertEmailEvent(r.Context(), tx, EmailEventParam{
+		ActorUserID: user.ID,
+		ActorEmail:  user.Email,
+		Action:      emailEventCreated,
+		EmailID:     &created.ID,
+		EmailSlug:   &created.Slug,
+		EmailTitle:  &created.Title,
+		Metadata: map[string]any{
+			"slug":       created.Slug,
+			"sequence":   created.Sequence,
+			"stage":      created.Stage,
+			"language":   created.Language,
+			"variant":    created.Variant,
+			"adaptation": created.AdaptationKey,
+			"sort_order": created.SortOrder,
+		},
+	}); err != nil {
+		return EmailDetail{}, fmt.Errorf("record email event: %w", err)
+	}
+	if err := insertEmailVersion(r.Context(), tx, emailVersionSnapshot{
+		EmailID:            created.ID,
+		CreatedByUserID:    user.ID,
+		CreatedByEmail:     user.Email,
+		Source:             "initial",
+		Title:              created.Title,
+		Subject:            created.Subject,
+		Preheader:          created.Preheader,
+		OriginalHTML:       created.OriginalHTML,
+		TemplateHTML:       created.TemplateHTML,
+		EditableFieldsJSON: editableFieldsJSON,
+	}); err != nil {
+		return EmailDetail{}, fmt.Errorf("record email version: %w", err)
+	}
+
+	return created, nil
 }
 
 func inspectEmailHTMLHandler(_ *pgxpool.Pool) http.HandlerFunc {
@@ -490,6 +546,7 @@ type updateEmailPlanningFieldsRequest struct {
 	DueDate             *string `json:"due_date"`
 	ImplementationNotes *string `json:"implementation_notes"`
 	SendTiming          *string `json:"send_timing"`
+	SendCondition       *string `json:"send_condition"`
 	AdaptationLabel     *string `json:"adaptation_label"`
 }
 
@@ -499,6 +556,7 @@ type updateEmailPlanningFieldsResponse struct {
 	DueDate             *string `json:"due_date"`
 	ImplementationNotes *string `json:"implementation_notes"`
 	SendTiming          *string `json:"send_timing"`
+	SendCondition       *string `json:"send_condition"`
 	AdaptationLabel     string  `json:"adaptation_label"`
 }
 
@@ -859,6 +917,7 @@ func updateEmailPlanningFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 		}
 		implementationNotes := trimmedOptionalString(request.ImplementationNotes)
 		sendTiming := trimmedOptionalString(request.SendTiming)
+		sendCondition := trimmedOptionalString(request.SendCondition)
 		_, adaptationLabel, err := normalizeEmailAdaptation(request.AdaptationLabel)
 		if err != nil {
 			http.Error(w, "adaptation_label must contain letters, numbers, spaces, hyphens, or underscores", http.StatusBadRequest)
@@ -879,20 +938,24 @@ func updateEmailPlanningFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 		var currentDueDate *string
 		var currentImplementationNotes *string
 		var currentSendTiming *string
+		var currentSendCondition *string
 		var currentAdaptationLabel string
 		err = tx.QueryRow(r.Context(), `
-			SELECT slug, title, owner_email, reviewer_email, due_date::text, implementation_notes, send_timing, adaptation_label
+			SELECT slug, title, owner_email, reviewer_email, due_date::text, implementation_notes, send_timing, send_condition, adaptation_label
 			FROM emails
 			WHERE id = $1
 				AND archived_at IS NULL
 			FOR UPDATE;
-		`, id).Scan(&slug, &title, &currentOwnerEmail, &currentReviewerEmail, &currentDueDate, &currentImplementationNotes, &currentSendTiming, &currentAdaptationLabel)
+		`, id).Scan(&slug, &title, &currentOwnerEmail, &currentReviewerEmail, &currentDueDate, &currentImplementationNotes, &currentSendTiming, &currentSendCondition, &currentAdaptationLabel)
 		if err != nil {
 			http.Error(w, "email not found", http.StatusNotFound)
 			return
 		}
 		if request.SendTiming == nil {
 			sendTiming = currentSendTiming
+		}
+		if request.SendCondition == nil {
+			sendCondition = currentSendCondition
 		}
 		if request.AdaptationLabel == nil {
 			adaptationLabel = currentAdaptationLabel
@@ -904,6 +967,7 @@ func updateEmailPlanningFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 		addStringChange(changes, "due_date", currentDueDate, dueDate)
 		addStringChange(changes, "implementation_notes", currentImplementationNotes, implementationNotes)
 		addStringChange(changes, "send_timing", currentSendTiming, sendTiming)
+		addStringChange(changes, "send_condition", currentSendCondition, sendCondition)
 		addStringChange(changes, "adaptation_label", &currentAdaptationLabel, &adaptationLabel)
 
 		if len(changes) > 0 {
@@ -915,10 +979,11 @@ func updateEmailPlanningFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 					implementation_notes = $5,
 					send_timing = $6,
 					adaptation_label = $7,
+					send_condition = $8,
 					updated_at = now()
 				WHERE id = $1
 					AND archived_at IS NULL;
-			`, id, ownerEmail, reviewerEmail, dueDate, implementationNotes, sendTiming, adaptationLabel)
+			`, id, ownerEmail, reviewerEmail, dueDate, implementationNotes, sendTiming, adaptationLabel, sendCondition)
 			if err != nil {
 				http.Error(w, "failed to update planning fields", http.StatusInternalServerError)
 				return
@@ -955,6 +1020,7 @@ func updateEmailPlanningFieldsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			DueDate:             dueDate,
 			ImplementationNotes: implementationNotes,
 			SendTiming:          sendTiming,
+			SendCondition:       sendCondition,
 			AdaptationLabel:     adaptationLabel,
 		})
 	}
@@ -1401,6 +1467,7 @@ func duplicateEmailAsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			Subject:         subject,
 			Preheader:       preheader,
 			SendTiming:      source.SendTiming,
+			SendCondition:   source.SendCondition,
 			Stage:           stage,
 			SortOrder:       sortOrder,
 			Language:        language,
@@ -1548,6 +1615,7 @@ func duplicateEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			Subject:         subject,
 			Preheader:       preheader,
 			SendTiming:      source.SendTiming,
+			SendCondition:   source.SendCondition,
 			Stage:           source.Stage,
 			SortOrder:       source.SortOrder,
 			Language:        language,
@@ -1658,6 +1726,7 @@ func createEmailAdaptationHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			Subject:         source.Subject,
 			Preheader:       source.Preheader,
 			SendTiming:      source.SendTiming,
+			SendCondition:   source.SendCondition,
 			Stage:           source.Stage,
 			SortOrder:       source.SortOrder,
 			Language:        source.Language,
@@ -1861,6 +1930,11 @@ func inspectEmailHTML(originalHTML string) (emailHTMLInspection, error) {
 	if len(editableFields) == 0 {
 		warnings = append(warnings, "No editable fields were found. Admin editing will be limited after creation.")
 	}
+	detection, err := detectImportedHTML(originalHTML)
+	if err != nil {
+		return emailHTMLInspection{}, errors.New("invalid email HTML")
+	}
+	warnings = append(warnings, importWarnings(detection)...)
 
 	return emailHTMLInspection{
 		ReviewBlockCount:         reviewBlockCount,
@@ -1869,6 +1943,7 @@ func inspectEmailHTML(originalHTML string) (emailHTMLInspection, error) {
 		EditableFields:           inspectEditableFields(editableFields),
 		Warnings:                 warnings,
 		ReviewHTML:               reviewHTML,
+		Detection:                detection,
 	}, nil
 }
 
@@ -1932,6 +2007,7 @@ type emailDuplicateSource struct {
 	Subject         *string
 	Preheader       *string
 	SendTiming      *string
+	SendCondition   *string
 	Stage           string
 	SortOrder       int
 	Language        string
@@ -1966,6 +2042,7 @@ func loadEmailForDuplicate(r *http.Request, dbpool *pgxpool.Pool, id string) (em
 			subject,
 			preheader,
 			send_timing,
+			send_condition,
 			stage,
 			sort_order,
 			language,
@@ -1989,6 +2066,7 @@ func loadEmailForDuplicate(r *http.Request, dbpool *pgxpool.Pool, id string) (em
 		&source.Subject,
 		&source.Preheader,
 		&source.SendTiming,
+		&source.SendCondition,
 		&source.Stage,
 		&source.SortOrder,
 		&source.Language,
@@ -2014,6 +2092,7 @@ type duplicateEmailInsert struct {
 	Subject         *string
 	Preheader       *string
 	SendTiming      *string
+	SendCondition   *string
 	Stage           string
 	SortOrder       int
 	Language        string
@@ -2055,9 +2134,10 @@ func insertDuplicatedEmail(r *http.Request, db emailEventExecutor, email duplica
 			template_html,
 			template_hash,
 			template_version,
-			editable_fields
+			editable_fields,
+			send_condition
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::jsonb, $15, $16, $17, $18, $19, $20::jsonb)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::jsonb, $15, $16, $17, $18, $19, $20::jsonb, $21)
 		RETURNING
 			id,
 			slug,
@@ -2066,6 +2146,7 @@ func insertDuplicatedEmail(r *http.Request, db emailEventExecutor, email duplica
 			subject,
 			preheader,
 			send_timing,
+			send_condition,
 			stage,
 			sort_order,
 			language,
@@ -2085,7 +2166,7 @@ func insertDuplicatedEmail(r *http.Request, db emailEventExecutor, email duplica
 			template_hash,
 			template_version,
 			editable_fields;
-	`, email.Slug, email.Sequence, email.Title, email.Subject, email.Preheader, email.SendTiming, email.Stage, email.SortOrder, email.Language, email.Variant, email.AdaptationKey, email.AdaptationLabel, email.BodyText, email.ContentParts, email.OriginalHTML, email.ReviewHTML, email.TemplateHTML, email.TemplateHash, email.TemplateVersion, email.EditableFields).Scan(
+	`, email.Slug, email.Sequence, email.Title, email.Subject, email.Preheader, email.SendTiming, email.Stage, email.SortOrder, email.Language, email.Variant, email.AdaptationKey, email.AdaptationLabel, email.BodyText, email.ContentParts, email.OriginalHTML, email.ReviewHTML, email.TemplateHTML, email.TemplateHash, email.TemplateVersion, email.EditableFields, email.SendCondition).Scan(
 		&created.ID,
 		&created.Slug,
 		&created.Sequence,
@@ -2093,6 +2174,7 @@ func insertDuplicatedEmail(r *http.Request, db emailEventExecutor, email duplica
 		&created.Subject,
 		&created.Preheader,
 		&created.SendTiming,
+		&created.SendCondition,
 		&created.Stage,
 		&created.SortOrder,
 		&created.Language,

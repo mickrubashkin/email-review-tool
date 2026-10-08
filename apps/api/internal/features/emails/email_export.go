@@ -170,6 +170,7 @@ func loadEmailsForExport(ctx context.Context, dbpool *pgxpool.Pool, ids []string
 			emails.subject,
 			emails.preheader,
 			emails.send_timing,
+			emails.send_condition,
 			emails.stage,
 			emails.sort_order,
 			emails.language,
@@ -210,6 +211,7 @@ func loadEmailsForExport(ctx context.Context, dbpool *pgxpool.Pool, ids []string
 			&email.Subject,
 			&email.Preheader,
 			&email.SendTiming,
+			&email.SendCondition,
 			&email.Stage,
 			&email.SortOrder,
 			&email.Language,
@@ -377,6 +379,7 @@ func buildEmailMarkdown(email exportEmail, options exportOptions) string {
 		writeMarkdownField(&b, "Stage", email.Stage)
 		writeMarkdownField(&b, "Order in stage", fmt.Sprintf("%d", email.SortOrder))
 		writeMarkdownField(&b, "Send timing", stringFromPointer(email.SendTiming))
+		writeMarkdownField(&b, "Send condition", stringFromPointer(email.SendCondition))
 		writeMarkdownField(&b, "Language", email.Language)
 		writeMarkdownField(&b, "Adaptation", email.AdaptationLabel)
 		writeMarkdownField(&b, "Version", email.Variant)

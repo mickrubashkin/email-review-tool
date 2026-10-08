@@ -5,6 +5,7 @@ export type EmailListItem = {
   subject: string | null;
   preheader: string | null;
   send_timing: string | null;
+  send_condition: string | null;
   stage: string | null;
   sort_order: number;
   language: string;
@@ -119,6 +120,34 @@ export type EmailHTMLInspection = {
   }>;
   warnings: string[];
   review_html: string;
+  detection: {
+    detected_language: string;
+    detected_subject: string;
+    detected_preheader: string;
+    has_preheader_slot: boolean;
+    nested_markup_fields: Array<{ key: string; tags: string[] }>;
+    bitrix_expressions: string[];
+  };
+};
+
+export type CreateSlotPayload = {
+  sequence: string;
+  stage: string;
+  title: string;
+  sort_order?: number;
+  send_timing?: string;
+  send_condition?: string;
+  emails: Array<{
+    language: string;
+    subject?: string;
+    preheader?: string;
+    original_html: string;
+  }>;
+};
+
+export type CreateSlotResponse = {
+  sort_order: number;
+  emails: EmailDetail[];
 };
 
 export type DuplicateEmailPayload = {
@@ -190,6 +219,7 @@ export type UpdateEmailPlanningFieldsPayload = {
   due_date: string | null;
   implementation_notes: string | null;
   send_timing: string | null;
+  send_condition: string | null;
   adaptation_label: string;
 };
 

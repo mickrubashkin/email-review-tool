@@ -180,6 +180,7 @@ export function HandoffPanel({
         <HandoffRow label="Version" value={email.variant} />
         <HandoffRow label="Adaptation" value={email.adaptation_label} />
         <HandoffRow label="Send timing" value={email.send_timing ?? ""} />
+        <HandoffRow label="Send condition" value={email.send_condition ?? ""} />
       </Stack>
 
       <Stack className={styles.handoffSection} gap="xs">

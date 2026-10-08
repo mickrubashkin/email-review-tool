@@ -17,6 +17,7 @@ type EmailListItem struct {
 	Subject                  *string `json:"subject"`
 	Preheader                *string `json:"preheader"`
 	SendTiming               *string `json:"send_timing"`
+	SendCondition            *string `json:"send_condition"`
 	Stage                    string  `json:"stage"`
 	SortOrder                int     `json:"sort_order"`
 	Language                 string  `json:"language"`
@@ -40,6 +41,7 @@ type EmailDetail struct {
 	Subject                  *string         `json:"subject"`
 	Preheader                *string         `json:"preheader"`
 	SendTiming               *string         `json:"send_timing"`
+	SendCondition            *string         `json:"send_condition"`
 	Stage                    string          `json:"stage"`
 	SortOrder                int             `json:"sort_order"`
 	Language                 string          `json:"language"`

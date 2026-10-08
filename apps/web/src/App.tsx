@@ -14,6 +14,7 @@ import { fetchCurrentUser, logout } from "./features/auth/api";
 import { EmailCreate } from "./features/emails/EmailCreate";
 import type { AuthUser } from "./features/emails/types";
 import { EmailReview } from "./features/review/EmailReview";
+import { SlotCreate } from "./features/slots/SlotCreate";
 
 export default function App() {
   return <AuthenticatedApp />;
@@ -62,6 +63,10 @@ function AuthenticatedApp() {
       />
       <Route path="/admin/email-events" element={<EmailEvents />} />
       <Route path="/admin/operational-events" element={<OperationalEvents />} />
+      <Route
+        path="/slots/new"
+        element={<SlotCreate currentUserRole={currentUserQuery.data.role} />}
+      />
       <Route
         path="/emails/new"
         element={<EmailCreate currentUserRole={currentUserQuery.data.role} />}
