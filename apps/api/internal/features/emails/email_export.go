@@ -53,6 +53,9 @@ type exportEmailsRequest struct {
 type exportOptions struct {
 	sections         map[string]bool
 	openCommentsOnly bool
+	// headingOffset nests the email under other headings when it is embedded
+	// in a larger document.
+	headingOffset int
 }
 
 func newExportOptions(request exportEmailsRequest) (exportOptions, error) {
@@ -363,11 +366,12 @@ func uniqueExportPath(used map[string]int, email exportEmail, extension string) 
 
 func buildEmailMarkdown(email exportEmail, options exportOptions) string {
 	var b strings.Builder
+	h := func(level int) string { return strings.Repeat("#", level+options.headingOffset) }
 
-	fmt.Fprintf(&b, "# %s\n\n", oneLine(email.Title))
+	fmt.Fprintf(&b, "%s %s\n\n", h(1), oneLine(email.Title))
 
 	if options.sections[exportSectionMetadata] {
-		b.WriteString("## Metadata\n\n")
+		b.WriteString(h(2) + " Metadata\n\n")
 		writeMarkdownField(&b, "Board", email.BoardName)
 		writeMarkdownField(&b, "Sequence key", email.Sequence)
 		writeMarkdownField(&b, "Stage", email.Stage)
@@ -387,25 +391,25 @@ func buildEmailMarkdown(email exportEmail, options exportOptions) string {
 
 	parts := email.ContentParts
 	if options.sections[exportSectionCopy] {
-		b.WriteString("## Subject\n\n" + valueOrDash(stringFromPointer(email.Subject)) + "\n\n")
-		b.WriteString("## Preheader\n\n" + valueOrDash(stringFromPointer(email.Preheader)) + "\n\n")
+		b.WriteString(h(2) + " Subject\n\n" + valueOrDash(stringFromPointer(email.Subject)) + "\n\n")
+		b.WriteString(h(2) + " Preheader\n\n" + valueOrDash(stringFromPointer(email.Preheader)) + "\n\n")
 		if parts.BannerText != "" {
-			b.WriteString("## Banner text\n\n" + parts.BannerText + "\n\n")
+			b.WriteString(h(2) + " Banner text\n\n" + parts.BannerText + "\n\n")
 		}
-		b.WriteString("## Body text\n\n" + valueOrDash(email.BodyText) + "\n\n")
+		b.WriteString(h(2) + " Body text\n\n" + valueOrDash(email.BodyText) + "\n\n")
 	}
 
 	if options.sections[exportSectionLinks] {
-		b.WriteString("## Primary CTA\n\n" + valueOrDash(parts.PrimaryCTA) + "\n")
-		writeMarkdownList(&b, "Primary links", parts.LinkGroups.Primary)
-		writeMarkdownList(&b, "Support links", parts.LinkGroups.Support)
-		writeMarkdownList(&b, "Footer links", parts.LinkGroups.Footer)
-		writeMarkdownList(&b, "Other links", parts.LinkGroups.Other)
+		b.WriteString(h(2) + " Primary CTA\n\n" + valueOrDash(parts.PrimaryCTA) + "\n")
+		writeMarkdownList(&b, h(2), "Primary links", parts.LinkGroups.Primary)
+		writeMarkdownList(&b, h(2), "Support links", parts.LinkGroups.Support)
+		writeMarkdownList(&b, h(2), "Footer links", parts.LinkGroups.Footer)
+		writeMarkdownList(&b, h(2), "Other links", parts.LinkGroups.Other)
 		b.WriteString("\n")
 	}
 
 	if notes := stringFromPointer(email.ImplementationNotes); options.sections[exportSectionNotes] && strings.TrimSpace(notes) != "" {
-		b.WriteString("## Implementation notes\n\n" + notes + "\n\n")
+		b.WriteString(h(2) + " Implementation notes\n\n" + notes + "\n\n")
 	}
 
 	if options.sections[exportSectionComments] {
@@ -416,7 +420,7 @@ func buildEmailMarkdown(email exportEmail, options exportOptions) string {
 			}
 		}
 		if len(comments) > 0 {
-			b.WriteString("## Review comments\n\n")
+			b.WriteString(h(2) + " Review comments\n\n")
 			for _, comment := range comments {
 				fmt.Fprintf(&b, "- [%s, %s] %s", comment.Severity, comment.Status, oneLine(comment.Body))
 				if comment.AuthorEmail != "" {
@@ -437,11 +441,11 @@ func writeMarkdownField(b *strings.Builder, label string, value string) {
 	fmt.Fprintf(b, "- **%s:** %s\n", label, valueOrDash(oneLine(value)))
 }
 
-func writeMarkdownList(b *strings.Builder, title string, values []string) {
+func writeMarkdownList(b *strings.Builder, heading string, title string, values []string) {
 	if len(values) == 0 {
 		return
 	}
-	fmt.Fprintf(b, "\n## %s\n\n", title)
+	fmt.Fprintf(b, "\n%s %s\n\n", heading, title)
 	for _, value := range values {
 		fmt.Fprintf(b, "- %s\n", oneLine(value))
 	}

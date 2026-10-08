@@ -4,15 +4,10 @@ import { notifications } from "@mantine/notifications";
 import { useMutation } from "@tanstack/react-query";
 
 import { downloadEmailsExport } from "../../emails/api";
-
-const markdownSectionOptions = [
-  { label: "Metadata (stage, timing, language, status, owner, dates)", value: "metadata" },
-  { label: "Email copy (subject, preheader, banner, body text)", value: "copy" },
-  { label: "CTA and links", value: "links" },
-  { label: "Implementation notes", value: "notes" },
-  { label: "Review comments", value: "comments" },
-];
-const allMarkdownSections = markdownSectionOptions.map((option) => option.value);
+import {
+  allMarkdownSections,
+  markdownSectionOptions,
+} from "../../emails/markdownSections";
 
 type ExportRequest = {
   format: "html" | "md";
