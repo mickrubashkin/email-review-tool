@@ -143,6 +143,7 @@ export function MyEmailsToggle({
   return (
     <Button
       aria-pressed={active}
+      className={fullWidth ? undefined : styles.myEmailsToggle}
       fullWidth={fullWidth}
       leftSection={<UserIcon aria-hidden="true" size={16} />}
       size={fullWidth ? "xs" : "sm"}
