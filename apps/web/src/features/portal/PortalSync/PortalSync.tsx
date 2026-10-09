@@ -5,6 +5,7 @@ import {
   Button,
   Checkbox,
   Group,
+  List,
   Loader,
   NumberInput,
   Paper,
@@ -165,9 +166,10 @@ export function PortalSync({ currentUserRole }: { currentUserRole: UserRole }) {
             </Group>
           ) : (
             <Text c="dimmed" mt="sm" size="sm">
-              Nothing loaded yet. Only reads from Bitrix24.
+              Nothing loaded yet.
             </Text>
           )}
+          <PrivacyNote expanded={run?.status === "running"} />
         </Paper>
 
         {overviewQuery.isError ? <Alert color="red">Failed to load portal data.</Alert> : null}
@@ -371,5 +373,31 @@ function MatchCell({ group }: { group: PortalGroup }) {
         </Text>
       ) : null}
     </Stack>
+  );
+}
+
+// PrivacyNote explains what the sync reads, so nobody has to wonder whether
+// other teams' emails are being pulled in.
+function PrivacyNote({ expanded }: { expanded: boolean }) {
+  if (!expanded) {
+    return (
+      <Text c="dimmed" mt={4} size="xs">
+        Read-only. Only this funnel's emails are read in full; everything else stays as bare IDs.
+      </Text>
+    );
+  }
+  return (
+    <Alert color="blue" mt="sm" title="What is being read right now" variant="light">
+      <List size="sm" spacing={2}>
+        <List.Item>
+          Step 1: for outgoing deal emails of every funnel, only IDs are read — the email ID, the deal ID and
+          which funnel the deal is in. No subjects, no texts, no recipients. The API cannot filter emails by
+          funnel, so this is how the service finds which ones belong to this funnel.
+        </List.Item>
+        <List.Item>Step 2: subjects and texts are loaded only for this funnel's emails.</List.Item>
+        <List.Item>Step 3: deal stage history, to know at which stage each email went out.</List.Item>
+        <List.Item>Nothing is written to Bitrix24, and emails from other funnels are not stored.</List.Item>
+      </List>
+    </Alert>
   );
 }

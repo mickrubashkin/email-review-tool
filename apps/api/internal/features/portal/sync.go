@@ -105,7 +105,7 @@ func runSync(ctx context.Context, db *pgxpool.Pool, client *Client, runID string
 				funnelActivityIDs = append(funnelActivityIDs, activityID)
 			}
 		}
-		progress("Finding funnel emails: %d checked, %d from this funnel", seen, len(funnelActivityIDs))
+		progress("Step 1 of 3 · Finding this funnel's emails by ID only (no subjects or texts read): %d checked, %d from this funnel", seen, len(funnelActivityIDs))
 		return nil
 	})
 	if err != nil {
@@ -159,7 +159,7 @@ func runSync(ctx context.Context, db *pgxpool.Pool, client *Client, runID string
 		if err := sendBatch(ctx, db, batch); err != nil {
 			return err
 		}
-		progress("Loading email bodies: %d of %d", end, len(funnelActivityIDs))
+		progress("Step 2 of 3 · Loading subjects and texts of this funnel's emails only: %d of %d", end, len(funnelActivityIDs))
 	}
 	_, _ = db.Exec(ctx, `UPDATE portal_sync_runs SET activities_seen = $2, emails_stored = $3 WHERE id = $1;`, runID, seen, stored)
 
@@ -284,7 +284,7 @@ func assignStagesAtSend(ctx context.Context, db *pgxpool.Pool, client *Client, b
 		if err != nil {
 			return err
 		}
-		progress("Loading stage history: %d of %d deals", end, len(ids))
+		progress("Step 3 of 3 · Loading deal stage history: %d of %d deals", end, len(ids))
 	}
 
 	rows, err := db.Query(ctx, `SELECT activity_id, deal_id, sent_at FROM portal_sent_emails WHERE board_key = $1;`, boardKey)
