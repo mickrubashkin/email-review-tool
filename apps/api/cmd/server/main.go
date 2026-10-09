@@ -14,6 +14,7 @@ import (
 	"github.com/mickrubashkin/email-review-tool/apps/api/internal/features/boards"
 	"github.com/mickrubashkin/email-review-tool/apps/api/internal/features/comments"
 	"github.com/mickrubashkin/email-review-tool/apps/api/internal/features/emails"
+	"github.com/mickrubashkin/email-review-tool/apps/api/internal/features/portal"
 )
 
 func main() {
@@ -53,14 +54,15 @@ func main() {
 	registerHealthRoute(r, dbpool)
 	featureauth.RegisterAuthRoutes(r, dbpool, emails.NewLoginCodeEmailSender())
 	registerOperationalRoutes(r, dbpool)
-	
+
 	boards.Logger = serverEventLogger{}
 	boards.RegisterBoardRoutes(r, dbpool)
-	
+
 	emails.RegisterEmailRoutes(r, dbpool)
 	comments.Logger = commentEventLogger{}
 	comments.RegisterCommentRoutes(r, dbpool)
 	ai.RegisterAIRoutes(r, dbpool, aiService)
+	portal.RegisterRoutes(r, dbpool)
 
 	port := os.Getenv("PORT")
 	if port == "" {

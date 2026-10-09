@@ -15,6 +15,7 @@ import { EmailCreate } from "./features/emails/EmailCreate";
 import type { AuthUser } from "./features/emails/types";
 import { EmailReview } from "./features/review/EmailReview";
 import { SlotCreate } from "./features/slots/SlotCreate";
+import { PortalSync } from "./features/portal/PortalSync";
 
 export default function App() {
   return <AuthenticatedApp />;
@@ -55,6 +56,10 @@ function AuthenticatedApp() {
       <Route
         path="/admin/ai-config"
         element={<AIConfig currentUserRole={currentUserQuery.data.role} />}
+      />
+      <Route
+        path="/admin/portal"
+        element={<PortalSync currentUserRole={currentUserQuery.data.role} />}
       />
       <Route path="/auth-events" element={<AuthEvents />} />
       <Route
