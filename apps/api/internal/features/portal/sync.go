@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mickrubashkin/email-review-tool/apps/api/internal/emailedit"
 )
@@ -104,7 +105,7 @@ func runSync(ctx context.Context, db *pgxpool.Pool, client *Client, runID string
 				funnelActivityIDs = append(funnelActivityIDs, activityID)
 			}
 		}
-		progress("Finding funnel emails: %d checked, %d from this funnel", seen, len(funnelActivityIDs))
+		progress("Step 1 of 3 · Finding this funnel's emails by ID only (no subjects or texts read): %d checked, %d from this funnel", seen, len(funnelActivityIDs))
 		return nil
 	})
 	if err != nil {
@@ -132,6 +133,7 @@ func runSync(ctx context.Context, db *pgxpool.Pool, client *Client, runID string
 		if err := json.Unmarshal(response.Result, &activities); err != nil {
 			return err
 		}
+		batch := &pgx.Batch{}
 		for _, a := range activities {
 			if strings.TrimSpace(a.Description) == "" {
 				continue
@@ -142,7 +144,7 @@ func runSync(ctx context.Context, db *pgxpool.Pool, client *Client, runID string
 			if err != nil {
 				continue
 			}
-			if _, err := db.Exec(ctx, `
+			batch.Queue(`
 				INSERT INTO portal_sent_emails (activity_id, board_key, deal_id, sent_at, subject, body_html, fingerprint)
 				VALUES ($1, $2, $3, $4, $5, $6, $7)
 				ON CONFLICT (activity_id) DO UPDATE SET
@@ -150,13 +152,14 @@ func runSync(ctx context.Context, db *pgxpool.Pool, client *Client, runID string
 					body_html = EXCLUDED.body_html,
 					fingerprint = EXCLUDED.fingerprint,
 					synced_at = now();
-			`, activityID, options.BoardKey, dealID, sentAt, a.Subject, a.Description, Fingerprint(NormalizedText(a.Description))); err != nil {
-				return err
-			}
+			`, activityID, options.BoardKey, dealID, sentAt, a.Subject, a.Description, Fingerprint(NormalizedText(a.Description)))
 			dealsWithEmails[dealID] = true
 			stored++
 		}
-		progress("Loading email bodies: %d of %d", end, len(funnelActivityIDs))
+		if err := sendBatch(ctx, db, batch); err != nil {
+			return err
+		}
+		progress("Step 2 of 3 · Loading subjects and texts of this funnel's emails only: %d of %d", end, len(funnelActivityIDs))
 	}
 	_, _ = db.Exec(ctx, `UPDATE portal_sync_runs SET activities_seen = $2, emails_stored = $3 WHERE id = $1;`, runID, seen, stored)
 
@@ -178,15 +181,31 @@ func runSync(ctx context.Context, db *pgxpool.Pool, client *Client, runID string
 }
 
 func storeStages(ctx context.Context, db *pgxpool.Pool, boardKey string, stages []Stage) error {
+	batch := &pgx.Batch{}
 	for _, stage := range stages {
-		if _, err := db.Exec(ctx, `
+		batch.Queue(`
 			INSERT INTO portal_stages (board_key, stage_id, name, sort) VALUES ($1, $2, $3, $4)
 			ON CONFLICT (board_key, stage_id) DO UPDATE SET name = EXCLUDED.name, sort = EXCLUDED.sort;
-		`, boardKey, stage.ID, stage.Name, stage.Sort); err != nil {
+		`, boardKey, stage.ID, stage.Name, stage.Sort)
+	}
+	return sendBatch(ctx, db, batch)
+}
+
+// sendBatch runs queued statements in one round trip. Writes go in batches
+// because the production database is far enough away that one statement per
+// row made a sync take minutes.
+func sendBatch(ctx context.Context, db *pgxpool.Pool, batch *pgx.Batch) error {
+	if batch.Len() == 0 {
+		return nil
+	}
+	results := db.SendBatch(ctx, batch)
+	for i := 0; i < batch.Len(); i++ {
+		if _, err := results.Exec(); err != nil {
+			results.Close()
 			return err
 		}
 	}
-	return nil
+	return results.Close()
 }
 
 func resolveDealCategories(ctx context.Context, client *Client, dealIDs []int64, categoryByDeal map[int64]int) error {
@@ -265,7 +284,7 @@ func assignStagesAtSend(ctx context.Context, db *pgxpool.Pool, client *Client, b
 		if err != nil {
 			return err
 		}
-		progress("Loading stage history: %d of %d deals", end, len(ids))
+		progress("Step 3 of 3 · Loading deal stage history: %d of %d deals", end, len(ids))
 	}
 
 	rows, err := db.Query(ctx, `SELECT activity_id, deal_id, sent_at FROM portal_sent_emails WHERE board_key = $1;`, boardKey)
@@ -287,20 +306,25 @@ func assignStagesAtSend(ctx context.Context, db *pgxpool.Pool, client *Client, b
 	}
 	rows.Close()
 
+	var activityIDs []int64
+	var stages []string
 	for _, s := range all {
 		changes, ok := history[s.dealID]
 		if !ok {
 			continue
 		}
-		stage := stageAt(changes, s.at)
-		if stage == "" {
-			continue
-		}
-		if _, err := db.Exec(ctx, `UPDATE portal_sent_emails SET stage_id = $2 WHERE activity_id = $1;`, s.activityID, stage); err != nil {
-			return err
+		if stage := stageAt(changes, s.at); stage != "" {
+			activityIDs = append(activityIDs, s.activityID)
+			stages = append(stages, stage)
 		}
 	}
-	return nil
+	_, err = db.Exec(ctx, `
+		UPDATE portal_sent_emails p
+		SET stage_id = v.stage
+		FROM unnest($1::bigint[], $2::text[]) AS v(activity_id, stage)
+		WHERE p.activity_id = v.activity_id;
+	`, activityIDs, stages)
+	return err
 }
 
 func stageAt(changes []stageChange, at time.Time) string {
@@ -317,6 +341,9 @@ func stageAt(changes []stageChange, at time.Time) string {
 }
 
 func rebuildGroups(ctx context.Context, db *pgxpool.Pool, boardKey string) (int, error) {
+	if err := refreshFingerprints(ctx, db, boardKey); err != nil {
+		return 0, err
+	}
 	rows, err := db.Query(ctx, `
 		SELECT activity_id, fingerprint, subject, sent_at, COALESCE(stage_id, '')
 		FROM portal_sent_emails
@@ -356,14 +383,31 @@ func rebuildGroups(ctx context.Context, db *pgxpool.Pool, boardKey string) (int,
 	}
 	rows.Close()
 
-	for fingerprint, g := range groups {
+	sampleIDs := make([]int64, 0, len(groups))
+	for _, g := range groups {
+		sampleIDs = append(sampleIDs, g.sample)
+	}
+	bodies := map[int64]string{}
+	bodyRows, err := db.Query(ctx, `SELECT activity_id, body_html FROM portal_sent_emails WHERE activity_id = ANY($1);`, sampleIDs)
+	if err != nil {
+		return 0, err
+	}
+	for bodyRows.Next() {
+		var id int64
 		var body string
-		if err := db.QueryRow(ctx, `SELECT body_html FROM portal_sent_emails WHERE activity_id = $1;`, g.sample).Scan(&body); err != nil {
+		if err := bodyRows.Scan(&id, &body); err != nil {
+			bodyRows.Close()
 			return 0, err
 		}
-		text := NormalizedText(body)
+		bodies[id] = body
+	}
+	bodyRows.Close()
+
+	batch := &pgx.Batch{}
+	for fingerprint, g := range groups {
+		text := NormalizedText(bodies[g.sample])
 		stagesJSON, _ := json.Marshal(g.stages)
-		if _, err := db.Exec(ctx, `
+		batch.Queue(`
 			INSERT INTO portal_email_groups (
 				board_key, fingerprint, language, subject, normalized_text, sample_activity_id,
 				send_count, first_sent_at, last_sent_at, stages
@@ -380,9 +424,10 @@ func rebuildGroups(ctx context.Context, db *pgxpool.Pool, boardKey string) (int,
 				stages = EXCLUDED.stages,
 				updated_at = now();
 		`, boardKey, fingerprint, DetectLanguage(text), mostCommon(g.subjects), text, g.sample,
-			g.count, g.first, g.last, string(stagesJSON)); err != nil {
-			return 0, err
-		}
+			g.count, g.first, g.last, string(stagesJSON))
+	}
+	if err := sendBatch(ctx, db, batch); err != nil {
+		return 0, err
 	}
 	// Groups nobody decided on and no stored email points to any more (e.g.
 	// after normalisation changed) are dropped.
@@ -398,10 +443,48 @@ func rebuildGroups(ctx context.Context, db *pgxpool.Pool, boardKey string) (int,
 	return len(groups), nil
 }
 
+// refreshFingerprints recomputes every stored fingerprint from the body, so
+// emails loaded before a change to NormalizedText still group with new ones.
+func refreshFingerprints(ctx context.Context, db *pgxpool.Pool, boardKey string) error {
+	rows, err := db.Query(ctx, `SELECT activity_id, body_html, fingerprint FROM portal_sent_emails WHERE board_key = $1;`, boardKey)
+	if err != nil {
+		return err
+	}
+	var ids []int64
+	var fingerprints []string
+	for rows.Next() {
+		var id int64
+		var body, stored string
+		if err := rows.Scan(&id, &body, &stored); err != nil {
+			rows.Close()
+			return err
+		}
+		if current := Fingerprint(NormalizedText(body)); current != stored {
+			ids = append(ids, id)
+			fingerprints = append(fingerprints, current)
+		}
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	_, err = db.Exec(ctx, `
+		UPDATE portal_sent_emails p
+		SET fingerprint = v.fingerprint
+		FROM unnest($1::bigint[], $2::text[]) AS v(activity_id, fingerprint)
+		WHERE p.activity_id = v.activity_id;
+	`, ids, fingerprints)
+	return err
+}
+
 type serviceEmail struct {
 	id       string
 	language string
 	text     string
+	grams    map[string]bool
 }
 
 // matchGroups finds the closest board email for every group. It never
@@ -428,13 +511,18 @@ func matchGroups(ctx context.Context, db *pgxpool.Pool, boardKey string) error {
 	}
 	rows.Close()
 
+	for i := range emails {
+		emails[i].grams = bigrams(emails[i].text)
+	}
+	batch := &pgx.Batch{}
 	for _, g := range groups {
+		grams := bigrams(g.text)
 		bestID, bestScore := "", 0.0
 		for _, email := range emails {
 			if g.language != "" && email.language != g.language {
 				continue
 			}
-			if score := Similarity(g.text, email.text); score > bestScore {
+			if score := jaccard(grams, email.grams); score > bestScore {
 				bestID, bestScore = email.id, score
 			}
 		}
@@ -449,13 +537,11 @@ func matchGroups(ctx context.Context, db *pgxpool.Pool, boardKey string) error {
 		if status != "unmatched" {
 			matchID = bestID
 		}
-		if _, err := db.Exec(ctx, `
+		batch.Queue(`
 			UPDATE portal_email_groups SET match_email_id = $2, match_score = $3, match_status = $4 WHERE id = $1;
-		`, g.id, matchID, bestScore, status); err != nil {
-			return err
-		}
+		`, g.id, matchID, bestScore, status)
 	}
-	return nil
+	return sendBatch(ctx, db, batch)
 }
 
 func loadServiceEmails(ctx context.Context, db *pgxpool.Pool, boardKey string) ([]serviceEmail, error) {
