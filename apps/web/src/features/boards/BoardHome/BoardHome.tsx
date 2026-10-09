@@ -42,6 +42,10 @@ import { BoardAIExportModal } from "./BoardAIExportModal";
 import { useFilteredExport } from "./useFilteredExport";
 import { EmailSidePanel } from "./EmailSidePanel";
 import { SlotMatrix } from "./SlotMatrix";
+import { UnsortedPanel } from "./UnsortedPanel";
+import matrixStyles from "./SlotMatrix.module.css";
+import { fetchEmails } from "../../emails/api";
+import { getProductionStatus } from "../../emails/productionStatus";
 import { ManageStagesModal } from "./ManageStagesModal";
 import { useBoardHomeData } from "./useBoardHomeData";
 import styles from "../../../App.module.css";
@@ -166,6 +170,9 @@ function EmailBoardApp({
   const navigate = useNavigate();
   const [aiExportOpened, setAiExportOpened] = useState(false);
   const [panelEmailId, setPanelEmailId] = useState<string | null>(null);
+  // Live emails imported from the portal wait on the "<board>-portal" board
+  // until they are placed into slots of this board from the matrix.
+  const portalBoardKey = `${boardKey}-portal`;
   const [boardView, setBoardViewState] = useState<BoardView>(readStoredBoardView);
   const setBoardView = (view: BoardView) => {
     setBoardViewState(view);
@@ -215,6 +222,11 @@ function EmailBoardApp({
   });
 
   const filteredExport = useFilteredExport(filteredEmailIds);
+  const unsortedQuery = useQuery({
+    queryKey: ["emails", portalBoardKey],
+    queryFn: () => fetchEmails(portalBoardKey),
+    enabled: boardView === "matrix" && isAdmin && boards.some((b) => b.key === portalBoardKey),
+  });
 
   if (boardsQuery.isSuccess && !activeBoard && preferredBoard) {
     return <Navigate replace to={`/boards/${encodeURIComponent(preferredBoard.key)}`} />;
@@ -232,10 +244,16 @@ function EmailBoardApp({
   const handleOpenVersionGroup = (_groupKey: string, emailId: string) => {
     setPanelEmailId(emailId);
   };
-  const panelGroup = panelEmailId
+  const unsortedEmails = (unsortedQuery.data ?? []).map((email) => ({
+    ...email,
+    production_status: getProductionStatus(email, activeBoard?.portal_synced_at),
+  }));
+  const boardGroup = panelEmailId
     ? columns.flatMap((c) => c.emailGroups).find((g) => g.versions.some((v) => v.id === panelEmailId))
     : undefined;
-  const panelEmail = panelGroup?.versions.find((v) => v.id === panelEmailId);
+  const unsortedPanelEmail = boardGroup ? undefined : unsortedEmails.find((e) => e.id === panelEmailId);
+  const panelSiblings = boardGroup?.versions ?? (unsortedPanelEmail ? [unsortedPanelEmail] : []);
+  const panelEmail = panelSiblings.find((v) => v.id === panelEmailId);
 
   const handleBoardChange = (value: string | null) => {
     if (value) {
@@ -302,11 +320,21 @@ function EmailBoardApp({
           {emailsQuery.isSuccess ? (
             visibleColumns.length > 0 ? (
               boardView === "matrix" ? (
-                <SlotMatrix
-                  columns={visibleColumns}
-                  selectedEmailId={panelEmailId}
-                  onOpenEmail={(email) => setPanelEmailId(email.id)}
-                />
+                <div className={matrixStyles.matrixView}>
+                  {activeBoard && isAdmin ? (
+                    <UnsortedPanel
+                      board={activeBoard}
+                      columns={columns}
+                      emails={unsortedEmails}
+                      onPreview={(email) => setPanelEmailId(email.id)}
+                    />
+                  ) : null}
+                  <SlotMatrix
+                    columns={visibleColumns}
+                    selectedEmailId={panelEmailId}
+                    onOpenEmail={(email) => setPanelEmailId(email.id)}
+                  />
+                </div>
               ) : (
               <EmailBoard
                 columns={visibleColumns}
@@ -330,11 +358,11 @@ function EmailBoardApp({
         </Box>
       </AppShell.Main>
 
-      {panelGroup && panelEmail ? (
+      {panelEmail ? (
         <EmailSidePanel
           canManage={isAdmin}
           email={panelEmail}
-          siblings={panelGroup.versions}
+          siblings={panelSiblings}
           onClose={() => setPanelEmailId(null)}
           onSelect={(email) => setPanelEmailId(email.id)}
         />

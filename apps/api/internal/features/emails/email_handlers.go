@@ -53,6 +53,8 @@ func RegisterEmailRoutes(r chi.Router, dbpool *pgxpool.Pool) {
 	r.Patch("/api/emails/{id}/live", markEmailLiveHandler(dbpool))
 	r.Get("/api/emails/{id}/translation", translationHandler(dbpool))
 	r.Post("/api/emails/{id}/translation/confirm", confirmTranslationHandler(dbpool))
+	r.Patch("/api/emails/{id}/translation-link", translationLinkHandler(dbpool))
+	r.Patch("/api/emails/{id}/place", placeEmailHandler(dbpool))
 	r.Get("/api/admin/email-events", listEmailEventsHandler(dbpool))
 }
 

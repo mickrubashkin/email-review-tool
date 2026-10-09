@@ -19,7 +19,7 @@ export function SlotMatrix({
   const languages = matrixLanguages(columns);
 
   return (
-    <Paper className={styles.wrap} radius="md">
+    <Paper className={`${styles.wrap} ${styles.matrix}`} radius="md">
       <ScrollArea className={styles.scroll} type="auto">
         <Table className={styles.table} stickyHeader withColumnBorders>
           <Table.Thead>
