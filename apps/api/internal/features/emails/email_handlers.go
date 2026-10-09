@@ -51,6 +51,8 @@ func RegisterEmailRoutes(r chi.Router, dbpool *pgxpool.Pool) {
 	r.Post("/api/emails/{id}/adaptations", createEmailAdaptationHandler(dbpool))
 	r.Patch("/api/emails/{id}/archive", archiveEmailHandler(dbpool))
 	r.Patch("/api/emails/{id}/live", markEmailLiveHandler(dbpool))
+	r.Get("/api/emails/{id}/translation", translationHandler(dbpool))
+	r.Post("/api/emails/{id}/translation/confirm", confirmTranslationHandler(dbpool))
 	r.Get("/api/admin/email-events", listEmailEventsHandler(dbpool))
 }
 
@@ -99,7 +101,9 @@ func listEmailsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 				) AS open_blocking_comment_count,
 				COALESCE(portal.send_count, 0),
 				portal.last_sent_at,
-				live_marked_at
+				live_marked_at,
+				translation_of,
+				COALESCE(translation.stale, false)
 			FROM emails
 			LEFT JOIN LATERAL (
 				-- Sent emails the portal sync tied to this one: confirmed by a
@@ -109,6 +113,21 @@ func listEmailsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 				WHERE (g.decision IN ('confirmed', 'created') AND g.decision_email_id = emails.id)
 					OR (g.decision IS NULL AND g.match_status = 'matched' AND g.match_email_id = emails.id)
 			) portal ON true
+			LEFT JOIN LATERAL (
+				-- Outdated when the master's current text differs from the
+				-- master version the translation was made from.
+				SELECT email_text_hash(fv.subject, fv.preheader, fv.editable_fields)
+					<> email_text_hash(lv.subject, lv.preheader, lv.editable_fields) AS stale
+				FROM email_versions fv
+				JOIN LATERAL (
+					SELECT subject, preheader, editable_fields FROM email_versions
+					WHERE email_id = emails.translation_of
+					ORDER BY version_number DESC LIMIT 1
+				) lv ON true
+				WHERE emails.translation_of IS NOT NULL
+					AND fv.email_id = emails.translation_of
+					AND fv.version_number = emails.translated_from_version
+			) translation ON true
 			WHERE archived_at IS NULL
 			`+boardFilter+`
 			ORDER BY sort_order, created_at;
@@ -148,6 +167,8 @@ func listEmailsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 				&email.PortalSendCount,
 				&email.PortalLastSentAt,
 				&email.LiveMarkedAt,
+				&email.TranslationOf,
+				&email.TranslationStale,
 			)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "failed to scan email row: %v\n", err)
@@ -1513,6 +1534,15 @@ func duplicateEmailAsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			fmt.Fprintf(os.Stderr, "failed to duplicate email as %s: %v\n", id, err)
 			http.Error(w, "failed to duplicate email", http.StatusInternalServerError)
 			return
+		}
+		// A copy of an EN email into another language of the same slot is
+		// its translation.
+		if source.Language == "en" && language != "en" &&
+			sequence == source.Sequence && stage == source.Stage && sortOrder == source.SortOrder {
+			if err := linkTranslation(r.Context(), tx, created.ID, id); err != nil {
+				http.Error(w, "failed to link translation", http.StatusInternalServerError)
+				return
+			}
 		}
 		if err := InsertEmailEvent(r.Context(), tx, EmailEventParam{
 			ActorUserID: user.ID,

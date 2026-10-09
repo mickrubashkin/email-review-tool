@@ -22,16 +22,19 @@ import { formatEmailReviewStatus } from "../../emails/reviewStatus";
 import { formatStageName } from "../../emails/stages";
 import type { EmailListItem } from "../../emails/types";
 import { pickPrimary } from "./slotHelpers";
+import { TranslationSection } from "./TranslationSection";
 import styles from "./EmailSidePanel.module.css";
 
 // EmailSidePanel previews an email next to the board, so people can glance at
 // emails while moving around the board without leaving it.
 export function EmailSidePanel({
+  canManage,
   email,
   siblings,
   onClose,
   onSelect,
 }: {
+  canManage: boolean;
   email: EmailListItem;
   // Other emails of the same slot, to switch language or version in place.
   siblings: EmailListItem[];
@@ -118,6 +121,9 @@ export function EmailSidePanel({
       </Stack>
 
       <ScrollArea className={styles.body} type="auto">
+        <div className={styles.translation}>
+          <TranslationSection canManage={canManage} email={email} />
+        </div>
         {detailQuery.data ? (
           <MailPreview email={detailQuery.data} isScanning={false} viewport="desktop" />
         ) : (

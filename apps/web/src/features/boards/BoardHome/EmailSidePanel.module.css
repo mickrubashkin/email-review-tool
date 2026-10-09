@@ -26,3 +26,7 @@
   flex: 1;
   min-height: 0;
 }
+
+.translation:not(:empty) {
+  padding: var(--mantine-spacing-xs) var(--mantine-spacing-md) 0;
+}

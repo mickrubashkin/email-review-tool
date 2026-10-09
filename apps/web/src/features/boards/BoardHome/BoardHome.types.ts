@@ -11,6 +11,7 @@ export type BoardCommentFilter = "all" | "open";
 export type BoardFilters = {
   owner: string;
   production: string;
+  translation: string;
   comments: BoardCommentFilter;
   language: string;
   adaptation: string;
@@ -35,6 +36,7 @@ export type BoardFilterOptions = {
 export const defaultBoardFilters: BoardFilters = {
   owner: "",
   production: "",
+  translation: "",
   comments: "all",
   language: "",
   adaptation: "",

@@ -21,6 +21,9 @@ export type EmailListItem = {
   open_blocking_comment_count: number;
   portal_send_count: number;
   portal_last_sent_at: string | null;
+  // The EN master this email translates, and whether its text changed since.
+  translation_of: string | null;
+  translation_stale: boolean;
   live_marked_at?: string | null;
   // Derived on the board from the fields above and the board's last sync.
   production_status?: ProductionStatus;
@@ -28,6 +31,18 @@ export type EmailListItem = {
 
 // live: the portal sync saw robots send it; live_manual: marked by hand;
 // not_seen: a sync ran but never saw it; unknown: no sync yet.
+export type TranslationStatus = {
+  master_id: string;
+  master_title: string;
+  master_language: string;
+  translated_from_version: number;
+  master_latest_version: number;
+  stale: boolean;
+  changes: Array<{ key: string; before: string; after: string }>;
+  checked_at: string | null;
+  checked_by: string | null;
+};
+
 export type ProductionStatus = "live" | "live_manual" | "not_seen" | "unknown";
 
 export type EmailDetail = EmailListItem & {

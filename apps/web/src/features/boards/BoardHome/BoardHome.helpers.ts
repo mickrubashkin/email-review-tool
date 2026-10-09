@@ -91,7 +91,8 @@ function emailMatchesBoardFilters(email: EmailListItem, filters: BoardFilters) {
     (!filters.reviewer ||
       assigneeFilterValue(email.reviewer_email) === filters.reviewer) &&
     (!filters.status || email.review_status === filters.status) &&
-    matchesProductionFilter(email.production_status, filters.production)
+    matchesProductionFilter(email.production_status, filters.production) &&
+    (!filters.translation || (filters.translation === "stale" && email.translation_stale))
   );
 }
 
@@ -106,6 +107,7 @@ export function getActiveBoardFilterCount(filters: BoardFilters) {
     filters.reviewer,
     filters.status,
     filters.production,
+    filters.translation,
   ].filter(Boolean).length;
 }
 
