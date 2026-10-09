@@ -41,3 +41,19 @@ func TestConfirmTranslationRequiresAdmin(t *testing.T) {
 		t.Fatalf("expected 403 for a reviewer, got %d", response.Code)
 	}
 }
+
+func TestPlaceAndLinkRequireAdmin(t *testing.T) {
+	router := chi.NewRouter()
+	router.Patch("/api/emails/{id}/place", placeEmailHandler(nil))
+	router.Patch("/api/emails/{id}/translation-link", translationLinkHandler(nil))
+
+	for _, path := range []string{"/api/emails/x/place", "/api/emails/x/translation-link"} {
+		request := httptest.NewRequest(http.MethodPatch, path, nil)
+		request = request.WithContext(auth.WithUser(request.Context(), auth.AuthUser{ID: "r", Email: "r@example.com", Role: "reviewer"}))
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, request)
+		if response.Code != http.StatusForbidden {
+			t.Errorf("%s: expected 403 for a reviewer, got %d", path, response.Code)
+		}
+	}
+}

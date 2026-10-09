@@ -6,8 +6,26 @@
   background: var(--mantine-color-white);
 }
 
+/* Matrix view: unsorted emails on top (capped), the matrix fills the rest;
+   each scrolls on its own because the board page itself does not scroll. */
+.matrixView {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.matrix {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
 .scroll {
-  max-height: calc(100dvh - var(--app-shell-header-height, 64px) - 2 * var(--mantine-spacing-md));
+  flex: 1;
+  min-height: 0;
 }
 
 .table {
@@ -47,4 +65,9 @@
 
 .empty {
   background: var(--mantine-color-gray-0);
+}
+
+.unsortedHeader {
+  padding: var(--mantine-spacing-xs) var(--mantine-spacing-md);
+  border-bottom: 1px solid var(--mantine-color-gray-2);
 }

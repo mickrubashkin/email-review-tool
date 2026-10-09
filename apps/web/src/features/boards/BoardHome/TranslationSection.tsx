@@ -1,9 +1,9 @@
-import { Alert, Badge, Button, Group, Stack, Text } from "@mantine/core";
+import { Alert, Badge, Button, Group, Select, Stack, Text } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { diffWords } from "diff";
 
-import { confirmTranslation, fetchTranslationStatus } from "../../emails/api";
+import { confirmTranslation, fetchTranslationStatus, setTranslationLink } from "../../emails/api";
 import type { EmailListItem } from "../../emails/types";
 
 // TranslationSection tells whether a translation is behind its EN master and
@@ -87,4 +87,39 @@ export function TranslationSection({ email, canManage }: { email: EmailListItem;
 function shortenUnchanged(text: string) {
   if (text.length <= 120) return text;
   return `${text.slice(0, 50)} … ${text.slice(-50)}`;
+}
+
+const notTranslation = "__none__";
+
+// TranslationLinkSelect sets by hand which EN email of the slot this email
+// translates, for translations the automatic matching could not pair.
+export function TranslationLinkSelect({ email, siblings }: { email: EmailListItem; siblings: EmailListItem[] }) {
+  const queryClient = useQueryClient();
+  const masters = siblings.filter((s) => s.language === "en");
+  const mutation = useMutation({
+    mutationFn: (masterId: string | null) => setTranslationLink(email.id, masterId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["emails"] });
+    },
+    onError: (error) => notifications.show({ color: "red", message: error.message, title: "Not saved" }),
+  });
+  if (masters.length === 0) return null;
+
+  return (
+    <Select
+      allowDeselect={false}
+      data={[
+        ...masters.map((m) => ({
+          label: `EN · ${m.variant}${m.adaptation_key !== "default" ? ` · ${m.adaptation_label}` : ""} — ${m.title}`,
+          value: m.id,
+        })),
+        { label: "Not a translation of any EN email here", value: notTranslation },
+      ]}
+      disabled={mutation.isPending}
+      label="Translation of"
+      size="xs"
+      value={email.translation_of ?? notTranslation}
+      onChange={(value) => mutation.mutate(value === notTranslation || !value ? null : value)}
+    />
+  );
 }

@@ -22,7 +22,7 @@ import { formatEmailReviewStatus } from "../../emails/reviewStatus";
 import { formatStageName } from "../../emails/stages";
 import type { EmailListItem } from "../../emails/types";
 import { pickPrimary } from "./slotHelpers";
-import { TranslationSection } from "./TranslationSection";
+import { TranslationLinkSelect, TranslationSection } from "./TranslationSection";
 import styles from "./EmailSidePanel.module.css";
 
 // EmailSidePanel previews an email next to the board, so people can glance at
@@ -103,6 +103,9 @@ export function EmailSidePanel({
               </Button>
             ))}
           </Group>
+        ) : null}
+        {canManage && email.language !== "en" ? (
+          <TranslationLinkSelect email={email} siblings={siblings} />
         ) : null}
         <Group gap={6}>
           <ProductionBadge email={email} versions={sameLanguage} />

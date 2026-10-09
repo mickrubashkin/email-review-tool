@@ -267,6 +267,8 @@ func listEmailEventActivity(ctx context.Context, dbpool *pgxpool.Pool, emailID s
 		emailEventLiveMarked,
 		emailEventLiveUnmarked,
 		emailEventTranslationConfirmed,
+		emailEventPlaced,
+		emailEventTranslationLinked,
 	})
 	if err != nil {
 		return nil, err
@@ -422,6 +424,10 @@ func emailEventActivitySummary(action string, changes []byte, metadata []byte) s
 		return "Removed the live mark"
 	case emailEventTranslationConfirmed:
 		return "Marked the translation up to date with EN"
+	case emailEventPlaced:
+		return "Moved to a slot of the sequence"
+	case emailEventTranslationLinked:
+		return "Changed which EN email this translates"
 	default:
 		return "Changed email"
 	}

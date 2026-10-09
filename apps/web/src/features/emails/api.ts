@@ -91,6 +91,25 @@ export function confirmTranslation(emailId: string): Promise<TranslationStatus |
   );
 }
 
+export function placeEmail(
+  emailId: string,
+  payload: { sequence: string; stage: string; sort_order?: number }
+): Promise<{ id: string; sequence: string; stage: string; sort_order: number; translation_of: string | null }> {
+  return fetchJson(`/api/emails/${encodeURIComponent(emailId)}/place`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function setTranslationLink(emailId: string, masterId: string | null): Promise<void> {
+  return fetchJson<void>(`/api/emails/${encodeURIComponent(emailId)}/translation-link`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ master_id: masterId }),
+  });
+}
+
 export function fetchEmailDetail(emailId: string): Promise<EmailDetail> {
   return fetchJson<EmailDetail>(`/api/emails/${encodeURIComponent(emailId)}`);
 }
