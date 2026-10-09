@@ -8,22 +8,19 @@ const updatedLabel = Number.isNaN(updatedAt.getTime())
   : updatedAt.toLocaleDateString(undefined, {
       day: "numeric",
       month: "short",
-      year: "numeric",
     });
 
 export function AppVersionInfo({ onDark = false }: { onDark?: boolean }) {
-  const parts = [
-    `v${__APP_VERSION__}`,
-    __APP_COMMIT__,
-    updatedLabel && `updated ${updatedLabel}`,
-  ].filter(Boolean);
+  // Kept short for the crowded board header; the commit and exact time are
+  // in the tooltip.
+  const parts = [`v${__APP_VERSION__}`, updatedLabel].filter(Boolean);
 
   return (
     <Text
       c={onDark ? undefined : "dimmed"}
       className={onDark ? styles.appVersionInfo : undefined}
       size="xs"
-      title={`Last update: ${updatedAt.toLocaleString()}`}
+      title={`Commit ${__APP_COMMIT__ || "unknown"} · last update ${updatedAt.toLocaleString()}`}
     >
       {parts.join(" · ")}
     </Text>

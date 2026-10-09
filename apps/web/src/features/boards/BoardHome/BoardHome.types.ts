@@ -2,6 +2,9 @@ export const boardSelectedVersionsStorageKey = "reviewdesk.board.selectedVersion
 export const boardScrollPositionStorageKey = "reviewdesk.board.scrollPosition";
 export const boardFilterStorageKey = "reviewdesk.board.filter";
 export const boardSearchStorageKey = "reviewdesk.board.search";
+export const boardViewStorageKey = "reviewdesk.board.view";
+
+export type BoardView = "cards" | "matrix";
 
 export type BoardCommentFilter = "all" | "open";
 
