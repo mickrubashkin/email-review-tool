@@ -83,7 +83,7 @@ func createSlotHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 
 		response := createSlotResponse{SortOrder: sortOrder, Emails: []EmailDetail{}}
 		for _, email := range request.Emails {
-			created, err := createEmailTx(r, dbpool, tx, user, newEmailParams{
+			created, err := CreateEmailTx(r, dbpool, tx, user, NewEmailParams{
 				Sequence:      request.Sequence,
 				Title:         request.Title,
 				Subject:       email.Subject,

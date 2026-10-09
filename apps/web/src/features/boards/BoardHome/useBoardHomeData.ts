@@ -15,6 +15,7 @@ import {
   isApprovedEmailReviewStatus,
 } from "../../emails/reviewStatus";
 import { buildStageColumns } from "../../emails/stages";
+import { getProductionStatus } from "../../emails/productionStatus";
 import type {
   AuthUser,
   CreateBoardPayload,
@@ -125,9 +126,17 @@ export function useBoardHomeData({
   const boards = boardsQuery.data ?? [];
   const activeBoard = boards.find((board) => board.key === boardKey);
 
+  const boardEmails = useMemo(
+    () =>
+      (emailsQuery.data ?? []).map((email) => ({
+        ...email,
+        production_status: getProductionStatus(email, activeBoard?.portal_synced_at),
+      })),
+    [activeBoard?.portal_synced_at, emailsQuery.data]
+  );
   const columns = useMemo(
-    () => buildStageColumns(emailsQuery.data ?? [], activeBoard?.stages ?? []),
-    [activeBoard?.stages, emailsQuery.data]
+    () => buildStageColumns(boardEmails, activeBoard?.stages ?? []),
+    [activeBoard?.stages, boardEmails]
   );
   const searchQuery = boardSearchQuery.trim();
   const searchedColumns = useMemo(

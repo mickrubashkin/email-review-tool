@@ -26,6 +26,7 @@ func RegisterRoutes(r chi.Router, dbpool *pgxpool.Pool) {
 	r.Get("/api/portal/groups/{id}", groupDetailHandler(dbpool))
 	r.Patch("/api/portal/groups/{id}", decideGroupHandler(dbpool))
 	r.Get("/api/portal/groups/{id}/reconstruct", reconstructGroupHandler(dbpool))
+	r.Post("/api/boards/{boardKey}/portal/import-missing", importMissingHandler(dbpool))
 }
 
 func requireSuperAdmin(w http.ResponseWriter, r *http.Request) (auth.AuthUser, bool) {
@@ -495,91 +496,102 @@ func reconstructGroupHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 		if _, ok := requireSuperAdmin(w, r); !ok {
 			return
 		}
-		var boardKey, language, subject, body string
-		err := dbpool.QueryRow(r.Context(), `
-			SELECT g.board_key, g.language, g.subject, s.body_html
-			FROM portal_email_groups g
-			JOIN portal_sent_emails s ON s.activity_id = g.sample_activity_id
-			WHERE g.id = $1;
-		`, chi.URLParam(r, "id")).Scan(&boardKey, &language, &subject, &body)
-		if err != nil {
+		response, err := rebuildFromGroup(r.Context(), dbpool, chi.URLParam(r, "id"), r.URL.Query().Get("email_id"))
+		if errors.Is(err, pgx.ErrNoRows) {
 			http.Error(w, "group not found", http.StatusNotFound)
 			return
 		}
-
-		rows, err := dbpool.Query(r.Context(), `
-			SELECT id, title, language, template_html
-			FROM emails
-			WHERE sequence = $1 AND archived_at IS NULL AND editable_fields <> '{}'::jsonb
-				AND ($2 = '' OR id::text = $2);
-		`, boardKey, r.URL.Query().Get("email_id"))
 		if err != nil {
-			http.Error(w, "failed to load templates", http.StatusInternalServerError)
-			return
-		}
-		type candidate struct {
-			id, title, template string
-			score               float64
-		}
-		var candidates []candidate
-		for rows.Next() {
-			var c candidate
-			var emailLanguage string
-			if err := rows.Scan(&c.id, &c.title, &emailLanguage, &c.template); err != nil {
-				rows.Close()
-				http.Error(w, "failed to load templates", http.StatusInternalServerError)
-				return
-			}
-			c.score = SkeletonSimilarity(body, c.template)
-			if emailLanguage == language {
-				c.score += 0.001 // same structure: prefer the same language
-			}
-			candidates = append(candidates, c)
-		}
-		rows.Close()
-		if len(candidates) == 0 {
-			http.Error(w, "the board has no email with editable fields to use as a template", http.StatusUnprocessableEntity)
-			return
-		}
-		sort.Slice(candidates, func(i, j int) bool { return candidates[i].score > candidates[j].score })
-
-		// Structure alone can tie between template generations (e.g. one or
-		// two signature fields), so try the closest few and keep the first
-		// whose every field is found in the sent copy.
-		var result Reconstruction
-		var used candidate
-		for i, c := range candidates {
-			if i >= 8 {
-				break
-			}
-			attempt, err := Reconstruct(body, c.template, subject, language)
-			if err != nil {
-				continue
-			}
-			if used.id == "" || (attempt.FromTemplate && !result.FromTemplate) {
-				result, used = attempt, c
-			}
-			if attempt.FromTemplate {
-				break
-			}
-		}
-		if used.id == "" {
+			fmt.Fprintf(os.Stderr, "reconstruct group: %v\n", err)
 			http.Error(w, "could not rebuild the email", http.StatusUnprocessableEntity)
 			return
 		}
-
-		suggestedStage, err := suggestServiceStage(r.Context(), dbpool, chi.URLParam(r, "id"))
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "suggest stage: %v\n", err)
-		}
-
-		writeJSON(w, http.StatusOK, reconstructResponse{
-			Reconstruction:     result,
-			Subject:            subject,
-			Language:           language,
-			TemplateEmailID:    used.id,
-			TemplateEmailTitle: used.title,
-			SuggestedStage:     suggestedStage,
-		})
+		writeJSON(w, http.StatusOK, response)
 	}
+}
+
+var errNoTemplate = errors.New("the board has no email with editable fields to use as a template")
+
+// rebuildFromGroup picks the board template that fits the group's sent copy
+// and rebuilds the email on it. emailID forces a specific template.
+func rebuildFromGroup(ctx context.Context, db *pgxpool.Pool, groupID, emailID string) (reconstructResponse, error) {
+	var boardKey, language, subject, body string
+	if err := db.QueryRow(ctx, `
+		SELECT g.board_key, g.language, g.subject, s.body_html
+		FROM portal_email_groups g
+		JOIN portal_sent_emails s ON s.activity_id = g.sample_activity_id
+		WHERE g.id = $1;
+	`, groupID).Scan(&boardKey, &language, &subject, &body); err != nil {
+		return reconstructResponse{}, err
+	}
+
+	rows, err := db.Query(ctx, `
+		SELECT id, title, language, template_html
+		FROM emails
+		WHERE sequence = $1 AND archived_at IS NULL AND editable_fields <> '{}'::jsonb
+			AND ($2 = '' OR id::text = $2);
+	`, boardKey, emailID)
+	if err != nil {
+		return reconstructResponse{}, err
+	}
+	type candidate struct {
+		id, title, template string
+		score               float64
+	}
+	var candidates []candidate
+	for rows.Next() {
+		var c candidate
+		var emailLanguage string
+		if err := rows.Scan(&c.id, &c.title, &emailLanguage, &c.template); err != nil {
+			rows.Close()
+			return reconstructResponse{}, err
+		}
+		c.score = SkeletonSimilarity(body, c.template)
+		if emailLanguage == language {
+			c.score += 0.001 // same structure: prefer the same language
+		}
+		candidates = append(candidates, c)
+	}
+	rows.Close()
+	if len(candidates) == 0 {
+		return reconstructResponse{}, errNoTemplate
+	}
+	sort.Slice(candidates, func(i, j int) bool { return candidates[i].score > candidates[j].score })
+
+	// Structure alone can tie between template generations (e.g. one or
+	// two signature fields), so try the closest few and keep the first
+	// whose every field is found in the sent copy.
+	var result Reconstruction
+	var used candidate
+	for i, c := range candidates {
+		if i >= 8 {
+			break
+		}
+		attempt, err := Reconstruct(body, c.template, subject, language)
+		if err != nil {
+			continue
+		}
+		if used.id == "" || (attempt.FromTemplate && !result.FromTemplate) {
+			result, used = attempt, c
+		}
+		if attempt.FromTemplate {
+			break
+		}
+	}
+	if used.id == "" {
+		return reconstructResponse{}, errors.New("no template could rebuild this email")
+	}
+
+	suggestedStage, err := suggestServiceStage(ctx, db, groupID)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "suggest stage: %v\n", err)
+	}
+	return reconstructResponse{
+		Reconstruction:     result,
+		Subject:            subject,
+		Language:           language,
+		TemplateEmailID:    used.id,
+		TemplateEmailTitle: used.title,
+		SuggestedStage:     suggestedStage,
+	}, nil
 }
