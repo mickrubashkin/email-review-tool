@@ -7,6 +7,7 @@ import {
   Group,
   List,
   Loader,
+  Modal,
   NumberInput,
   Paper,
   SegmentedControl,
@@ -27,6 +28,8 @@ import type { UserRole } from "../../emails/types";
 import {
   fetchPortalCategories,
   fetchPortalOverview,
+  importMissingFromPortal,
+  isImportCandidate,
   startPortalSync,
   type PortalGroup,
   type PortalStage,
@@ -94,6 +97,28 @@ export function PortalSync({ currentUserRole }: { currentUserRole: UserRole }) {
   });
 
   const refreshOverview = () => void queryClient.invalidateQueries({ queryKey: ["portal-overview", boardKey] });
+  const [importOpened, setImportOpened] = useState(false);
+  const importMutation = useMutation({
+    mutationFn: () => importMissingFromPortal(boardKey),
+    onSuccess: async (result) => {
+      setImportOpened(false);
+      refreshOverview();
+      // The import board may be new: load it before opening, or the board
+      // route would redirect to the default board.
+      await queryClient.refetchQueries({ queryKey: ["boards"] });
+      notifications.show({
+        color: result.skipped.length > 0 ? "yellow" : "green",
+        message: `${result.created} emails added to "${result.board_name}"${
+          result.linked ? `, ${result.linked} manager variants tied to them` : ""
+        }${result.without_fields ? `, ${result.without_fields} as sent (no template fits, no editable fields yet)` : ""}${
+          result.skipped.length ? `, ${result.skipped.length} failed` : ""
+        }.`,
+        title: "Imported",
+      });
+      navigate(`/boards/${encodeURIComponent(result.board_key)}`);
+    },
+    onError: (error) => notifications.show({ color: "red", message: error.message, title: "Import failed" }),
+  });
   const overview = overviewQuery.data;
   const run = overview?.latest_run ?? null;
   const stageNames = useMemo(
@@ -176,6 +201,14 @@ export function PortalSync({ currentUserRole }: { currentUserRole: UserRole }) {
 
         <Group justify="space-between">
           <Title order={4}>Sent emails ({groups.length} distinct)</Title>
+          <Button
+            disabled={!overview || overview.groups.filter(isImportCandidate).length === 0 || run?.status === "running"}
+            size="xs"
+            variant="light"
+            onClick={() => setImportOpened(true)}
+          >
+            Import missing ({overview?.groups.filter(isImportCandidate).length ?? 0})
+          </Button>
           {selected.length > 0 ? (
             <Button
               size="xs"
@@ -339,6 +372,29 @@ export function PortalSync({ currentUserRole }: { currentUserRole: UserRole }) {
           </Table>
         </Paper>
       </Stack>
+
+      <Modal opened={importOpened} title="Import emails missing from the service" onClose={() => setImportOpened(false)}>
+        <Stack>
+          <Text size="sm">
+            Every email robots sent that the service does not have (at least 2 sends; tests and managers' replies
+            skipped) is rebuilt on the
+            board template and added to a separate board, <b>Portal: live, not sorted</b>, in the column of the portal
+            stage it was sent from.
+          </Text>
+          <Text size="sm">
+            The same email sent by different managers is added once. Nothing changes on this board or in Bitrix24;
+            sorting into slots happens later.
+          </Text>
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setImportOpened(false)}>
+              Cancel
+            </Button>
+            <Button loading={importMutation.isPending} onClick={() => importMutation.mutate()}>
+              Import {overview?.groups.filter(isImportCandidate).length ?? 0} emails
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
 
       {openGroupID ? (
         <GroupDrawer

@@ -31,6 +31,11 @@ type EmailListItem struct {
 	ImplementationNotes      *string `json:"implementation_notes"`
 	OpenCommentCount         int     `json:"open_comment_count"`
 	OpenBlockingCommentCount int     `json:"open_blocking_comment_count"`
+	// From the last portal sync: how often the robots sent this email and
+	// when last; zero when it was not seen. LiveMarkedAt is a manual mark.
+	PortalSendCount  int        `json:"portal_send_count"`
+	PortalLastSentAt *time.Time `json:"portal_last_sent_at"`
+	LiveMarkedAt     *time.Time `json:"live_marked_at"`
 }
 
 type EmailDetail struct {

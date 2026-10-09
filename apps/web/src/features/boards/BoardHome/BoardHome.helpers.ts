@@ -6,6 +6,7 @@ import {
   isProductionApprovedEmailReviewStatus,
 } from "../../emails/reviewStatus";
 import { formatStageName } from "../../emails/stages";
+import { matchesProductionFilter } from "../../emails/productionStatus";
 import type { EmailDetail, EmailListItem, EmailReviewStatus, StageColumn } from "../../emails/types";
 
 import type {
@@ -89,7 +90,8 @@ function emailMatchesBoardFilters(email: EmailListItem, filters: BoardFilters) {
     (!filters.owner || assigneeFilterValue(email.owner_email) === filters.owner) &&
     (!filters.reviewer ||
       assigneeFilterValue(email.reviewer_email) === filters.reviewer) &&
-    (!filters.status || email.review_status === filters.status)
+    (!filters.status || email.review_status === filters.status) &&
+    matchesProductionFilter(email.production_status, filters.production)
   );
 }
 
@@ -103,6 +105,7 @@ export function getActiveBoardFilterCount(filters: BoardFilters) {
     filters.owner,
     filters.reviewer,
     filters.status,
+    filters.production,
   ].filter(Boolean).length;
 }
 

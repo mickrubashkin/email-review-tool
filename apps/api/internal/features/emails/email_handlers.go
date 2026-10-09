@@ -96,8 +96,19 @@ func listEmailsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 					WHERE comments.email_id = emails.id
 						AND comments.status = 'open'
 						AND comments.severity = 'blocking'
-				) AS open_blocking_comment_count
+				) AS open_blocking_comment_count,
+				COALESCE(portal.send_count, 0),
+				portal.last_sent_at,
+				live_marked_at
 			FROM emails
+			LEFT JOIN LATERAL (
+				-- Sent emails the portal sync tied to this one: confirmed by a
+				-- person, or matched automatically with no decision yet.
+				SELECT sum(g.send_count)::int AS send_count, max(g.last_sent_at) AS last_sent_at
+				FROM portal_email_groups g
+				WHERE (g.decision IN ('confirmed', 'created') AND g.decision_email_id = emails.id)
+					OR (g.decision IS NULL AND g.match_status = 'matched' AND g.match_email_id = emails.id)
+			) portal ON true
 			WHERE archived_at IS NULL
 			`+boardFilter+`
 			ORDER BY sort_order, created_at;
@@ -134,6 +145,9 @@ func listEmailsHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 				&email.ImplementationNotes,
 				&email.OpenCommentCount,
 				&email.OpenBlockingCommentCount,
+				&email.PortalSendCount,
+				&email.PortalLastSentAt,
+				&email.LiveMarkedAt,
 			)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "failed to scan email row: %v\n", err)
@@ -310,7 +324,7 @@ func createEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 		}
 		defer tx.Rollback(r.Context())
 
-		created, err := createEmailTx(r, dbpool, tx, user, newEmailParams{
+		created, err := CreateEmailTx(r, dbpool, tx, user, NewEmailParams{
 			Sequence:        stringFromPointer(request.Sequence),
 			Title:           request.Title,
 			Subject:         request.Subject,
@@ -339,7 +353,8 @@ func createEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 	}
 }
 
-type newEmailParams struct {
+// NewEmailParams describes an email to create; see CreateEmailTx.
+type NewEmailParams struct {
 	Sequence        string
 	Title           string
 	Subject         *string
@@ -374,9 +389,9 @@ func writeCreateEmailError(w http.ResponseWriter, err error) {
 	}
 }
 
-// createEmailTx validates and inserts one email with its creation event and
+// CreateEmailTx validates and inserts one email with its creation event and
 // initial version. The caller owns the transaction.
-func createEmailTx(r *http.Request, dbpool *pgxpool.Pool, tx pgx.Tx, user AuthUser, params newEmailParams) (EmailDetail, error) {
+func CreateEmailTx(r *http.Request, dbpool *pgxpool.Pool, tx pgx.Tx, user AuthUser, params NewEmailParams) (EmailDetail, error) {
 	sequence := strings.TrimSpace(params.Sequence)
 	if sequence == "" {
 		sequence = "onboarding"

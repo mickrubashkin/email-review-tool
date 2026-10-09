@@ -68,6 +68,9 @@ type BoardItem struct {
 	Stages    []string  `json:"stages"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+	// PortalSyncedAt is the end of the last successful portal sync, so the
+	// board can tell "not sent in the period" apart from "never checked".
+	PortalSyncedAt *time.Time `json:"portal_synced_at"`
 }
 
 type BoardApprovalAreaItem struct {

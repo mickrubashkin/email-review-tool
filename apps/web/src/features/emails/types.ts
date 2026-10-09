@@ -19,7 +19,16 @@ export type EmailListItem = {
   implementation_notes: string | null;
   open_comment_count: number;
   open_blocking_comment_count: number;
+  portal_send_count: number;
+  portal_last_sent_at: string | null;
+  live_marked_at?: string | null;
+  // Derived on the board from the fields above and the board's last sync.
+  production_status?: ProductionStatus;
 };
+
+// live: the portal sync saw robots send it; live_manual: marked by hand;
+// not_seen: a sync ran but never saw it; unknown: no sync yet.
+export type ProductionStatus = "live" | "live_manual" | "not_seen" | "unknown";
 
 export type EmailDetail = EmailListItem & {
   live_marked_at?: string | null;
@@ -52,6 +61,7 @@ export type Board = {
   stages: string[];
   created_at: string;
   updated_at: string;
+  portal_synced_at: string | null;
 };
 
 export type CreateBoardPayload = {

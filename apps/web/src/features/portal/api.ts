@@ -129,3 +129,31 @@ export type PortalReconstruction = {
 export function reconstructPortalGroup(id: string): Promise<PortalReconstruction> {
   return fetchJson<PortalReconstruction>(`/api/portal/groups/${encodeURIComponent(id)}/reconstruct`);
 }
+
+export type PortalImportResult = {
+  board_key: string;
+  board_name: string;
+  created: number;
+  linked: number;
+  without_fields: number;
+  skipped: Array<{ group_id: string; subject: string; reason: string }>;
+};
+
+export function importMissingFromPortal(boardKey: string): Promise<PortalImportResult> {
+  return fetchJson<PortalImportResult>(`/api/boards/${encodeURIComponent(boardKey)}/portal/import-missing`, {
+    method: "POST",
+  });
+}
+
+// Mirrors the server: unmatched, undecided, a known language, sent at least
+// twice, and not a test or a manager's reply or forward.
+export function isImportCandidate(group: PortalGroup) {
+  return (
+    group.decision === null &&
+    group.match_status === "unmatched" &&
+    group.language !== "" &&
+    group.send_count >= 2 &&
+    !/^\s*(test|teste|тест)(?:[^\p{L}]|$)/iu.test(group.subject) &&
+    !/^\s*(re|fw|fwd|aw)\s*:/i.test(group.subject)
+  );
+}

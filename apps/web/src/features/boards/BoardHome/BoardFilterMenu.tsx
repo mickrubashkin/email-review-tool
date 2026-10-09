@@ -15,6 +15,7 @@ import {
 } from "@phosphor-icons/react";
 
 import { emailReviewStatusOptions } from "../../emails/reviewStatus";
+import { productionStatusOptions } from "../../emails/productionStatus";
 import type { AuthUser } from "../../emails/types";
 
 import type { BoardFilterOptions, BoardFilters } from "./BoardHome.types";
@@ -221,6 +222,14 @@ export function BoardFilterControls({
         showLabel={showLabels}
         value={boardFilters.reviewer}
         onChange={(value) => onBoardFilterChange("reviewer", value)}
+      />
+      <BoardFilterSelect
+        data={productionStatusOptions}
+        label="Production"
+        placeholder="Live or not: all"
+        showLabel={showLabels}
+        value={boardFilters.production}
+        onChange={(value) => onBoardFilterChange("production", value)}
       />
       <BoardFilterSelect
         data={emailReviewStatusOptions}

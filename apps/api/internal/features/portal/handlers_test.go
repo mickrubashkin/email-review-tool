@@ -22,6 +22,7 @@ func TestPortalRoutesRequireSuperAdmin(t *testing.T) {
 		httptest.NewRequest(http.MethodGet, "/api/portal/groups/x", nil),
 		httptest.NewRequest(http.MethodPatch, "/api/portal/groups/x", strings.NewReader(`{"decision":"ignored"}`)),
 		httptest.NewRequest(http.MethodGet, "/api/portal/groups/x/reconstruct", nil),
+		httptest.NewRequest(http.MethodPost, "/api/boards/onboarding/portal/import-missing", nil),
 	}
 	for _, request := range requests {
 		request = request.WithContext(auth.WithUser(request.Context(), auth.AuthUser{ID: "a", Email: "a@example.com", Role: "admin"}))

@@ -326,7 +326,11 @@ func createBoardFromSource(ctx context.Context, dbpool *pgxpool.Pool, name strin
 
 func listBoards(ctx context.Context, dbpool *pgxpool.Pool) ([]BoardItem, error) {
 	rows, err := dbpool.Query(ctx, `
-		SELECT id, key, name, stages, created_at, updated_at
+		SELECT id, key, name, stages, created_at, updated_at,
+			(
+				SELECT max(finished_at) FROM portal_sync_runs r
+				WHERE r.board_key = boards.key AND r.status = 'done'
+			)
 		FROM boards
 		ORDER BY created_at, name;
 	`)
@@ -346,6 +350,7 @@ func listBoards(ctx context.Context, dbpool *pgxpool.Pool) ([]BoardItem, error) 
 			&stages,
 			&board.CreatedAt,
 			&board.UpdatedAt,
+			&board.PortalSyncedAt,
 		); err != nil {
 			return nil, err
 		}
