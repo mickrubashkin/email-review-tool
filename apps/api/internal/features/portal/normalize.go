@@ -48,7 +48,10 @@ func Fingerprint(normalizedText string) string {
 
 // Similarity is the Jaccard index of lower-cased word bigrams, in [0, 1].
 func Similarity(a, b string) float64 {
-	setA, setB := bigrams(a), bigrams(b)
+	return jaccard(bigrams(a), bigrams(b))
+}
+
+func jaccard(setA, setB map[string]bool) float64 {
 	if len(setA) == 0 && len(setB) == 0 {
 		return 1
 	}
