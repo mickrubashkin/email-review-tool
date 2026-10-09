@@ -264,6 +264,8 @@ func listEmailEventActivity(ctx context.Context, dbpool *pgxpool.Pool, emailID s
 		emailEventDuplicated,
 		emailEventAdaptationCreated,
 		emailEventArchived,
+		emailEventLiveMarked,
+		emailEventLiveUnmarked,
 	})
 	if err != nil {
 		return nil, err
@@ -410,6 +412,13 @@ func emailEventActivitySummary(action string, changes []byte, metadata []byte) s
 		return "Created adaptation"
 	case emailEventArchived:
 		return "Archived email"
+	case emailEventLiveMarked:
+		if note := metadataString(metadata, "note"); note != "" {
+			return "Marked live by hand: " + note
+		}
+		return "Marked live by hand"
+	case emailEventLiveUnmarked:
+		return "Removed the live mark"
 	default:
 		return "Changed email"
 	}

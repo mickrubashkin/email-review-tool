@@ -557,6 +557,8 @@ export function EmailReview({
     <HandoffPanel
       approvalActivity={approvalActivity}
       areaApprovals={areaApprovalsQuery.data ?? []}
+      canMarkLive={currentUserRole === "super_admin"}
+      onLiveChanged={() => void queryClient.invalidateQueries({ queryKey: ["emails", emailId] })}
       email={email}
       isLoadingRenderedHTML={renderedEmailQuery.isLoading}
       openBlockingCommentCount={openBlockingCommentCount}

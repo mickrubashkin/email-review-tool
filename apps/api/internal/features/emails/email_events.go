@@ -15,6 +15,8 @@ const (
 	emailEventDuplicated             = "email_duplicated"
 	emailEventAdaptationCreated      = "email_adaptation_created"
 	emailEventCreated                = "email_created"
+	emailEventLiveMarked             = "email_live_marked"
+	emailEventLiveUnmarked           = "email_live_unmarked"
 	emailEventArchived               = "email_archived"
 	emailEventUpdated                = "email_updated"
 	emailEventPlanningUpdated        = "email_planning_updated"

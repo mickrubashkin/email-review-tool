@@ -29,6 +29,7 @@ import {
   formatAreaApprovalStatus,
   formatCommentDate,
 } from "../EmailReview.helpers";
+import { MarkLiveButton, UnmarkLiveButton } from "../../../portal/MarkLive";
 import styles from "../EmailReview.module.css";
 
 async function copyPlainText(value: string, label: string) {
@@ -96,15 +97,19 @@ function formatByteSize(value: string) {
 export function HandoffPanel({
   approvalActivity,
   areaApprovals,
+  canMarkLive = false,
   email,
   isLoadingRenderedHTML,
   openBlockingCommentCount,
   openCommentCount,
   renderedHTML,
   renderedHTMLError,
+  onLiveChanged,
 }: {
   approvalActivity: EmailActivityItem | null;
   areaApprovals: EmailAreaApproval[];
+  canMarkLive?: boolean;
+  onLiveChanged?: () => void;
   email: EmailDetail | undefined;
   isLoadingRenderedHTML: boolean;
   openBlockingCommentCount: number;
@@ -135,6 +140,25 @@ export function HandoffPanel({
 
   return (
     <Stack gap="sm">
+      {email.live_marked_at ? (
+        <Alert color="green" title="Live on production" variant="light">
+          <Group justify="space-between" wrap="nowrap">
+            <Text size="sm">
+              Marked by {email.live_marked_by} on {formatCommentDate(email.live_marked_at)}
+              {email.live_note ? ` · ${email.live_note}` : ""}
+            </Text>
+            {canMarkLive ? <UnmarkLiveButton emailId={email.id} onDone={() => onLiveChanged?.()} /> : null}
+          </Group>
+        </Alert>
+      ) : canMarkLive ? (
+        <Group justify="space-between">
+          <Text c="dimmed" size="sm">
+            Sent outside CRM robots (e.g. from the admin panel)?
+          </Text>
+          <MarkLiveButton emailId={email.id} onDone={() => onLiveChanged?.()} />
+        </Group>
+      ) : null}
+
       {!isProductionApproved ? (
         <Alert color="gray" title="Handoff not ready" variant="light">
           Mark this email production approved to prepare handoff.

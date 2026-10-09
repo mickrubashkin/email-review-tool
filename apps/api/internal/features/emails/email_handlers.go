@@ -50,6 +50,7 @@ func RegisterEmailRoutes(r chi.Router, dbpool *pgxpool.Pool) {
 	r.Post("/api/emails/{id}/duplicate", duplicateEmailHandler(dbpool))
 	r.Post("/api/emails/{id}/adaptations", createEmailAdaptationHandler(dbpool))
 	r.Patch("/api/emails/{id}/archive", archiveEmailHandler(dbpool))
+	r.Patch("/api/emails/{id}/live", markEmailLiveHandler(dbpool))
 	r.Get("/api/admin/email-events", listEmailEventsHandler(dbpool))
 }
 
@@ -193,6 +194,9 @@ func getEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 						AND comments.status = 'open'
 						AND comments.severity = 'blocking'
 				) AS open_blocking_comment_count,
+				live_marked_at,
+				live_marked_by,
+				live_note,
 				original_html,
 				review_html,
 				template_html,
@@ -223,6 +227,9 @@ func getEmailHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			&email.ImplementationNotes,
 			&email.OpenCommentCount,
 			&email.OpenBlockingCommentCount,
+			&email.LiveMarkedAt,
+			&email.LiveMarkedBy,
+			&email.LiveNote,
 			&email.OriginalHTML,
 			&email.ReviewHTML,
 			&email.TemplateHTML,
