@@ -22,6 +22,9 @@ export type EmailListItem = {
 };
 
 export type EmailDetail = EmailListItem & {
+  live_marked_at?: string | null;
+  live_marked_by?: string | null;
+  live_note?: string | null;
   slug: string;
   original_html: string;
   review_html: string | null;

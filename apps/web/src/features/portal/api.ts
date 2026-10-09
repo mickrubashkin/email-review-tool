@@ -54,11 +54,18 @@ export type UnseenEmail = {
   send_condition: string | null;
 };
 
+export type ManualLiveEmail = UnseenEmail & {
+  live_marked_at: string;
+  live_marked_by: string;
+  live_note: string | null;
+};
+
 export type PortalOverview = {
   latest_run: PortalSyncRun | null;
   stages: PortalStage[];
   groups: PortalGroup[];
   unseen: UnseenEmail[];
+  manual_live: ManualLiveEmail[];
 };
 
 export type PortalGroupDetail = PortalGroup & {

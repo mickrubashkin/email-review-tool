@@ -68,6 +68,17 @@ export async function downloadEmailsExport(
   return { blob: await response.blob(), fileName };
 }
 
+export function markEmailLive(
+  emailId: string,
+  payload: { live: boolean; note?: string }
+): Promise<{ live_marked_at: string | null; live_marked_by: string | null; live_note: string | null }> {
+  return fetchJson(`/api/emails/${encodeURIComponent(emailId)}/live`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
 export function fetchEmailDetail(emailId: string): Promise<EmailDetail> {
   return fetchJson<EmailDetail>(`/api/emails/${encodeURIComponent(emailId)}`);
 }

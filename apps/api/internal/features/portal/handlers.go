@@ -179,6 +179,15 @@ type boardOverview struct {
 	Stages    []portalStage `json:"stages"`
 	Groups    []groupItem   `json:"groups"`
 	Unseen    []unseenEmail `json:"unseen"`
+	// ManualLive are emails a super admin marked live by hand.
+	ManualLive []manualLiveEmail `json:"manual_live"`
+}
+
+type manualLiveEmail struct {
+	unseenEmail
+	MarkedAt time.Time `json:"live_marked_at"`
+	MarkedBy string    `json:"live_marked_by"`
+	Note     *string   `json:"live_note"`
 }
 
 func boardOverviewHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
@@ -198,7 +207,7 @@ func boardOverviewHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 }
 
 func loadBoardOverview(ctx context.Context, db *pgxpool.Pool, boardKey string) (boardOverview, error) {
-	overview := boardOverview{Stages: []portalStage{}, Groups: []groupItem{}, Unseen: []unseenEmail{}}
+	overview := boardOverview{Stages: []portalStage{}, Groups: []groupItem{}, Unseen: []unseenEmail{}, ManualLive: []manualLiveEmail{}}
 
 	var run syncRun
 	err := db.QueryRow(ctx, `
@@ -259,7 +268,7 @@ func loadBoardOverview(ctx context.Context, db *pgxpool.Pool, boardKey string) (
 	rows, err = db.Query(ctx, `
 		SELECT e.id, e.title, e.stage, e.sort_order, e.language, e.variant, e.adaptation_label, e.send_timing, e.send_condition
 		FROM emails e
-		WHERE e.sequence = $1 AND e.archived_at IS NULL
+		WHERE e.sequence = $1 AND e.archived_at IS NULL AND e.live_marked_at IS NULL
 			AND NOT EXISTS (
 				SELECT 1 FROM portal_email_groups g
 				WHERE g.board_key = $1 AND (
@@ -279,6 +288,29 @@ func loadBoardOverview(ctx context.Context, db *pgxpool.Pool, boardKey string) (
 			return overview, err
 		}
 		overview.Unseen = append(overview.Unseen, u)
+	}
+	if err := rows.Err(); err != nil {
+		return overview, err
+	}
+	rows.Close()
+
+	rows, err = db.Query(ctx, `
+		SELECT e.id, e.title, e.stage, e.sort_order, e.language, e.variant, e.adaptation_label, e.send_timing,
+			e.send_condition, e.live_marked_at, COALESCE(e.live_marked_by, ''), e.live_note
+		FROM emails e
+		WHERE e.sequence = $1 AND e.archived_at IS NULL AND e.live_marked_at IS NOT NULL
+		ORDER BY e.sort_order, e.language;
+	`, boardKey)
+	if err != nil {
+		return overview, err
+	}
+	for rows.Next() {
+		var m manualLiveEmail
+		if err := rows.Scan(&m.ID, &m.Title, &m.Stage, &m.SortOrder, &m.Language, &m.Variant, &m.AdaptationLabel,
+			&m.SendTiming, &m.SendCondition, &m.MarkedAt, &m.MarkedBy, &m.Note); err != nil {
+			return overview, err
+		}
+		overview.ManualLive = append(overview.ManualLive, m)
 	}
 	return overview, rows.Err()
 }

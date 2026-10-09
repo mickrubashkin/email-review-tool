@@ -55,6 +55,9 @@ type EmailDetail struct {
 	ImplementationNotes      *string         `json:"implementation_notes"`
 	OpenCommentCount         int             `json:"open_comment_count"`
 	OpenBlockingCommentCount int             `json:"open_blocking_comment_count"`
+	LiveMarkedAt             *time.Time      `json:"live_marked_at"`
+	LiveMarkedBy             *string         `json:"live_marked_by"`
+	LiveNote                 *string         `json:"live_note"`
 	BodyText                 *string         `json:"-"`
 	ContentParts             *string         `json:"-"`
 	UpdatedAt                time.Time       `json:"-"`

@@ -30,6 +30,7 @@ import {
   type PortalGroup,
   type PortalStage,
 } from "../api";
+import { MarkLiveButton, UnmarkLiveButton } from "../MarkLive";
 import { GroupDrawer } from "./GroupDrawer";
 import { topStages } from "./portalHelpers";
 import styles from "../../auth-events/AuthEvents/AuthEvents.module.css";
@@ -91,6 +92,7 @@ export function PortalSync({ currentUserRole }: { currentUserRole: UserRole }) {
       notifications.show({ color: "red", message: error.message, title: "Sync did not start" }),
   });
 
+  const refreshOverview = () => void queryClient.invalidateQueries({ queryKey: ["portal-overview", boardKey] });
   const overview = overviewQuery.data;
   const run = overview?.latest_run ?? null;
   const stageNames = useMemo(
@@ -268,6 +270,7 @@ export function PortalSync({ currentUserRole }: { currentUserRole: UserRole }) {
                 <Table.Th>Version</Table.Th>
                 <Table.Th>Adaptation</Table.Th>
                 <Table.Th>Timing / condition</Table.Th>
+                <Table.Th />
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
@@ -283,6 +286,50 @@ export function PortalSync({ currentUserRole }: { currentUserRole: UserRole }) {
                   <Table.Td>{email.adaptation_label}</Table.Td>
                   <Table.Td>
                     {[email.send_timing, email.send_condition].filter(Boolean).join(" · ")}
+                  </Table.Td>
+                  <Table.Td>
+                    <MarkLiveButton emailId={email.id} onDone={refreshOverview} />
+                  </Table.Td>
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
+        </Paper>
+
+        <Title order={4}>Marked live by hand ({overview?.manual_live.length ?? 0})</Title>
+        <Text c="dimmed" size="sm">
+          Emails the portal sync cannot see, e.g. sent from the partner admin panel.
+        </Text>
+        <Paper withBorder>
+          <Table striped>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Stage</Table.Th>
+                <Table.Th>#</Table.Th>
+                <Table.Th>Title</Table.Th>
+                <Table.Th>Lang</Table.Th>
+                <Table.Th>Note</Table.Th>
+                <Table.Th>Marked</Table.Th>
+                <Table.Th />
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {(overview?.manual_live ?? []).map((email) => (
+                <Table.Tr key={email.id}>
+                  <Table.Td>{formatStageName(email.stage)}</Table.Td>
+                  <Table.Td>{email.sort_order}</Table.Td>
+                  <Table.Td>
+                    <a href={`/emails/${email.id}/review`}>{email.title}</a>
+                  </Table.Td>
+                  <Table.Td>{email.language.toUpperCase()}</Table.Td>
+                  <Table.Td>{email.live_note ?? ""}</Table.Td>
+                  <Table.Td>
+                    <Text size="xs">
+                      {email.live_marked_by} · {new Date(email.live_marked_at).toLocaleDateString()}
+                    </Text>
+                  </Table.Td>
+                  <Table.Td>
+                    <UnmarkLiveButton emailId={email.id} onDone={refreshOverview} />
                   </Table.Td>
                 </Table.Tr>
               ))}
