@@ -1,4 +1,4 @@
-import { Badge, Group, Paper, ScrollArea, Stack, Table, Text } from "@mantine/core";
+import { Badge, Group, Paper, ScrollArea, Stack, Table, Text, Tooltip } from "@mantine/core";
 
 import { ProductionBadge } from "../../emails/ProductionBadge";
 import type { EmailListItem, StageColumn } from "../../emails/types";
@@ -112,7 +112,16 @@ function MatrixCell({
       }}
     >
       <Stack gap={4}>
-        <ProductionBadge email={primary} versions={cellEmails} />
+        <Group gap={4}>
+          <ProductionBadge email={primary} versions={cellEmails} />
+          {primary.translation_stale ? (
+            <Tooltip label="The EN text changed after this translation; open to see what changed">
+              <Badge color="red" size="xs" variant="light">
+                EN changed
+              </Badge>
+            </Tooltip>
+          ) : null}
+        </Group>
         <Group gap={4} wrap="nowrap">
           <Text c="dimmed" size="xs">
             {primary.variant}

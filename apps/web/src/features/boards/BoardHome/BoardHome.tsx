@@ -332,6 +332,7 @@ function EmailBoardApp({
 
       {panelGroup && panelEmail ? (
         <EmailSidePanel
+          canManage={isAdmin}
           email={panelEmail}
           siblings={panelGroup.versions}
           onClose={() => setPanelEmailId(null)}

@@ -33,6 +33,10 @@ type EmailListItem struct {
 	OpenBlockingCommentCount int     `json:"open_blocking_comment_count"`
 	// From the last portal sync: how often the robots sent this email and
 	// when last; zero when it was not seen. LiveMarkedAt is a manual mark.
+	// TranslationOf is the EN master this email was translated from;
+	// TranslationStale is true when the master's text changed since.
+	TranslationOf    *string    `json:"translation_of"`
+	TranslationStale bool       `json:"translation_stale"`
 	PortalSendCount  int        `json:"portal_send_count"`
 	PortalLastSentAt *time.Time `json:"portal_last_sent_at"`
 	LiveMarkedAt     *time.Time `json:"live_marked_at"`

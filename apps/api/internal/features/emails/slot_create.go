@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -81,7 +82,12 @@ func createSlotHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 			return
 		}
 
+		// EN first: the other languages are created as its translations.
+		sort.SliceStable(request.Emails, func(i, j int) bool {
+			return request.Emails[i].Language == slotMasterLanguage && request.Emails[j].Language != slotMasterLanguage
+		})
 		response := createSlotResponse{SortOrder: sortOrder, Emails: []EmailDetail{}}
+		masterID := ""
 		for _, email := range request.Emails {
 			created, err := CreateEmailTx(r, dbpool, tx, user, NewEmailParams{
 				Sequence:      request.Sequence,
@@ -103,6 +109,14 @@ func createSlotHandler(dbpool *pgxpool.Pool) http.HandlerFunc {
 				}
 				writeCreateEmailError(w, err)
 				return
+			}
+			if email.Language == slotMasterLanguage {
+				masterID = created.ID
+			} else if masterID != "" {
+				if err := linkTranslation(r.Context(), tx, created.ID, masterID); err != nil {
+					writeCreateEmailError(w, err)
+					return
+				}
 			}
 			response.Emails = append(response.Emails, created)
 		}

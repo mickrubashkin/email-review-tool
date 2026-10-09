@@ -17,6 +17,7 @@ import type {
   EmailComment,
   EmailCommentMessage,
   RenderedEmail,
+  TranslationStatus,
   UpdateEmailAreaApprovalPayload,
   UpdateEmailPlanningFieldsPayload,
   UpdateEmailPlanningFieldsResponse,
@@ -77,6 +78,17 @@ export function markEmailLive(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
+}
+
+export function fetchTranslationStatus(emailId: string): Promise<TranslationStatus | undefined> {
+  return fetchJson<TranslationStatus | undefined>(`/api/emails/${encodeURIComponent(emailId)}/translation`);
+}
+
+export function confirmTranslation(emailId: string): Promise<TranslationStatus | undefined> {
+  return fetchJson<TranslationStatus | undefined>(
+    `/api/emails/${encodeURIComponent(emailId)}/translation/confirm`,
+    { method: "POST" }
+  );
 }
 
 export function fetchEmailDetail(emailId: string): Promise<EmailDetail> {

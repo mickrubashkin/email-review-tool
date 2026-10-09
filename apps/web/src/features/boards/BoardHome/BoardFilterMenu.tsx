@@ -232,6 +232,14 @@ export function BoardFilterControls({
         onChange={(value) => onBoardFilterChange("production", value)}
       />
       <BoardFilterSelect
+        data={[{ label: "Outdated (EN changed since)", value: "stale" }]}
+        label="Translation"
+        placeholder="All translations"
+        showLabel={showLabels}
+        value={boardFilters.translation}
+        onChange={(value) => onBoardFilterChange("translation", value)}
+      />
+      <BoardFilterSelect
         data={emailReviewStatusOptions}
         label="Status"
         placeholder="All statuses"
