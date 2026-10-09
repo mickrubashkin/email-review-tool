@@ -21,11 +21,12 @@ import { useDebouncedValue } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { HouseIcon, UploadSimpleIcon } from "@phosphor-icons/react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import { fetchBoards } from "../../boards/api";
 import { createSlot, fetchEmails, inspectEmailHTML } from "../../emails/api";
 import { formatStageName } from "../../emails/stages";
+import { decidePortalGroup, reconstructPortalGroup, type PortalReconstruction } from "../../portal/api";
 import type { AuthUser, EmailHTMLInspection } from "../../emails/types";
 
 import {
@@ -39,21 +40,82 @@ import {
 } from "./slotLanguages";
 import styles from "./SlotCreate.module.css";
 
+type PortalSource = { groupID: string; language: SlotLanguage | null; reconstruction: PortalReconstruction };
+
+// SlotCreate optionally starts from emails sent on the portal
+// (?portal_group=…): they are rebuilt on the board template first.
 export function SlotCreate({ currentUserRole }: { currentUserRole: AuthUser["role"] }) {
+  const [searchParams] = useSearchParams();
+  const [groupIDs] = useState(() => searchParams.getAll("portal_group"));
+  const queries = useQueries({
+    queries: groupIDs.map((id) => ({
+      queryKey: ["portal-reconstruct", id],
+      queryFn: () => reconstructPortalGroup(id),
+      staleTime: Infinity,
+      retry: false,
+    })),
+  });
+
+  if (queries.some((q) => q.isPending)) {
+    return (
+      <Stack align="center" justify="center" h="100dvh">
+        <Text c="dimmed">Rebuilding the sent emails on the board template…</Text>
+      </Stack>
+    );
+  }
+
+  const sources: PortalSource[] = [];
+  const initialDrafts = Object.fromEntries(slotLanguages.map((l) => [l, emptyDraft])) as Record<SlotLanguage, LanguageDraft>;
+  const used = new Set<SlotLanguage>();
+  queries.forEach((query, index) => {
+    if (!query.data) return;
+    const detected = query.data.language as SlotLanguage;
+    const language =
+      (slotLanguages as readonly string[]).includes(detected) && !used.has(detected)
+        ? detected
+        : slotLanguages.find((l) => !used.has(l)) ?? null;
+    if (language) {
+      used.add(language);
+      initialDrafts[language] = { html: query.data.html, subject: query.data.subject || null, preheader: null };
+    }
+    sources.push({ groupID: groupIDs[index], language, reconstruction: query.data });
+  });
+
+  return (
+    <SlotCreateForm
+      currentUserRole={currentUserRole}
+      failedSources={queries.filter((q) => q.isError).length}
+      initialDrafts={initialDrafts}
+      portalSources={sources}
+    />
+  );
+}
+
+function SlotCreateForm({
+  currentUserRole,
+  failedSources,
+  initialDrafts,
+  portalSources,
+}: {
+  currentUserRole: AuthUser["role"];
+  failedSources: number;
+  initialDrafts: Record<SlotLanguage, LanguageDraft>;
+  portalSources: PortalSource[];
+}) {
   const canCreate = currentUserRole === "admin" || currentUserRole === "super_admin";
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
   const [boardKey, setBoardKey] = useState<string | null>(null);
-  const [stage, setStage] = useState<string | null>(null);
+  const [stage, setStage] = useState<string | null>(
+    () => portalSources.find((s) => s.reconstruction.suggested_stage)?.reconstruction.suggested_stage ?? null
+  );
   const [title, setTitle] = useState("");
   const [autoPosition, setAutoPosition] = useState(true);
   const [sortOrder, setSortOrder] = useState<number | string>("");
   const [sendTiming, setSendTiming] = useState("");
   const [sendCondition, setSendCondition] = useState("");
-  const [drafts, setDrafts] = useState<Record<SlotLanguage, LanguageDraft>>(
-    () => Object.fromEntries(slotLanguages.map((l) => [l, emptyDraft])) as Record<SlotLanguage, LanguageDraft>
-  );
+  const [drafts, setDrafts] = useState<Record<SlotLanguage, LanguageDraft>>(initialDrafts);
   const [activeTab, setActiveTab] = useState<string | null>("en");
   const [error, setError] = useState<string | null>(null);
 
@@ -110,7 +172,19 @@ export function SlotCreate({ currentUserRole }: { currentUserRole: AuthUser["rol
   ) as Record<SlotLanguage, boolean>;
 
   const createMutation = useMutation({
-    mutationFn: createSlot,
+    mutationFn: async (payload: Parameters<typeof createSlot>[0]) => {
+      const response = await createSlot(payload);
+      // Mark the portal emails this slot was made from, so they leave the review list.
+      await Promise.all(
+        portalSources.map((source) => {
+          const created = response.emails.find((e) => e.language === source.language);
+          return created
+            ? decidePortalGroup(source.groupID, { decision: "created", email_id: created.id })
+            : Promise.resolve();
+        })
+      );
+      return response;
+    },
     onSuccess: (response) => {
       void queryClient.invalidateQueries({ queryKey: ["emails"] });
       notifications.show({
@@ -257,6 +331,29 @@ export function SlotCreate({ currentUserRole }: { currentUserRole: AuthUser["rol
               )}
             </Stack>
 
+            {portalSources.length > 0 || failedSources > 0 ? (
+              <Alert color="blue" title="From emails sent on the portal">
+                {(
+                  <List size="sm">
+                    {portalSources.map((source) => (
+                      <List.Item key={source.groupID}>
+                        {(source.language ?? "?").toUpperCase()}: {source.reconstruction.from_template
+                          ? `rebuilt on the template of "${source.reconstruction.template_email_title}"`
+                          : "kept its own structure"}
+                        {source.reconstruction.warnings.map((w) => (
+                          <Text key={w} c="orange" size="xs">
+                            {w}
+                          </Text>
+                        ))}
+                      </List.Item>
+                    ))}
+                    {failedSources > 0 ? (
+                      <List.Item>Some emails could not be rebuilt.</List.Item>
+                    ) : null}
+                  </List>
+                )}
+              </Alert>
+            ) : null}
             {error ? (
               <Alert color="red" title="Could not create the slot">
                 {error}
