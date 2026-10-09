@@ -24,12 +24,15 @@ import {
   boardScrollPositionStorageKey,
   boardSearchStorageKey,
   boardSelectedVersionsStorageKey,
+  boardViewStorageKey,
   type BoardFilters,
+  type BoardView,
 } from "./BoardHome.types";
 import {
   readStoredBoardFilters,
   readStoredBoardScrollPosition,
   readStoredBoardSearch,
+  readStoredBoardView,
   readStoredSelectedVersions,
   writeSessionStorageValue,
 } from "./BoardHome.storage";
@@ -37,6 +40,8 @@ import { BoardHeader } from "./BoardHeader";
 import { CreateBoardModal } from "./CreateBoardModal";
 import { BoardAIExportModal } from "./BoardAIExportModal";
 import { useFilteredExport } from "./useFilteredExport";
+import { EmailSidePanel } from "./EmailSidePanel";
+import { SlotMatrix } from "./SlotMatrix";
 import { ManageStagesModal } from "./ManageStagesModal";
 import { useBoardHomeData } from "./useBoardHomeData";
 import styles from "../../../App.module.css";
@@ -160,6 +165,12 @@ function EmailBoardApp({
 }) {
   const navigate = useNavigate();
   const [aiExportOpened, setAiExportOpened] = useState(false);
+  const [panelEmailId, setPanelEmailId] = useState<string | null>(null);
+  const [boardView, setBoardViewState] = useState<BoardView>(readStoredBoardView);
+  const setBoardView = (view: BoardView) => {
+    setBoardViewState(view);
+    writeSessionStorageValue(boardViewStorageKey, view);
+  };
   const {
     activeBoard,
     activeBoardFilterCount,
@@ -216,9 +227,15 @@ function EmailBoardApp({
     }));
   };
 
+  // Emails open in a side panel next to the board; "Open" in the panel goes
+  // to the full review page.
   const handleOpenVersionGroup = (_groupKey: string, emailId: string) => {
-    navigate(`/emails/${encodeURIComponent(emailId)}/review`);
+    setPanelEmailId(emailId);
   };
+  const panelGroup = panelEmailId
+    ? columns.flatMap((c) => c.emailGroups).find((g) => g.versions.some((v) => v.id === panelEmailId))
+    : undefined;
+  const panelEmail = panelGroup?.versions.find((v) => v.id === panelEmailId);
 
   const handleBoardChange = (value: string | null) => {
     if (value) {
@@ -262,6 +279,8 @@ function EmailBoardApp({
           onManageStages={() => setManageStagesModalOpened(true)}
           onResetBoardFilters={resetBoardFilters}
           onUserMenuOpenedChange={setUserMenuOpened}
+          boardView={boardView}
+          onBoardViewChange={setBoardView}
         />
       </AppShell.Header>
 
@@ -282,6 +301,13 @@ function EmailBoardApp({
 
           {emailsQuery.isSuccess ? (
             visibleColumns.length > 0 ? (
+              boardView === "matrix" ? (
+                <SlotMatrix
+                  columns={visibleColumns}
+                  selectedEmailId={panelEmailId}
+                  onOpenEmail={(email) => setPanelEmailId(email.id)}
+                />
+              ) : (
               <EmailBoard
                 columns={visibleColumns}
                 scrollPosition={boardScrollPosition}
@@ -291,6 +317,7 @@ function EmailBoardApp({
                 onScrollPositionChange={onBoardScrollPositionChange}
                 onSelectVersion={handleSelectVersion}
               />
+              )
             ) : (
               <Stack align="center" justify="center" h="100%" ta="center">
                 <Text fw={600}>{filterEmptyState}</Text>
@@ -302,6 +329,15 @@ function EmailBoardApp({
           ) : null}
         </Box>
       </AppShell.Main>
+
+      {panelGroup && panelEmail ? (
+        <EmailSidePanel
+          email={panelEmail}
+          siblings={panelGroup.versions}
+          onClose={() => setPanelEmailId(null)}
+          onSelect={(email) => setPanelEmailId(email.id)}
+        />
+      ) : null}
 
       {isAdmin ? filteredExport.dialog : null}
 

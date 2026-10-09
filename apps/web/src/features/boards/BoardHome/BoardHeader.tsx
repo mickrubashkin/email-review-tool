@@ -4,6 +4,7 @@ import {
   Group,
   Menu,
   ScrollArea,
+  SegmentedControl,
   Select,
   Stack,
   Text,
@@ -26,6 +27,7 @@ import {
 import {
   type BoardFilterOptions,
   type BoardFilters,
+  type BoardView,
   type HandoffFilters,
 } from "./BoardHome.types";
 import {
@@ -43,6 +45,8 @@ import styles from "../../../App.module.css";
 
 type BoardHeaderProps = {
   activeBoard: Board | undefined;
+  boardView: BoardView;
+  onBoardViewChange: (view: BoardView) => void;
   activeBoardFilterCount: number;
   activeHandoffFilterCount: number;
   boardFilterOptions: BoardFilterOptions;
@@ -78,6 +82,8 @@ type BoardHeaderProps = {
 
 export function BoardHeader({
   activeBoard,
+  boardView,
+  onBoardViewChange,
   activeBoardFilterCount,
   activeHandoffFilterCount,
   boardFilterOptions,
@@ -129,6 +135,8 @@ export function BoardHeader({
       {isCompactHeader ? (
         <CompactHeaderMenu
           activeBoard={activeBoard}
+          boardView={boardView}
+          onBoardViewChange={onBoardViewChange}
           activeHandoffFilterCount={activeHandoffFilterCount}
           boardFilterOptions={boardFilterOptions}
           boardFilters={boardFilters}
@@ -193,6 +201,7 @@ export function BoardHeader({
               size="sm"
               onBoardSearchQueryChange={onBoardSearchQueryChange}
             />
+            <BoardViewToggle value={boardView} onChange={onBoardViewChange} />
           </Group>
 
           <Group className={styles.headerActions} gap="xs" wrap="nowrap">
@@ -229,6 +238,8 @@ export function BoardHeader({
 
 function CompactHeaderMenu({
   activeBoard,
+  boardView,
+  onBoardViewChange,
   activeHandoffFilterCount,
   boardFilterOptions,
   boardFilters,
@@ -309,6 +320,10 @@ function CompactHeaderMenu({
                 onBoardSearchQueryChange={onBoardSearchQueryChange}
               />
             </div>
+            <Menu.Label>View</Menu.Label>
+            <div className={styles.boardFilterMenuControl}>
+              <BoardViewToggle value={boardView} onChange={onBoardViewChange} />
+            </div>
             <Menu.Label>Filters</Menu.Label>
             <div className={styles.boardFilterMenuControl}>
               <MyEmailsToggle
@@ -387,5 +402,20 @@ function CompactHeaderMenu({
         </Menu.Dropdown>
       </Menu>
     </Group>
+  );
+}
+
+function BoardViewToggle({ value, onChange }: { value: BoardView; onChange: (view: BoardView) => void }) {
+  return (
+    <SegmentedControl
+      className={styles.boardViewToggle}
+      data={[
+        { label: "Cards", value: "cards" },
+        { label: "Matrix", value: "matrix" },
+      ]}
+      size="sm"
+      value={value}
+      onChange={(next) => onChange(next as BoardView)}
+    />
   );
 }

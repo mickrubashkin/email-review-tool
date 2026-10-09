@@ -3,8 +3,10 @@ import {
   boardScrollPositionStorageKey,
   boardSearchStorageKey,
   boardSelectedVersionsStorageKey,
+  boardViewStorageKey,
   defaultBoardFilters,
   type BoardFilters,
+  type BoardView,
 } from "./BoardHome.types";
 
 export function readStoredSelectedVersions() {
@@ -42,6 +44,11 @@ export function readStoredBoardFilters(): BoardFilters {
     ...storedFilters,
     comments: storedFilters.comments === "open" ? "open" : "all",
   };
+}
+
+
+export function readStoredBoardView(): BoardView {
+  return readSessionStorageValue<string>(boardViewStorageKey, "cards") === "matrix" ? "matrix" : "cards";
 }
 
 
